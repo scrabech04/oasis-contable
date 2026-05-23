@@ -2,6 +2,19 @@
 
 Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-23 - Ajuste Firebase App Hosting / Prisma
+
+### Cambiado
+- Se agrego `postinstall: prisma generate` para que Firebase App Hosting genere el Prisma Client durante el build en la nube.
+- Esto evita depender de `lib/generated-client`, que existe localmente pero no debe subirse al repo porque es artefacto generado.
+- Se reforzo el build con `prisma generate && next build`.
+- Se movieron `prisma` y `@prisma/client` a dependencias de produccion para evitar fallos del adaptador cloud.
+
+### Pendiente de prueba funcional
+- Subir el cambio de `package.json` a GitHub.
+- Ejecutar un nuevo rollout en Firebase App Hosting.
+- Si el rollout vuelve a fallar, revisar la primera linea roja del raw log de Cloud Build.
+
 ## 2026-05-22 - Preparacion Firebase App Hosting
 
 ### Agregado

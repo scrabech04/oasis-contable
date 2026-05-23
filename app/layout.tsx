@@ -7,6 +7,8 @@ import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PwaRegister } from "@/components/PwaRegister";
 
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
