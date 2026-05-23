@@ -1,0 +1,175 @@
+/* Fonts are now loaded in the layout.tsx head for better performance and compatibility */
+
+.material-icons-round {
+  font-family: 'Material Icons Round';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card: #0f172a;
+  --card-foreground: #f8fafc;
+  --popover: #0f172a;
+  --popover-foreground: #f8fafc;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f8fafc;
+  --border: #1e293b;
+  --input: #1e293b;
+  --primary: #3b82f6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: 'Inter', var(--font-geist-sans);
+  --font-mono: 'JetBrains Mono', var(--font-geist-mono);
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+}
+
+.font-numeric {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0;
+    size: A4 portrait;
+  }
+
+  aside,
+  nav,
+  .no-print,
+  button,
+  header,
+  footer,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body, html {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background-color: white !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .max-w-7xl,
+  .max-w-5xl {
+    max-width: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .bg-slate-50,
+  .bg-background,
+  .dark {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  .shadow-xl,
+  .shadow-md,
+  .shadow-sm {
+    box-shadow: none !important;
+  }
+
+  .rounded-2xl, .rounded-xl {
+    border-radius: 0 !important;
+  }
+
+  .border, .ring-1 {
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  
+  .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* Make sure background colors (like gradients and badges) print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+}

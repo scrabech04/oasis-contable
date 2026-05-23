@@ -1,0 +1,413 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Contact {
+  id                Int                 @id @default(autoincrement())
+  name              String
+  taxId             String?             // RNC/Cédula
+  email             String?
+  phone             String?
+  address           String?
+  city              String?
+  country           String?
+  website           String?
+  notes             String?
+  type              String              @default("CLIENT") // CLIENT, SUPPLIER, BOTH
+  preferredNCF      String?             // Tipo de comprobante por defecto
+  
+  contactPersons    ContactPerson[]
+  
+  invoices          Invoice[]
+  purchases         Purchase[]
+  quotations        Quotation[]
+  projects          Project[]
+  recurringInvoices RecurringInvoice[]
+  profileId         Int?
+  profile           AccountProfile?     @relation(fields: [profileId], references: [id])
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+model ContactPerson {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  email     String?
+  position  String?  // Cargo
+  isMain    Boolean  @default(false)
+  contactId Int
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id            Int         @id @default(autoincrement())
+  code          String      @unique
+  name          String
+  description   String?
+  responsible   String?
+  startDate     DateTime    @default(now())
+  endDate       DateTime?
+  status        String      @default("PROPOSAL") // PROPOSAL, ACTIVE, ON_HOLD, COMPLETED, CANCELLED
+  
+  contactId     Int
+  contact       Contact     @relation(fields: [contactId], references: [id])
+  
+  budgetIncome  Float       @default(0)
+  budgetCost    Float       @default(0)
+  
+  invoices      Invoice[]
+  quotations    Quotation[]
+  purchases     Purchase[]
+  recurringInvoices RecurringInvoice[]
+  subscriptions Subscription[]
+  sharedWith     ProjectShare[]
+  profileId     Int?
+  profile       AccountProfile? @relation(fields: [profileId], references: [id])
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model ProjectShare {
+  id        Int            @id @default(autoincrement())
+  projectId Int
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profileId Int
+  profile   AccountProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@unique([projectId, profileId])
+}
+
+model Quotation {
+  id          Int             @id @default(autoincrement())
+  number      String          @unique // e.g., COT-001
+  date        DateTime        @default(now())
+  validUntil  DateTime?
+  status      String          @default("DRAFT") // DRAFT, SENT, ACCEPTED, REJECTED, INVOICED
+  
+  contactId   Int
+  contact     Contact         @relation(fields: [contactId], references: [id])
+  
+  projectId   Int?
+  project     Project?        @relation(fields: [projectId], references: [id])
+  
+  items       QuotationItem[]
+  subtotal    Float
+  tax         Float
+  total       Float
+  title       String?
+  subtitle    String?
+  notes       String?
+  termsAndConditions String?
+  includeCoverPage   Boolean @default(false)
+  includeTermsPage   Boolean @default(false)
+  profileId   Int?
+  profile     AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model QuotationItem {
+  id          Int       @id @default(autoincrement())
+  quotationId Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String
+  itemType    String    @default("ITEM") // ITEM, HEADING, SUBHEADING
+  quantity    Int
+  price       Float
+  taxRate     Float     @default(0)
+  total       Float
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  number      String        @unique // e.g., INV-001
+  ncf         String?       // Comprobante Fiscal
+  date        DateTime      @default(now())
+  dueDate     DateTime
+  status      String        @default("DRAFT") // DRAFT, SENT, PAID, OVERDUE
+  type        String        @default("INVOICE") // INVOICE, QUOTE
+  contactId   Int
+  contact     Contact       @relation(fields: [contactId], references: [id])
+  
+  projectId   Int?
+  project     Project?      @relation(fields: [projectId], references: [id])
+  
+  items       InvoiceItem[]
+  subtotal    Float
+  tax         Float
+  total       Float
+  paidAmount  Float         @default(0)
+  incomeType  String?       @default("01") // DGII Classification (01, 02, etc.)
+  title       String?
+  subtitle    String?
+  notes       String?
+  termsAndConditions String?
+  includeCoverPage   Boolean @default(false)
+  includeTermsPage   Boolean @default(false)
+  payments    Payment[]
+  recurringInvoiceId Int?
+  recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id])
+  profileId   Int?
+  profile     AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([recurringInvoiceId, date])
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  price       Float
+  taxRate     Float   @default(0) // Impuesto %
+  total       Float
+}
+
+model Purchase {
+  id          Int            @id @default(autoincrement())
+  number      String?        // Internal ID or Supplier Invoice #
+  ncf         String?        // Comprobante Fiscal (Crucial for formal)
+  date        DateTime       @default(now())
+  dueDate     DateTime?      // For credit purchases
+  status      String         @default("OPEN") // OPEN, PAID
+  type        String         @default("FORMAL") // FORMAL (Proveedor), INFORMAL (Gasto Menor)
+  supplierName  String?      // Nombre del emisor, aunque no exista como contacto
+  supplierTaxId String?      // RNC/Cedula del emisor, aunque no exista como contacto
+  
+  contactId   Int?           // Optional for Informal
+  contact     Contact?       @relation(fields: [contactId], references: [id])
+  
+  projectId   Int?
+  project     Project?       @relation(fields: [projectId], references: [id])
+  
+  items       PurchaseItem[]
+  
+  subtotal    Float
+  tax         Float
+  discount    Float          @default(0)
+  total       Float
+  paidAmount  Float          @default(0)
+  costType    String?        @default("02") // DGII 606 Type (01-11)
+  origin      String         @default("LOCAL") // LOCAL, FOREIGN
+  taxTreatment String        @default("LOCAL_CREDIT") // LOCAL_CREDIT, LOCAL_NO_CREDIT, FOREIGN_EXPENSE, IMPORT_GOODS, FOREIGN_WITHHOLDING
+  hasFiscalCredit Boolean    @default(true)
+  report606   Boolean        @default(true)
+  report609   Boolean        @default(false)
+  affectsISR  Boolean        @default(true)
+  
+  notes       String?
+  payments    Payment[]
+  attachments PurchaseAttachment[]
+  profileId   Int?
+  profile     AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model PurchaseAttachment {
+  id           Int             @id @default(autoincrement())
+  purchaseId   Int
+  purchase     Purchase        @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  fileName     String
+  mimeType     String
+  fileSize     Int
+  storagePath  String
+  type         String          @default("ORIGINAL_INVOICE")
+  createdAt    DateTime        @default(now())
+}
+
+model Payment {
+  id          Int       @id @default(autoincrement())
+  amount      Float
+  date        DateTime  @default(now())
+  method      String    // CASH, BANK_TRANSFER, CHECK, CARD
+  reference   String?   // Transaction #, Check #
+  notes       String?
+  
+  invoiceId   Int?
+  invoice     Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  purchaseId  Int?
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  withholdings Withholding[]
+}
+
+model Withholding {
+  id        Int      @id @default(autoincrement())
+  type      String   // ITBIS 30%, etc.
+  amount    Float
+  paymentId Int
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseItem {
+  id          Int      @id @default(autoincrement())
+  purchaseId  Int
+  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  description String   // Concepto
+  quantity    Int
+  price       Float
+  taxRate     Float    @default(0) // Impuesto %
+  total       Float
+}
+
+model NumberingSequence {
+  id            Int      @id @default(autoincrement())
+  name          String   // e.g., Crédito Fiscal (01)
+  prefix        String   // e.g., B01
+  nextNumber    Int      @default(1)
+  initialNumber Int      @default(1)
+  finalNumber   Int?
+  expiryDate    DateTime?
+  isPreferred   Boolean  @default(false)
+  docType       String   @default("INVOICE") // INVOICE, QUOTATION, etc.
+  type          String   // NCF Type: 01, 02, 14, 15, etc.
+  branch        String   @default("Principal")
+  footerText    String?
+  profileId     Int?
+  profile       AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CompanySettings {
+  id        Int      @id @default(autoincrement())
+  name      String   @default("Mi Empresa S.R.L.")
+  taxId     String   @default("131-XXXXX-X")
+  email     String?  @default("contacto@empresa.com")
+  phone     String?  @default("(809) 555-0123")
+  address   String?  @default("Calle Principal #123, Santo Domingo")
+  logo      String?
+  currency  String   @default("RD$")
+  profileId Int?     @unique
+  profile   AccountProfile? @relation(fields: [profileId], references: [id])
+  updatedAt DateTime @updatedAt
+}
+
+model CompanyIdentity {
+  id        Int      @id @default(autoincrement())
+  name      String
+  taxId     String
+  email     String?
+  phone     String?
+  address   String?
+  logoUrl   String?
+  isDefault Boolean  @default(false)
+  profileId Int?
+  profile   AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RecurringInvoice {
+  id              Int                   @id @default(autoincrement())
+  contactId       Int
+  contact         Contact               @relation(fields: [contactId], references: [id])
+  projectId       Int?
+  project         Project?              @relation(fields: [projectId], references: [id])
+  ncfSequenceId   Int?
+  frequency       String                // DAILY, WEEKLY, MONTHLY, YEARLY
+  dayOfMonth      Int?                  // 1-31
+  startDate       DateTime              @default(now())
+  endDate         DateTime?
+  lastGenerated   DateTime?
+  nextGeneration  DateTime
+  status          String                @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED
+  dueDays         Int                   @default(30)
+  
+  title           String?
+  subtitle        String?
+  items           RecurringInvoiceItem[]
+  generatedInvoices Invoice[]
+  notes           String?
+  profileId       Int?
+  profile         AccountProfile?       @relation(fields: [profileId], references: [id])
+  
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model RecurringInvoiceItem {
+  id                 Int              @id @default(autoincrement())
+  recurringInvoiceId Int
+  recurringInvoice   RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  description        String
+  quantity           Int
+  price              Float
+  taxRate            Float            @default(18)
+  total              Float
+}
+
+model AccountProfile {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  taxId              String
+  type               String              @default("BUSINESS") // BUSINESS, PERSON
+  isDefault          Boolean             @default(false)
+  email              String?
+  phone              String?
+  address            String?
+  logoUrl            String?
+  contacts           Contact[]
+  projects           Project[]
+  projectShares      ProjectShare[]
+  quotations         Quotation[]
+  invoices           Invoice[]
+  purchases          Purchase[]
+  numberingSequences NumberingSequence[]
+  recurringInvoices  RecurringInvoice[]
+  subscriptions      Subscription[]
+  companySettings    CompanySettings?
+  identities         CompanyIdentity[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model Subscription {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String?
+  category        String          @default("SOFTWARE") // DOMAIN, HOSTING, SOFTWARE, PLATFORM, OTHER
+  provider        String
+  websiteUrl      String?
+  managementUrl   String?
+  paymentMethod   String          @default("CARD") // CARD, BANK_TRANSFER, PAYPAL, CASH, OTHER
+  paymentAccount  String?
+  amount          Float           @default(0)
+  currency        String          @default("RD$")
+  billingCycle    String          @default("MONTHLY") // MONTHLY, YEARLY, WEEKLY, QUARTERLY, ONE_TIME
+  startDate       DateTime        @default(now())
+  nextBillingDate DateTime?
+  reminderDays    Int             @default(7)
+  status          String          @default("ACTIVE") // ACTIVE, PAUSED, CANCELLED
+  notes           String?
+  projectId       Int?
+  project         Project?        @relation(fields: [projectId], references: [id])
+  profileId       Int?
+  profile         AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
