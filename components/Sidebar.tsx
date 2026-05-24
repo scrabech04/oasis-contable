@@ -40,12 +40,12 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <div className="flex h-full w-full flex-col bg-white transition-colors duration-200 dark:bg-slate-900">
+    <div className="flex h-full w-full flex-col bg-white transition-colors duration-200 dark:bg-[#151b23]">
       <div className="p-6">
         <Link href="/" className="flex items-center gap-2">
-          <span className="material-icons-round text-3xl text-primary">account_balance_wallet</span>
+          <span className="material-icons-round text-3xl text-primary dark:text-[#a9c2ff]">account_balance_wallet</span>
           <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Contable<span className="font-normal text-slate-500">App</span>
+            Contable<span className="font-normal text-slate-500 dark:text-[#9aa8bd]">App</span>
           </span>
         </Link>
       </div>
@@ -62,15 +62,15 @@ export function Sidebar({
               className={clsx(
                 "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all",
                 {
-                  "bg-slate-100 font-medium text-primary dark:bg-slate-800": isActive,
-                  "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800": !isActive,
+                  "bg-slate-100 font-medium text-primary dark:bg-[#252c37] dark:text-[#c4d6ff]": isActive,
+                  "text-slate-600 hover:bg-slate-50 dark:text-[#c5cedd] dark:hover:bg-[#202733]": !isActive,
                 }
               )}
             >
               <span
                 className={clsx("material-icons-round text-[20px]", {
-                  "text-primary": isActive,
-                  "group-hover:text-primary": !isActive,
+                  "text-primary dark:text-[#a9c2ff]": isActive,
+                  "group-hover:text-primary dark:group-hover:text-[#a9c2ff]": !isActive,
                 })}
               >
                 {link.icon}
@@ -93,15 +93,15 @@ export function Sidebar({
               className={clsx(
                 "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all",
                 {
-                  "bg-slate-100 font-medium text-primary dark:bg-slate-800": isActive,
-                  "text-slate-600 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800": !isActive,
+                  "bg-slate-100 font-medium text-primary dark:bg-[#252c37] dark:text-[#c4d6ff]": isActive,
+                  "text-slate-600 hover:bg-slate-50 dark:text-[#c5cedd] dark:hover:bg-[#202733]": !isActive,
                 }
               )}
             >
               <span
                 className={clsx("material-icons-round text-[20px]", {
-                  "text-primary": isActive,
-                  "group-hover:text-primary": !isActive,
+                  "text-primary dark:text-[#a9c2ff]": isActive,
+                  "group-hover:text-primary dark:group-hover:text-[#a9c2ff]": !isActive,
                 })}
               >
                 {link.icon}

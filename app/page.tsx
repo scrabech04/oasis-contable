@@ -65,7 +65,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-        <section className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
+        <section className="bg-white dark:bg-[#111820] rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 border border-slate-100 dark:border-[#2a3442] shadow-sm transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-6 md:mb-10">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase italic opacity-20 leading-none mb-1">
@@ -81,7 +81,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        <section className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
+        <section className="bg-white dark:bg-[#111820] rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 border border-slate-100 dark:border-[#2a3442] shadow-sm transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-6 md:mb-10">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase italic opacity-20 leading-none mb-1">
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 pb-12">
-        <section className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col transition-all hover:shadow-md">
+        <section className="lg:col-span-2 bg-white dark:bg-[#111820] rounded-2xl md:rounded-[2.5rem] p-5 md:p-10 border border-slate-100 dark:border-[#2a3442] shadow-sm flex flex-col transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-6 md:mb-8">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span className="material-icons-round text-blue-500">history</span>
@@ -176,7 +176,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+          <div className="bg-white dark:bg-[#111820] p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-slate-100 dark:border-[#2a3442] shadow-sm">
             <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">
               Meta Mensual
             </p>
@@ -223,7 +223,7 @@ function StatCard({
 
   return (
     <div
-      className={`group bg-white dark:bg-slate-900 p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 transition-all hover:shadow-xl hover:-translate-y-1 ${className}`}
+      className={`group bg-white dark:bg-[#111820] p-4 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-[#2a3442] transition-all hover:shadow-xl hover:-translate-y-1 dark:hover:border-[#3a4656] ${className}`}
     >
       <div className="flex items-center justify-between mb-4">
         <div className={`p-2.5 rounded-2xl transition-transform group-hover:scale-110 ${tones[tone]}`}>

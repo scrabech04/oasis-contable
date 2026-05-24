@@ -64,8 +64,8 @@ export default async function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <div className="flex h-screen w-full overflow-hidden bg-background print:h-auto print:block print:overflow-visible">
-            <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r bg-white transition-colors duration-200 dark:bg-slate-900 md:flex">
+          <div className="flex h-screen w-full overflow-hidden bg-background print:h-auto print:block print:overflow-visible dark:bg-[#0b0f15]">
+            <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r bg-white transition-colors duration-200 dark:border-[#2a3442] dark:bg-[#151b23] md:flex">
               <Sidebar profiles={profiles} activeProfileId={activeProfile.id} />
             </aside>
             <main className="flex-1 overflow-y-auto custom-scrollbar print:ml-0 print:h-auto print:overflow-visible print:p-0 md:ml-64">

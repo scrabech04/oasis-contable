@@ -8,6 +8,9 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - El dashboard muestra el nombre del perfil activo como titulo principal.
 - `/mobile/quick-actions` ahora muestra acciones en dos columnas tambien en mobile.
 - El menu inferior mobile incluye un acceso central destacado a `Acciones`.
+- El acceso central del menu mobile ahora es un boton solo con icono `+`.
+- El panel emergente de `Mas` en mobile usa padding `calc(var(--spacing) * 6)`.
+- Los iconos de acciones rapidas usan colores distintos para diferenciarse mejor.
 - `Escanear comprobante` es la primera accion rapida y abre `/purchases?scan=qr`.
 - `/purchases?scan=qr` abre automaticamente el lector QR.
 - El flujo QR intenta detectar el RNC/Cedula del comprador/receptor y cambia al perfil correspondiente antes de crear la compra.
@@ -18,6 +21,22 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - Escanear una factura electronica de Oasis Gate estando en Samuel Calderon y confirmar cambio automatico de perfil.
 - Escanear una factura electronica de Samuel Calderon estando en Oasis Gate y confirmar cambio automatico de perfil.
 - Confirmar fallback: si el QR no trae RNC del comprador o no coincide con un perfil, se mantiene el perfil activo.
+
+## 2026-05-24 - Mejora visual modo oscuro
+
+### Cambiado
+- Se actualizo la paleta global del modo oscuro hacia un estilo financiero mas profundo: fondo casi negro, paneles elevados, bordes azul-gris y texto de mayor contraste.
+- Sidebar desktop ahora usa un fondo oscuro diferenciado y estados activos con acento azul claro.
+- Dashboard ajusta cards y paneles principales para usar bordes y fondos mas cercanos al nuevo tema oscuro.
+- Se agregaron overrides globales para que las pantallas existentes con `dark:bg-slate-*`, `dark:border-slate-*` y `dark:text-slate-*` hereden la nueva direccion visual sin reescribir cada componente.
+
+### Verificado
+- TypeScript.
+
+### Pendiente de prueba funcional
+- Revisar dashboard, compras, facturas y configuracion en modo oscuro desde navegador.
+- Confirmar que tablas, formularios y modales mantienen contraste suficiente.
+- Ejecutar build completo luego de detener el server local si Windows mantiene bloqueado el Prisma query engine.
 
 ## 2026-05-24 - Migracion local SQLite a Supabase
 
