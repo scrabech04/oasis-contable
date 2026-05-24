@@ -228,6 +228,61 @@ function normalizeMoney(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function textFromHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function moneyAfterLabel(text: string, labels: string[]) {
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*:?\\s*(?:RD\\$\\s*)?([0-9][0-9.,]*)`, "i");
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return normalizeMoney(match[1]);
+    }
+  }
+  return 0;
+}
+
+async function fetchDgiiTimbreDetails(url: string) {
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(7000),
+      headers: {
+        "user-agent": "Mozilla/5.0 compatible; OasisContable/1.0",
+        accept: "text/html,application/xhtml+xml",
+      },
+    });
+
+    if (!response.ok) return { taxAmount: 0 };
+
+    const text = textFromHtml(await response.text());
+    return {
+      total: moneyAfterLabel(text, [
+        "Monto Total",
+        "Monto total",
+        "Total Factura",
+        "Total factura",
+      ]),
+      taxAmount: moneyAfterLabel(text, [
+        "Total de ITBIS",
+        "Total ITBIS",
+        "ITBIS",
+        "Monto ITBIS",
+      ]),
+    };
+  } catch {
+    return { total: 0, taxAmount: 0 };
+  }
+}
+
 function normalizeImportedItems(items: any[], fallbackDescription: string) {
   const safeItems = Array.isArray(items) && items.length > 0 ? items : [{ description: fallbackDescription }];
   return safeItems.map((item) => {
@@ -1701,6 +1756,7 @@ export async function processDGIIQR(qrText: string) {
     const targetProfile = profiles.find(
       (profile) => normalizeProfileTaxId(profile.taxId) === normalizedBuyerTaxId,
     );
+    const pageDetails = await fetchDgiiTimbreDetails(qrText);
 
     return {
       success: true,
@@ -1709,9 +1765,9 @@ export async function processDGIIQR(qrText: string) {
         buyerTaxId,
         targetProfileId: targetProfile?.id || null,
         targetProfileName: targetProfile?.name || null,
-        ncf: params.get("ENCF") || params.get("ncf") || "",
-        total: moneyParam("MontoTotal", "Total", "total"),
-        taxAmount: moneyParam("TotalITBIS", "TotalItbis", "MontoITBIS", "MontoItbis", "ITBIS", "Itbis", "ITBIS18", "MontoITBIS1", "MontoITBIS2", "MontoITBIS3"),
+        ncf: params.get("eNCF") || params.get("ENCF") || params.get("encf") || params.get("ncf") || "",
+        total: pageDetails.total || moneyParam("MontoTotal", "Total", "total"),
+        taxAmount: pageDetails.taxAmount,
         date: params.get("FechaEmision") || "",
       },
     };

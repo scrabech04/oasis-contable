@@ -9,10 +9,13 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - El formulario de compras protege los calculos de subtotal, impuesto y total contra valores no numericos.
 - El formato de moneda muestra `0.00` si recibe un valor no numerico, evitando que la UI muestre `NaN`.
 - El parser de montos del QR acepta formatos con coma o punto decimal, incluyendo `RD$1,234.56` y `1.234,56`.
+- El parser QR ahora reconoce `eNCF`, ademas de `ENCF`, `encf` y `ncf`.
 
 ### Cambiado
-- Si el QR trae ITBIS detallado en parametros conocidos, se usa ese valor exacto.
-- Si el QR no trae ITBIS detallado, el formulario registra el total como base/costo y deja el ITBIS en 0 para no inventar credito fiscal.
+- El QR se usa como entrada al timbre DGII, pero los montos contables se intentan leer desde la pagina de validacion de DGII.
+- El sistema prioriza `Monto Total` y `Total de ITBIS` extraidos desde la pagina DGII.
+- El `MontoTotal` del QR queda solo como respaldo si la pagina DGII no devuelve el monto.
+- Si la pagina DGII no devuelve ITBIS, el formulario registra el total como base/costo y deja el ITBIS en 0 para no inventar credito fiscal.
 
 ### Verificado
 - TypeScript.
