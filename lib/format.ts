@@ -1,8 +1,9 @@
 export const formatCurrency = (amount: number): string => {
+    const safeAmount = Number.isFinite(amount) ? amount : 0;
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-    }).format(amount);
+    }).format(safeAmount);
 };
 
 export const formatDate = (date: Date | string): string => {

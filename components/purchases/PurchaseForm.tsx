@@ -37,6 +37,15 @@ interface PurchaseFormProps {
     initialData?: any;
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function itemTotal(item: { quantity: number; price: number; taxRate: number }) {
+    return toFiniteNumber(item.quantity) * toFiniteNumber(item.price) * (1 + toFiniteNumber(item.taxRate) / 100);
+}
+
 export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseFormProps) {
     const router = useRouter();
     const [items, setItems] = useState([
@@ -102,15 +111,17 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                         }
                     }
 
-                    if (qrData.total || qrData.taxAmount) {
-                        const subtotal = (qrData.total || 0) - (qrData.taxAmount || 0);
+                    const qrTotal = toFiniteNumber(qrData.total);
+                    const qrTaxAmount = toFiniteNumber(qrData.taxAmount);
+                    if (qrTotal > 0 || qrTaxAmount > 0) {
+                        const subtotal = qrTaxAmount > 0 ? Math.max(0, qrTotal - qrTaxAmount) : qrTotal;
                         const items = [
                             {
                                 description: `Compra Factura Electrónica ${qrData.ncf || ''}`,
                                 quantity: 1,
                                 price: subtotal,
-                                // Calculate exact tax rate to preserve the total
-                                taxRate: subtotal > 0 ? (qrData.taxAmount / subtotal) * 100 : 0
+                                // If DGII QR does not expose ITBIS, do not invent tax.
+                                taxRate: subtotal > 0 ? (qrTaxAmount / subtotal) * 100 : 0
                             }
                         ];
                         // Only round if it's EXTREMELY close to a standard rate to avoid rounding errors
@@ -173,8 +184,8 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         setItems(newItems);
     };
 
-    const subtotal = items.reduce((acc, item) => acc + item.quantity * item.price, 0);
-    const tax = items.reduce((acc, item) => acc + (item.quantity * item.price * (item.taxRate / 100)), 0);
+    const subtotal = items.reduce((acc, item) => acc + toFiniteNumber(item.quantity) * toFiniteNumber(item.price), 0);
+    const tax = items.reduce((acc, item) => acc + (toFiniteNumber(item.quantity) * toFiniteNumber(item.price) * (toFiniteNumber(item.taxRate) / 100)), 0);
     const total = subtotal + tax;
     const isManualSupplier = contactId === "manual";
     const showSupplierFields = contactId === "new" || isManualSupplier || isFromQR || (!contactId && (!!contactName || !!contactTaxId));
@@ -595,7 +606,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                                 <div className="flex items-center justify-end gap-2">
                                                     <span className="text-[10px] font-bold text-slate-400 font-sans">RD$</span>
                                                     <span className="text-sm font-semibold text-slate-900 dark:text-white font-mono">
-                                                        {formatCurrency(item.quantity * item.price * (1 + item.taxRate / 100))}
+                                                        {formatCurrency(itemTotal(item))}
                                                     </span>
                                                 </div>
                                             </td>

@@ -2,6 +2,26 @@
 
 Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-24 - Correccion QR compras y totales NaN
+
+### Corregido
+- El flujo de escaneo QR ya no genera `NaN` cuando el timbre DGII trae `MontoTotal` pero no trae un campo de ITBIS.
+- El formulario de compras protege los calculos de subtotal, impuesto y total contra valores no numericos.
+- El formato de moneda muestra `0.00` si recibe un valor no numerico, evitando que la UI muestre `NaN`.
+- El parser de montos del QR acepta formatos con coma o punto decimal, incluyendo `RD$1,234.56` y `1.234,56`.
+
+### Cambiado
+- Si el QR trae ITBIS detallado en parametros conocidos, se usa ese valor exacto.
+- Si el QR no trae ITBIS detallado, el formulario registra el total como base/costo y deja el ITBIS en 0 para no inventar credito fiscal.
+
+### Verificado
+- TypeScript.
+- Build de Next.js.
+
+### Pendiente de prueba funcional
+- Escanear facturas que antes terminaban en `NaN` y confirmar que el total cuadra.
+- Revisar manualmente facturas mixtas/exentas porque el QR DGII puede no traer desglose completo de ITBIS.
+
 ## 2026-05-24 - Mejoras mobile y QR por perfil
 
 ### Cambiado

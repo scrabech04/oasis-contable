@@ -211,7 +211,20 @@ function normalizeDateString(value: unknown) {
 }
 
 function normalizeMoney(value: unknown) {
-  const parsed = Number(String(value ?? 0).replace(/[^\d.-]/g, ""));
+  let raw = String(value ?? 0).trim().replace(/[^\d.,-]/g, "");
+  const lastComma = raw.lastIndexOf(",");
+  const lastDot = raw.lastIndexOf(".");
+
+  if (lastComma > -1 && lastDot > -1) {
+    raw = lastComma > lastDot
+      ? raw.replace(/\./g, "").replace(",", ".")
+      : raw.replace(/,/g, "");
+  } else if (lastComma > -1) {
+    const decimals = raw.length - lastComma - 1;
+    raw = decimals === 2 ? raw.replace(",", ".") : raw.replace(/,/g, "");
+  }
+
+  const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -1662,6 +1675,15 @@ export async function processDGIIQR(qrText: string) {
   try {
     const url = new URL(qrText);
     const params = url.searchParams;
+    const moneyParam = (...names: string[]) => {
+      for (const name of names) {
+        const raw = params.get(name);
+        if (!raw) continue;
+        const value = normalizeMoney(raw);
+        if (Number.isFinite(value) && value > 0) return value;
+      }
+      return 0;
+    };
     const buyerTaxId =
       params.get("RncComprador") ||
       params.get("RNCComprador") ||
@@ -1688,7 +1710,8 @@ export async function processDGIIQR(qrText: string) {
         targetProfileId: targetProfile?.id || null,
         targetProfileName: targetProfile?.name || null,
         ncf: params.get("ENCF") || params.get("ncf") || "",
-        total: Number(params.get("MontoTotal") || 0),
+        total: moneyParam("MontoTotal", "Total", "total"),
+        taxAmount: moneyParam("TotalITBIS", "TotalItbis", "MontoITBIS", "MontoItbis", "ITBIS", "Itbis", "ITBIS18", "MontoITBIS1", "MontoITBIS2", "MontoITBIS3"),
         date: params.get("FechaEmision") || "",
       },
     };
