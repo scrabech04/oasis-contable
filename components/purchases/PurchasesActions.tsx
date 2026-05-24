@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { QRScannerDialog } from "./QRScannerDialog";
 import { useRouter } from "next/navigation";
+import { setActiveProfile } from "@/app/actions";
 
-export function PurchasesActions() {
+export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean }) {
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
     const router = useRouter();
 
-    const handleQRSuccess = (data: any) => {
+    useEffect(() => {
+        if (autoOpenQR) setIsQRScannerOpen(true);
+    }, [autoOpenQR]);
+
+    const handleQRSuccess = useCallback(async (data: any) => {
         // Save data to session storage to be picked up by the PurchaseForm
         // We use a specific key and add a timestamp to ensure it's fresh
         const qrData = {
@@ -18,9 +23,15 @@ export function PurchasesActions() {
         };
         sessionStorage.setItem("qr_scanned_data", JSON.stringify(qrData));
 
+        if (data?.targetProfileId) {
+            await setActiveProfile(Number(data.targetProfileId));
+            router.refresh();
+        }
+
+        setIsQRScannerOpen(false);
         // Navigate to the new purchase page with a flag
         router.push("/purchases/new?source=qr");
-    };
+    }, [router]);
 
     return (
         <>

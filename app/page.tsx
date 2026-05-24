@@ -3,17 +3,21 @@ import { getDashboardStats, processRecurringInvoices } from "@/app/actions";
 import { OverviewChart } from "@/components/reports/OverviewChart";
 import { ExpenseDistributionChart } from "@/components/reports/ExpenseDistributionChart";
 import { formatCurrency } from "@/lib/format";
+import { getActiveProfile } from "@/lib/account-profiles";
 
 export default async function DashboardPage() {
   await processRecurringInvoices();
-  const stats = await getDashboardStats();
+  const [stats, activeProfile] = await Promise.all([
+    getDashboardStats(),
+    getActiveProfile(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-            Dashboard 2.0
+            {activeProfile.name}
           </h1>
           <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1 font-medium">
             Análisis avanzado de tu salud financiera.

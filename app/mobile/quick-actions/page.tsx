@@ -5,6 +5,12 @@ import { Bot, Camera, CreditCard, ReceiptText, Repeat, ShoppingCart } from "luci
 
 const actions = [
   {
+    title: "Escanear comprobante",
+    description: "Lee el QR DGII y abre la compra con el perfil correcto.",
+    href: "/purchases?scan=qr",
+    icon: Camera,
+  },
+  {
     title: "Compra rapida",
     description: "Gasto simple o menor sin entrar al formulario completo.",
     href: "/purchases/quick",
@@ -21,12 +27,6 @@ const actions = [
     description: "Sube PDF o imagen y deja el soporte adjunto.",
     href: "/purchases/ai-import",
     icon: Bot,
-  },
-  {
-    title: "Escanear comprobante",
-    description: "Acceso al flujo de comprobantes y lectura visual.",
-    href: "/purchases/rebuild-encf",
-    icon: Camera,
   },
   {
     title: "Facturas",
@@ -61,21 +61,21 @@ export default async function MobileQuickActionsPage() {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-2 gap-3">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
             <Link
               key={action.href}
               href={action.href}
-              className="flex min-h-28 gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/60 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-blue-950/30"
+              className="flex min-h-32 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/60 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-blue-950/30 sm:min-h-28 sm:flex-row"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
                 <Icon className="h-5 w-5" />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-black text-slate-900 dark:text-white">{action.title}</span>
-                <span className="mt-1 block text-sm leading-snug text-slate-500 dark:text-slate-400">{action.description}</span>
+                <span className="mt-1 block text-xs leading-snug text-slate-500 dark:text-slate-400 sm:text-sm">{action.description}</span>
               </span>
             </Link>
           );

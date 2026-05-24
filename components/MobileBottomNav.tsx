@@ -8,6 +8,7 @@ import {
   BarChart3,
   Building2,
   CreditCard,
+  Grid2X2Plus,
   FileClock,
   FileText,
   FolderKanban,
@@ -29,9 +30,9 @@ type Profile = { id: number; name: string; taxId: string; type: string };
 
 const primaryLinks = [
   { name: "Inicio", href: "/", icon: Home },
-  { name: "Facturas", href: "/invoices", icon: Receipt },
   { name: "Compras", href: "/purchases", icon: ShoppingCart },
-  { name: "Cotiz.", href: "/quotations", icon: FileText },
+  { name: "Acciones", href: "/mobile/quick-actions", icon: Grid2X2Plus, featured: true },
+  { name: "Facturas", href: "/invoices", icon: Receipt },
 ];
 
 const moreLinks = [
@@ -136,6 +137,8 @@ export function MobileBottomNav({
                   "flex h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-bold transition",
                   active
                     ? "bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                    : link.featured
+                      ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-white dark:text-slate-950"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
                 )}
               >

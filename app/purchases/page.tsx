@@ -13,6 +13,7 @@ export default async function PurchasesPage(props: {
     const searchParams = await props.searchParams;
     const sortBy = searchParams.sortBy === 'createdAt' ? 'createdAt' : 'date';
     const sortOrder = searchParams.sortOrder === 'asc' ? 'asc' : 'desc';
+    const autoOpenQR = searchParams.scan === "qr";
 
     const purchases = await getPurchases({ sortBy, sortOrder });
 
@@ -24,7 +25,7 @@ export default async function PurchasesPage(props: {
                     <p className="text-slate-500 dark:text-slate-400 mt-1">Historial de adquisiciones, gastos operativos e importaciones.</p>
                 </div>
                 <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:flex-wrap">
-                    <PurchasesActions />
+                    <PurchasesActions autoOpenQR={autoOpenQR} />
                     <Link
                         href="/purchases/ai-import"
                         className="inline-flex h-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-center text-sm font-bold text-blue-600 shadow-sm ring-offset-background transition-all hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 sm:px-6"

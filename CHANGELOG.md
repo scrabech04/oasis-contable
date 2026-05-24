@@ -2,6 +2,23 @@
 
 Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-24 - Mejoras mobile y QR por perfil
+
+### Cambiado
+- El dashboard muestra el nombre del perfil activo como titulo principal.
+- `/mobile/quick-actions` ahora muestra acciones en dos columnas tambien en mobile.
+- El menu inferior mobile incluye un acceso central destacado a `Acciones`.
+- `Escanear comprobante` es la primera accion rapida y abre `/purchases?scan=qr`.
+- `/purchases?scan=qr` abre automaticamente el lector QR.
+- El flujo QR intenta detectar el RNC/Cedula del comprador/receptor y cambia al perfil correspondiente antes de crear la compra.
+
+### Pendiente de prueba funcional
+- Confirmar en celular que el boton central `Acciones` queda comodo y no tapa contenido.
+- Abrir `Acciones` y verificar que se ven dos tarjetas por fila.
+- Escanear una factura electronica de Oasis Gate estando en Samuel Calderon y confirmar cambio automatico de perfil.
+- Escanear una factura electronica de Samuel Calderon estando en Oasis Gate y confirmar cambio automatico de perfil.
+- Confirmar fallback: si el QR no trae RNC del comprador o no coincide con un perfil, se mantiene el perfil activo.
+
 ## 2026-05-24 - Migracion local SQLite a Supabase
 
 ### Agregado

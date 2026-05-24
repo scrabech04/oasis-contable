@@ -1662,10 +1662,31 @@ export async function processDGIIQR(qrText: string) {
   try {
     const url = new URL(qrText);
     const params = url.searchParams;
+    const buyerTaxId =
+      params.get("RncComprador") ||
+      params.get("RNCComprador") ||
+      params.get("RncReceptor") ||
+      params.get("RNCReceptor") ||
+      params.get("RncCliente") ||
+      params.get("RNCCliente") ||
+      "";
+    const normalizedBuyerTaxId = normalizeProfileTaxId(buyerTaxId);
+    const profiles = normalizedBuyerTaxId
+      ? await prisma.accountProfile.findMany({
+          select: { id: true, name: true, taxId: true },
+        })
+      : [];
+    const targetProfile = profiles.find(
+      (profile) => normalizeProfileTaxId(profile.taxId) === normalizedBuyerTaxId,
+    );
+
     return {
       success: true,
       data: {
         supplierTaxId: params.get("RncEmisor") || params.get("rnc") || "",
+        buyerTaxId,
+        targetProfileId: targetProfile?.id || null,
+        targetProfileName: targetProfile?.name || null,
         ncf: params.get("ENCF") || params.get("ncf") || "",
         total: Number(params.get("MontoTotal") || 0),
         date: params.get("FechaEmision") || "",
