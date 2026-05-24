@@ -9,36 +9,42 @@ const actions = [
     description: "Lee el QR DGII y abre la compra con el perfil correcto.",
     href: "/purchases?scan=qr",
     icon: Camera,
+    tone: "bg-emerald-600 shadow-emerald-600/20",
   },
   {
     title: "Compra rapida",
     description: "Gasto simple o menor sin entrar al formulario completo.",
     href: "/purchases/quick",
     icon: CreditCard,
+    tone: "bg-sky-600 shadow-sky-600/20",
   },
   {
     title: "Nueva compra",
     description: "Proveedor, NCF, proyecto, impuestos y soporte completo.",
     href: "/purchases/new",
     icon: ShoppingCart,
+    tone: "bg-orange-600 shadow-orange-600/20",
   },
   {
     title: "Importar con IA",
     description: "Sube PDF o imagen y deja el soporte adjunto.",
     href: "/purchases/ai-import",
     icon: Bot,
+    tone: "bg-violet-600 shadow-violet-600/20",
   },
   {
     title: "Facturas",
     description: "Ver o crear ventas desde el celular.",
     href: "/invoices",
     icon: ReceiptText,
+    tone: "bg-blue-600 shadow-blue-600/20",
   },
   {
     title: "Suscripciones",
     description: "Dominios, hosting y cobros recurrentes.",
     href: "/subscriptions",
     icon: Repeat,
+    tone: "bg-rose-600 shadow-rose-600/20",
   },
 ];
 
@@ -70,7 +76,7 @@ export default async function MobileQuickActionsPage() {
               href={action.href}
               className="flex min-h-32 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/60 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-blue-950/30 sm:min-h-28 sm:flex-row"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg ${action.tone}`}>
                 <Icon className="h-5 w-5" />
               </span>
               <span className="min-w-0">

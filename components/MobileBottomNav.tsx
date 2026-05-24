@@ -8,13 +8,13 @@ import {
   BarChart3,
   Building2,
   CreditCard,
-  Grid2X2Plus,
   FileClock,
   FileText,
   FolderKanban,
   Home,
   Menu,
   MoonStar,
+  Plus,
   Receipt,
   Repeat,
   Settings,
@@ -31,7 +31,7 @@ type Profile = { id: number; name: string; taxId: string; type: string };
 const primaryLinks = [
   { name: "Inicio", href: "/", icon: Home },
   { name: "Compras", href: "/purchases", icon: ShoppingCart },
-  { name: "Acciones", href: "/mobile/quick-actions", icon: Grid2X2Plus, featured: true },
+  { name: "Acciones", href: "/mobile/quick-actions", icon: Plus, featured: true, iconOnly: true },
   { name: "Facturas", href: "/invoices", icon: Receipt },
 ];
 
@@ -68,7 +68,7 @@ export function MobileBottomNav({
       {open && (
         <div className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[1px] md:hidden" onClick={() => setOpen(false)}>
           <div
-            className="absolute inset-x-3 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] max-h-[72vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-800 dark:bg-slate-950"
+            className="absolute inset-x-3 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] max-h-[72vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-[calc(var(--spacing)*6)] shadow-2xl dark:border-slate-800 dark:bg-slate-950"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -142,8 +142,8 @@ export function MobileBottomNav({
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900"
                 )}
               >
-                <Icon className="h-5 w-5" />
-                <span className="leading-none">{link.name}</span>
+                <Icon className={clsx(link.iconOnly ? "h-7 w-7" : "h-5 w-5")} />
+                {!link.iconOnly && <span className="leading-none">{link.name}</span>}
               </Link>
             );
           })}
