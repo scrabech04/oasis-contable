@@ -8,6 +8,7 @@ import { setActiveProfile } from "@/app/actions";
 
 export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean }) {
     const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+    const [qrProcessingMessage, setQrProcessingMessage] = useState<string | null>(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -15,6 +16,7 @@ export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean 
     }, [autoOpenQR]);
 
     const handleQRSuccess = useCallback(async (data: any) => {
+        setQrProcessingMessage("Procesando la información");
         // Save data to session storage to be picked up by the PurchaseForm
         // We use a specific key and add a timestamp to ensure it's fresh
         const qrData = {
@@ -24,13 +26,18 @@ export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean 
         sessionStorage.setItem("qr_scanned_data", JSON.stringify(qrData));
 
         if (data?.targetProfileId) {
+            setQrProcessingMessage(`Cambiando de perfil${data.targetProfileName ? ` a ${data.targetProfileName}` : ""}`);
             await setActiveProfile(Number(data.targetProfileId));
             router.refresh();
         }
 
-        setIsQRScannerOpen(false);
+        setQrProcessingMessage("Abriendo formulario de compra");
         // Navigate to the new purchase page with a flag
         router.push("/purchases/new?source=qr");
+        setTimeout(() => {
+            setIsQRScannerOpen(false);
+            setQrProcessingMessage(null);
+        }, 450);
     }, [router]);
 
     return (
@@ -55,8 +62,12 @@ export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean 
 
             <QRScannerDialog
                 isOpen={isQRScannerOpen}
-                onClose={() => setIsQRScannerOpen(false)}
+                onClose={() => {
+                    setIsQRScannerOpen(false);
+                    setQrProcessingMessage(null);
+                }}
                 onSuccess={handleQRSuccess}
+                processingMessage={qrProcessingMessage}
             />
         </>
     );

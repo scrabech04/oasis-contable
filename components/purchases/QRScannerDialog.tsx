@@ -10,13 +10,15 @@ import { processDGIIQR } from "@/app/actions";
 interface QRScannerDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (data: any) => void;
+    onSuccess: (data: any) => Promise<void> | void;
+    processingMessage?: string | null;
 }
 
-export function QRScannerDialog({ isOpen, onClose, onSuccess }: QRScannerDialogProps) {
+export function QRScannerDialog({ isOpen, onClose, onSuccess, processingMessage }: QRScannerDialogProps) {
     const [isScanning, setIsScanning] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const isBusy = isLoading || Boolean(processingMessage);
 
     useEffect(() => {
         let scanner: Html5QrcodeScanner | null = null;
@@ -108,7 +110,7 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess }: QRScannerDialogP
                         try {
                             const result = await processDGIIQR(decodedText);
                             if (result.success) {
-                                onSuccess(result.data);
+                                await onSuccess(result.data);
                                 // The onSuccess callback will handle navigation or form population
                             } else {
                                 setError(result.error || "Error desconocido al procesar el QR");
@@ -147,7 +149,7 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess }: QRScannerDialogP
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && !isBusy && onClose()}>
             <DialogContent className="sm:max-w-md border-slate-200 shadow-xl">
                 <DialogHeader>
                     <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-4">
@@ -162,12 +164,16 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess }: QRScannerDialogP
                 </DialogHeader>
 
                 <div className="relative mt-2">
-                    {isLoading ? (
+                    {isBusy ? (
                         <div className="flex flex-col items-center justify-center p-16 space-y-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                             <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
                             <div className="text-center">
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">Verificando en DGII</p>
-                                <p className="text-xs text-slate-500 mt-1">Conectando con el servidor de validación...</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                    {processingMessage || "Verificando en DGII"}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {processingMessage ? "Preparando el formulario de compra..." : "Conectando con el servidor de validación..."}
+                                </p>
                             </div>
                         </div>
                     ) : (
@@ -235,13 +241,15 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess }: QRScannerDialogP
                 </div>
 
                 <div className="flex justify-end gap-3 mt-6">
-                    <Button
-                        variant="ghost"
-                        onClick={onClose}
-                        className="text-slate-500 hover:text-slate-700"
-                    >
-                        Cancelar
-                    </Button>
+                    {!isBusy && (
+                        <Button
+                            variant="ghost"
+                            onClick={onClose}
+                            className="text-slate-500 hover:text-slate-700"
+                        >
+                            Cancelar
+                        </Button>
+                    )}
                 </div>
             </DialogContent>
         </Dialog>
