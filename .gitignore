@@ -49,6 +49,7 @@ next-env.d.ts
 certificates
 uploads
 tmp_pdf_preview
+tmp_migration
 Extraer e-nfc/
 ui-facturas-extracted/
 ui-proyecto-extracted/

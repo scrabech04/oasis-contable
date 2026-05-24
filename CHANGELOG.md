@@ -2,6 +2,20 @@
 
 Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-24 - Migracion local SQLite a Supabase
+
+### Agregado
+- Script `scripts/export-sqlite-data.py` para exportar la data local desde `prisma/dev.db`.
+- Script `scripts/import-sqlite-json-to-postgres.mjs` para importar la data a Supabase/PostgreSQL.
+- El importador puede limpiar la base destino con `--wipe`, inserta los registros en orden por relaciones y reajusta las secuencias de IDs.
+- Se ignora `tmp_migration` para no subir data contable exportada al repositorio.
+- Comandos npm `data:export:sqlite` y `data:import:supabase`.
+
+### Pendiente de prueba funcional
+- Exportar la base local.
+- Importar en Supabase con `--wipe` para reemplazar perfiles/registros raros iniciales.
+- Abrir la app en Firebase y confirmar perfiles, compras, contactos, proyectos, facturas, cotizaciones, pagos y suscripciones.
+
 ## 2026-05-23 - Ajuste Firebase App Hosting / Prisma
 
 ### Cambiado
