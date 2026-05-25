@@ -12,6 +12,8 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - La importacion con IA de una sola compra abre automaticamente el formulario de nueva compra con los datos prellenados.
 - El formulario de nueva compra ahora conserva el archivo subido por IA como adjunto al guardar.
 - Si Gemini detecta total pero no desglose de items, se crea una linea base para evitar formularios con monto cero.
+- La importacion con IA de compras ahora fuerza una sola linea por factura: subtotal/base imponible como precio, ITBIS total como impuesto y total final cuadrado.
+- El uploader de compras separa "Tomar foto" de "Galeria/PDF" y reinicia el input despues de cada seleccion para que la camara movil dispare el procesamiento.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.

@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, FileText, Loader2, AlertCircle, Camera } from "lucide-react";
 import { processInvoiceAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface InvoiceUploaderProps {
@@ -14,8 +13,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+    const processSelectedFile = async (file: File | undefined) => {
         if (!file) return;
 
         setIsUploading(true);
@@ -46,6 +44,12 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         }
     };
 
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.currentTarget.value = "";
+        await processSelectedFile(file);
+    };
+
     return (
         <Card className="border-dashed border-2 bg-muted/30">
             <CardContent className="flex flex-col items-center justify-center py-10 text-center">
@@ -69,13 +73,28 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                             </p>
                         </div>
 
-                        <div className="flex flex-col gap-3 w-full max-w-xs">
-                            <label className="cursor-pointer">
-                                <div className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 w-full">
-                                    <FileText className="mr-2 h-4 w-4" />
-                                    Seleccionar Archivo
+                        <div className="grid w-full max-w-xs grid-cols-1 gap-3 sm:grid-cols-2">
+                            <label htmlFor="purchase-ai-camera" className="cursor-pointer">
+                                <div className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                                    <Camera className="mr-2 h-4 w-4" />
+                                    Tomar foto
                                 </div>
                                 <input
+                                    id="purchase-ai-camera"
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={handleFileChange}
+                                />
+                            </label>
+                            <label htmlFor="purchase-ai-file" className="cursor-pointer">
+                                <div className="inline-flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Galería/PDF
+                                </div>
+                                <input
+                                    id="purchase-ai-file"
                                     type="file"
                                     className="hidden"
                                     accept="image/*,application/pdf"
