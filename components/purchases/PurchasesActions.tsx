@@ -28,16 +28,16 @@ export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean 
         if (data?.targetProfileId) {
             setQrProcessingMessage(`Cambiando de perfil${data.targetProfileName ? ` a ${data.targetProfileName}` : ""}`);
             await setActiveProfile(Number(data.targetProfileId));
-            router.refresh();
         }
 
         setQrProcessingMessage("Abriendo formulario de compra");
-        // Navigate to the new purchase page with a flag
         router.push("/purchases/new?source=qr");
-        setTimeout(() => {
+
+        // Keep the modal over the purchases list until the new route mounts.
+        window.setTimeout(() => {
             setIsQRScannerOpen(false);
             setQrProcessingMessage(null);
-        }, 450);
+        }, 10000);
     }, [router]);
 
     return (

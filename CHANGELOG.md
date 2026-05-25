@@ -11,6 +11,7 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - El parser de montos del QR acepta formatos con coma o punto decimal, incluyendo `RD$1,234.56` y `1.234,56`.
 - El parser QR ahora reconoce `eNCF`, ademas de `ENCF`, `encf` y `ncf`.
 - El flujo QR mantiene el modal abierto con loader mientras procesa la informacion, cambia de perfil y abre el formulario de compra.
+- El loader QR se mantiene visible durante la navegacion al formulario para evitar que se vea fugazmente el listado de compras.
 
 ### Cambiado
 - El QR se usa como entrada al timbre DGII, pero los montos contables se intentan leer desde la pagina de validacion de DGII.
