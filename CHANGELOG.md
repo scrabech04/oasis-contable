@@ -14,6 +14,8 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - El loader QR se mantiene visible durante la navegacion al formulario para evitar que se vea fugazmente el listado de compras.
 - El escaneo QR intenta extraer el nombre o razon social del emisor desde la pagina DGII y lo pasa al formulario de compra.
 - Se corrigio la extraccion de razon social para no confundir `RNC Emisor` con `Razon social emisor` y para decodificar entidades HTML como `&#xF3;`.
+- El registro de compras valida duplicados por perfil, NCF y RNC del proveedor antes de crear o actualizar.
+- Las compras creadas desde QR usan el perfil del comprador detectado como respaldo en el backend, aunque el cambio visual de perfil tarde en reflejarse.
 
 ### Cambiado
 - El QR se usa como entrada al timbre DGII, pero los montos contables se intentan leer desde la pagina de validacion de DGII.

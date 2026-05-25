@@ -105,6 +105,55 @@ async function resolveContact(formData: FormData, profileId: number, fallbackTyp
   return contact.id;
 }
 
+async function resolvePurchaseProfileId(formData: FormData) {
+  const requestedProfileId = Number(text(formData, "targetProfileId"));
+  if (Number.isFinite(requestedProfileId) && requestedProfileId > 0) {
+    const profile = await prisma.accountProfile.findUnique({
+      where: { id: requestedProfileId },
+      select: { id: true },
+    });
+    if (profile) return profile.id;
+  }
+
+  return getActiveProfileId();
+}
+
+async function supplierTaxIdForPurchase(formData: FormData, contactId: number | null) {
+  const directTaxId = optionalText(formData, "contactTaxId");
+  if (directTaxId) return directTaxId;
+  if (!contactId) return null;
+
+  const contact = await prisma.contact.findUnique({
+    where: { id: contactId },
+    select: { taxId: true },
+  });
+
+  return contact?.taxId || null;
+}
+
+async function findDuplicatePurchase(profileId: number, ncf: string | null, supplierTaxId: string | null, excludeId?: number) {
+  const normalizedNcf = String(ncf || "").trim().toUpperCase();
+  if (!normalizedNcf) return null;
+
+  const normalizedSupplierTaxId = normalizeProfileTaxId(supplierTaxId);
+  const candidates = await prisma.purchase.findMany({
+    where: {
+      profileId,
+      ncf: { not: null },
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+    },
+    include: { contact: { select: { taxId: true, name: true } } },
+    orderBy: { id: "asc" },
+  });
+
+  return candidates.find((purchase) => {
+    if (String(purchase.ncf || "").trim().toUpperCase() !== normalizedNcf) return false;
+    if (!normalizedSupplierTaxId) return true;
+    const candidateTaxId = normalizeProfileTaxId(purchase.supplierTaxId || purchase.contact?.taxId);
+    return candidateTaxId === normalizedSupplierTaxId;
+  }) || null;
+}
+
 async function resolveProject(formData: FormData, profileId: number, contactId: number | null) {
   const projectId = text(formData, "projectId");
   if (!projectId || projectId === "manual" || projectId === "none") return null;
@@ -1090,7 +1139,7 @@ export async function getPurchase(id: number) {
 }
 
 export async function createPurchase(formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
+  const profileId = await resolvePurchaseProfileId(formData);
   const items = parseItems(formData);
   const total = totals(items);
   const contactId = optionalNumber(formData, "contactId");
@@ -1101,15 +1150,25 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
   const projectId = await resolveProject(formData, profileId, finalContactId);
   const attachment = attachmentFromFormData(formData);
   const taxClassification = purchaseTaxClassification(formData);
+  const ncf = optionalText(formData, "ncf")?.toUpperCase() || null;
+  const supplierTaxId = await supplierTaxIdForPurchase(formData, finalContactId);
+  const duplicate = await findDuplicatePurchase(profileId, ncf, supplierTaxId);
+  if (duplicate) {
+    return {
+      success: false,
+      error: `Esta compra ya existe en este perfil: ${ncf}${supplierTaxId ? ` / RNC ${supplierTaxId}` : ""}. Revisa la compra registrada antes de guardarla otra vez.`,
+    };
+  }
+
   const purchase = await prisma.purchase.create({
     data: {
-      number: optionalText(formData, "number") || optionalText(formData, "ncf"),
-      ncf: optionalText(formData, "ncf"),
+      number: optionalText(formData, "number") || ncf,
+      ncf,
       date: dateValue(formData, "date"),
       dueDate: optionalDate(formData, "dueDate"),
       type: text(formData, "type", "FORMAL"),
       supplierName: optionalText(formData, "contactName"),
-      supplierTaxId: optionalText(formData, "contactTaxId"),
+      supplierTaxId,
       contactId: finalContactId,
       projectId,
       subtotal: total.subtotal,
@@ -1137,14 +1196,24 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
   const contactId = rawContactId && rawContactId !== "manual" ? await resolveContact(formData, profileId, "SUPPLIER") : null;
   const projectId = await resolveProject(formData, profileId, contactId);
   const taxClassification = purchaseTaxClassification(formData);
+  const ncf = optionalText(formData, "ncf")?.toUpperCase() || null;
+  const supplierTaxId = await supplierTaxIdForPurchase(formData, contactId);
+  const duplicate = await findDuplicatePurchase(profileId, ncf, supplierTaxId, id);
+  if (duplicate) {
+    return {
+      success: false,
+      error: `Ya existe otra compra con este NCF en este perfil: ${ncf}${supplierTaxId ? ` / RNC ${supplierTaxId}` : ""}.`,
+    };
+  }
+
   await prisma.purchase.update({
     where: { id },
     data: {
-      ncf: optionalText(formData, "ncf"),
+      ncf,
       date: dateValue(formData, "date"),
       dueDate: optionalDate(formData, "dueDate"),
       supplierName: optionalText(formData, "contactName"),
-      supplierTaxId: optionalText(formData, "contactTaxId"),
+      supplierTaxId,
       contactId,
       projectId,
       subtotal: total.subtotal,

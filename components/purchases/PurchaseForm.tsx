@@ -65,6 +65,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
     const [projectName, setProjectName] = useState("");
     const [isFromQR, setIsFromQR] = useState(false);
     const [saveAsContact, setSaveAsContact] = useState(true);
+    const [targetProfileId, setTargetProfileId] = useState<number | null>(null);
 
     const applyTaxTreatment = (value: string) => {
         setTaxTreatment(value);
@@ -88,6 +89,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                     setContactId("");
                     setContactName(qrData.supplierName || "");
                     setContactTaxId(qrData.supplierTaxId || "");
+                    setTargetProfileId(qrData.targetProfileId ? Number(qrData.targetProfileId) : null);
                     setSaveAsContact(false);
                     setNcf(qrData.ncf || "");
                     if (qrData.date) {
@@ -208,6 +210,9 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         formData.append("notes", notes);
         formData.append("costType", costType);
         formData.append("taxTreatment", taxTreatment);
+        if (isFromQR && targetProfileId) {
+            formData.append("targetProfileId", String(targetProfileId));
+        }
         formData.append("projectId", projectId);
         if (projectId === "new") {
             formData.append("projectName", projectName);
