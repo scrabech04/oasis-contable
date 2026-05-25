@@ -495,7 +495,8 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
   const evidence = mode === "purchase" ? await savePurchaseEvidenceFile(file, profileId) : null;
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = genAI.getGenerativeModel({ model: modelName });
   const prompt =
     mode === "purchase"
       ? `Extrae todas las facturas de compra o gastos del archivo. Responde solo un JSON array. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
@@ -553,7 +554,7 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
     return { success: true as const, data };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido";
-    return { success: false as const, error: `No fue posible procesar el archivo con IA: ${message}`, data: null };
+    return { success: false as const, error: `No fue posible procesar el archivo con IA usando ${modelName}: ${message}`, data: null };
   }
 }
 

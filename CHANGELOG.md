@@ -2,6 +2,20 @@
 
 Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-25 - Actualizacion modelo Gemini IA
+
+### Corregido
+- El escaneo de facturas con IA deja de usar `gemini-1.5-flash`, que puede devolver 404 en la API actual de Gemini.
+- El importador de facturas ahora usa `gemini-2.0-flash` por defecto para `generateContent`.
+
+### Cambiado
+- Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.
+- Los errores de IA ahora incluyen el modelo usado para diagnosticar rapido si Google cambia disponibilidad.
+
+### Verificado
+- TypeScript.
+- Build de Next.js.
+
 ## 2026-05-24 - Correccion QR compras y totales NaN
 
 ### Corregido
