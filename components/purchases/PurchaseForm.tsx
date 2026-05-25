@@ -531,7 +531,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                     ? contactName || 'Nuevo Proveedor'
                                     : contactId === 'manual'
                                         ? contactName || 'Emisor manual'
-                                        : contacts.find(s => s.id.toString() === contactId)?.name || 'Sin seleccionar'}
+                                        : contactName || contacts.find(s => s.id.toString() === contactId)?.name || 'Sin seleccionar'}
                             </div>
                         </div>
                         <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">

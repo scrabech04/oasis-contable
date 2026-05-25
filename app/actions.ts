@@ -250,6 +250,31 @@ function moneyAfterLabel(text: string, labels: string[]) {
   return 0;
 }
 
+function textAfterLabel(text: string, labels: string[]) {
+  const stopLabels = [
+    "RNC Comprador",
+    "Rnc Comprador",
+    "Comprador",
+    "eNCF",
+    "ENCF",
+    "Fecha",
+    "Monto",
+    "Total",
+    "ITBIS",
+    "Codigo",
+    "Código",
+  ];
+
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*:?\\s*(.+?)(?=\\s+(?:${stopLabels.join("|")})\\s*:?|$)`, "i");
+    const match = text.match(pattern);
+    const value = match?.[1]?.trim().replace(/\s+/g, " ");
+    if (value && !/^[\d.,-]+$/.test(value)) return value;
+  }
+
+  return "";
+}
+
 async function fetchDgiiTimbreDetails(url: string) {
   try {
     const response = await fetch(url, {
@@ -265,6 +290,12 @@ async function fetchDgiiTimbreDetails(url: string) {
 
     const text = textFromHtml(await response.text());
     return {
+      supplierName: textAfterLabel(text, [
+        "Razon Social Emisor",
+        "Razón Social Emisor",
+        "Nombre Emisor",
+        "Emisor",
+      ]),
       total: moneyAfterLabel(text, [
         "Monto Total",
         "Monto total",
@@ -279,7 +310,7 @@ async function fetchDgiiTimbreDetails(url: string) {
       ]),
     };
   } catch {
-    return { total: 0, taxAmount: 0 };
+    return { supplierName: "", total: 0, taxAmount: 0 };
   }
 }
 
@@ -1762,6 +1793,7 @@ export async function processDGIIQR(qrText: string) {
       success: true,
       data: {
         supplierTaxId: params.get("RncEmisor") || params.get("rnc") || "",
+        supplierName: pageDetails.supplierName,
         buyerTaxId,
         targetProfileId: targetProfile?.id || null,
         targetProfileName: targetProfile?.name || null,
