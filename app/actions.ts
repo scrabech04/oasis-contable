@@ -235,6 +235,8 @@ function textFromHtml(html: string) {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCharCode(Number(code)))
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -252,9 +254,13 @@ function moneyAfterLabel(text: string, labels: string[]) {
 
 function textAfterLabel(text: string, labels: string[]) {
   const stopLabels = [
+    "RNC Emisor",
+    "Rnc Emisor",
     "RNC Comprador",
     "Rnc Comprador",
     "Comprador",
+    "Razon Social Comprador",
+    "Razón Social Comprador",
     "eNCF",
     "ENCF",
     "Fecha",
@@ -265,11 +271,25 @@ function textAfterLabel(text: string, labels: string[]) {
     "Código",
   ];
 
+  const normalizeSearch = (value: string) =>
+    value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const searchable = normalizeSearch(text);
+
   for (const label of labels) {
-    const pattern = new RegExp(`${label}\\s*:?\\s*(.+?)(?=\\s+(?:${stopLabels.join("|")})\\s*:?|$)`, "i");
-    const match = text.match(pattern);
-    const value = match?.[1]?.trim().replace(/\s+/g, " ");
-    if (value && !/^[\d.,-]+$/.test(value)) return value;
+    const normalizedLabel = normalizeSearch(label);
+    const labelIndex = searchable.indexOf(normalizedLabel);
+    if (labelIndex === -1) continue;
+
+    const valueStart = labelIndex + normalizedLabel.length;
+    const stopIndex = stopLabels
+      .map((stopLabel) => searchable.indexOf(normalizeSearch(stopLabel), valueStart))
+      .filter((index) => index > valueStart)
+      .sort((a, b) => a - b)[0] ?? text.length;
+
+    let value = text.slice(valueStart, stopIndex).replace(/^[:\s]+/, "").trim().replace(/\s+/g, " ");
+    if (!value) continue;
+    value = value.replace(/^\d{9,11}\s+/, "").trim();
+    if (value && !/^[\d.,-]+$/.test(value) && !/raz[oó]n social emisor/i.test(value)) return value;
   }
 
   return "";
@@ -292,9 +312,11 @@ async function fetchDgiiTimbreDetails(url: string) {
     return {
       supplierName: textAfterLabel(text, [
         "Razon Social Emisor",
+        "Razon social emisor",
         "Razón Social Emisor",
+        "Razón social emisor",
         "Nombre Emisor",
-        "Emisor",
+        "Nombre emisor",
       ]),
       total: moneyAfterLabel(text, [
         "Monto Total",
