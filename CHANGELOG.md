@@ -7,10 +7,17 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 ### Corregido
 - El escaneo de facturas con IA deja de usar `gemini-1.5-flash`, que puede devolver 404 en la API actual de Gemini.
 - El importador de facturas ahora usa `gemini-2.0-flash` por defecto para `generateContent`.
+- El parser de respuestas de Gemini ahora acepta array JSON directo y respuestas envueltas como `{ invoices: [...] }`, `{ facturas: [...] }` o `{ data: [...] }`.
+- El parser ahora acepta una sola factura devuelta como objeto JSON (`{ invoice: {...} }`, `{ factura: {...} }` o el objeto directo).
+- La importacion con IA de una sola compra abre automaticamente el formulario de nueva compra con los datos prellenados.
+- El formulario de nueva compra ahora conserva el archivo subido por IA como adjunto al guardar.
+- Si Gemini detecta total pero no desglose de items, se crea una linea base para evitar formularios con monto cero.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.
 - Los errores de IA ahora incluyen el modelo usado para diagnosticar rapido si Google cambia disponibilidad.
+- La solicitud a Gemini pide `responseMimeType: application/json` para reducir respuestas en Markdown/texto.
+- El uploader muestra un error claro si Gemini responde pero no devuelve facturas revisables.
 
 ### Verificado
 - TypeScript.

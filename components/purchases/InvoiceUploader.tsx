@@ -32,8 +32,10 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
 
         try {
             const result = await processInvoiceAction(formData);
-            if (result.success && result.data) {
+            if (result.success && result.data && result.data.length > 0) {
                 onDataExtracted(result.data);
+            } else if (result.success) {
+                setError("La IA respondió, pero no devolvió facturas para revisar. Intenta con una foto más nítida o un PDF.");
             } else {
                 setError(result.error || "Error al procesar el archivo");
             }

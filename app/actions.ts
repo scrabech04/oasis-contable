@@ -236,14 +236,61 @@ async function fileToGenerativePart(file: File) {
   };
 }
 
+function isLikelyInvoiceRow(value: any) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return Boolean(
+    value.supplierName ||
+    value.vendorName ||
+    value.clientName ||
+    value.customerName ||
+    value.ncf ||
+    value.encf ||
+    value.total ||
+    Array.isArray(value.items)
+  );
+}
+
+function rowsFromParsedJson(parsed: any) {
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed.invoices)) return parsed.invoices;
+  if (Array.isArray(parsed.facturas)) return parsed.facturas;
+  if (Array.isArray(parsed.data)) return parsed.data;
+  if (Array.isArray(parsed.results)) return parsed.results;
+  if (isLikelyInvoiceRow(parsed.invoice)) return [parsed.invoice];
+  if (isLikelyInvoiceRow(parsed.factura)) return [parsed.factura];
+  if (isLikelyInvoiceRow(parsed.purchase)) return [parsed.purchase];
+  if (isLikelyInvoiceRow(parsed.sale)) return [parsed.sale];
+  if (isLikelyInvoiceRow(parsed.document)) return [parsed.document];
+  if (isLikelyInvoiceRow(parsed)) return [parsed];
+  return [];
+}
+
 function extractJsonArray(raw: string) {
   const cleaned = raw.replace(/```json|```/g, "").trim();
+  try {
+    const rows = rowsFromParsedJson(JSON.parse(cleaned));
+    if (rows.length > 0) return rows;
+  } catch {
+    // Fall through to substring extraction for responses with prose around JSON.
+  }
+
   const start = cleaned.indexOf("[");
   const end = cleaned.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) return [];
+  if (start !== -1 && end > start) {
+    try {
+      const parsed = JSON.parse(cleaned.slice(start, end + 1));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  const objectStart = cleaned.indexOf("{");
+  const objectEnd = cleaned.lastIndexOf("}");
+  if (objectStart === -1 || objectEnd <= objectStart) return [];
+
   try {
-    const parsed = JSON.parse(cleaned.slice(start, end + 1));
-    return Array.isArray(parsed) ? parsed : [];
+    return rowsFromParsedJson(JSON.parse(cleaned.slice(objectStart, objectEnd + 1)));
   } catch {
     return [];
   }
@@ -496,25 +543,50 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-  const model = genAI.getGenerativeModel({ model: modelName });
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      responseMimeType: "application/json",
+    },
+  });
   const prompt =
     mode === "purchase"
-      ? `Extrae todas las facturas de compra o gastos del archivo. Responde solo un JSON array. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
-      : `Extrae todas las facturas de venta del archivo. Responde solo un JSON array. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. Si falta un dato usa cadena vacia o 0.`;
+      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
+      : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. Si falta un dato usa cadena vacia o 0.`;
 
   try {
     const result = await model.generateContent([prompt, await fileToGenerativePart(file)]);
-    const rows = extractJsonArray(result.response.text());
+    const responseText = result.response.text();
+    const rows = extractJsonArray(responseText);
     if (rows.length === 0) {
-      return { success: false as const, error: "No se detectaron facturas en el archivo.", data: null };
+      return {
+        success: false as const,
+        error: `No se detectaron facturas en el archivo. El modelo ${modelName} respondió, pero no devolvió un JSON de facturas reconocible.`,
+        data: null,
+      };
     }
 
     const data =
       mode === "purchase"
         ? rows.map((row: any) => {
             const supplierName = String(row.supplierName || row.vendorName || row.contactName || "Proveedor sin identificar");
-            const items = normalizeImportedItems(row.items, supplierName);
-            const total = normalizeMoney(row.total) || items.reduce((sum, item) => sum + item.baseAmount + item.taxAmount, 0);
+            let items = normalizeImportedItems(row.items, supplierName);
+            const detectedTaxAmount = normalizeMoney(row.taxAmount ?? row.itbis ?? row.totalItbis ?? row.totalITBIS);
+            const detectedTotal = normalizeMoney(row.total ?? row.amount ?? row.montoTotal);
+            const itemsTotal = items.reduce((sum, item) => sum + item.baseAmount + item.taxAmount, 0);
+            const total = detectedTotal || itemsTotal;
+            if (total > 0 && itemsTotal <= 0) {
+              const baseAmount = Math.max(0, total - detectedTaxAmount);
+              const taxRate = baseAmount > 0 ? (detectedTaxAmount / baseAmount) * 100 : 0;
+              items = [{
+                description: String(row.description || row.category || supplierName),
+                quantity: 1,
+                baseAmount,
+                taxAmount: detectedTaxAmount,
+                price: baseAmount,
+                taxRate,
+              }];
+            }
             return {
               type: row.type === "INFORMAL" ? "INFORMAL" : "FORMAL",
               taxTreatment: String(row.taxTreatment || (row.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT")),

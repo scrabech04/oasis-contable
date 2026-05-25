@@ -4,14 +4,25 @@ import { useState } from "react";
 import { InvoiceUploader } from "@/components/purchases/InvoiceUploader";
 import { BatchReview } from "@/components/purchases/BatchReview";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function AIImportPage() {
     const [extractedData, setExtractedData] = useState<any[] | null>(null);
+    const [isOpeningForm, setIsOpeningForm] = useState(false);
     const router = useRouter();
 
     const handleDataExtracted = (data: any[]) => {
+        if (data.length === 1) {
+            setIsOpeningForm(true);
+            sessionStorage.setItem("ai_imported_purchase", JSON.stringify({
+                ...data[0],
+                importedAt: Date.now(),
+            }));
+            router.push("/purchases/new");
+            return;
+        }
+
         setExtractedData(data);
     };
 
@@ -42,7 +53,15 @@ export default function AIImportPage() {
                             <li>Podrás revisar todo antes de guardarlo definitivamente.</li>
                         </ul>
                     </div>
-                    <InvoiceUploader onDataExtracted={handleDataExtracted} />
+                    {isOpeningForm ? (
+                        <div className="flex flex-col items-center justify-center rounded-xl border border-blue-100 bg-blue-50/70 p-10 text-center text-blue-800">
+                            <Loader2 className="mb-3 h-8 w-8 animate-spin" />
+                            <p className="font-semibold">Abriendo formulario de compra...</p>
+                            <p className="mt-1 text-xs opacity-80">Cargando los datos extraidos por IA</p>
+                        </div>
+                    ) : (
+                        <InvoiceUploader onDataExtracted={handleDataExtracted} />
+                    )}
                 </div>
             ) : (
                 <BatchReview

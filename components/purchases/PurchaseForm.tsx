@@ -66,6 +66,8 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
     const [isFromQR, setIsFromQR] = useState(false);
     const [saveAsContact, setSaveAsContact] = useState(true);
     const [targetProfileId, setTargetProfileId] = useState<number | null>(null);
+    const [purchaseType, setPurchaseType] = useState("FORMAL");
+    const [importAttachment, setImportAttachment] = useState<any | null>(null);
 
     const applyTaxTreatment = (value: string) => {
         setTaxTreatment(value);
@@ -144,6 +146,58 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
     }, []);
 
     useEffect(() => {
+        const importedRaw = sessionStorage.getItem("ai_imported_purchase");
+        if (!importedRaw) return;
+
+        try {
+            const imported = JSON.parse(importedRaw);
+            const now = new Date().getTime();
+            if (now - toFiniteNumber(imported.importedAt) > 5 * 60 * 1000) {
+                sessionStorage.removeItem("ai_imported_purchase");
+                return;
+            }
+
+            setPurchaseType(imported.type === "INFORMAL" ? "INFORMAL" : "FORMAL");
+            setContactId("manual");
+            setContactName(imported.supplierName || "Proveedor sin identificar");
+            setContactTaxId(imported.supplierTaxId || "");
+            setSaveAsContact(false);
+            setNcf(imported.ncf || "");
+            setDate(imported.date || new Date().toISOString().split("T")[0]);
+            setDueDate(imported.dueDate || imported.date || new Date().toISOString().split("T")[0]);
+            setNotes(imported.notes || "");
+            setCostType(imported.costType || "02");
+            setTaxTreatment(imported.taxTreatment || (imported.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT"));
+            setImportAttachment(imported.attachment || null);
+
+            const importedItems = Array.isArray(imported.items) ? imported.items : [];
+            if (importedItems.length > 0) {
+                setItems(importedItems.map((item: any) => {
+                    const quantity = Math.max(1, toFiniteNumber(item.quantity, 1));
+                    const baseAmount = toFiniteNumber(item.baseAmount ?? item.price ?? item.subtotal);
+                    const taxAmount = toFiniteNumber(item.taxAmount);
+                    const taxRate = Number.isFinite(Number(item.taxRate))
+                        ? Number(item.taxRate)
+                        : baseAmount > 0
+                            ? (taxAmount / baseAmount) * 100
+                            : 0;
+
+                    return {
+                        description: item.description || imported.supplierName || "Compra importada con IA",
+                        quantity,
+                        price: toFiniteNumber(item.price, baseAmount / quantity),
+                        taxRate,
+                    };
+                }));
+            }
+        } catch (error) {
+            console.error("Error loading AI imported purchase", error);
+        } finally {
+            sessionStorage.removeItem("ai_imported_purchase");
+        }
+    }, []);
+
+    useEffect(() => {
         if (initialData) {
             if (initialData.contactId) {
                 setContactId(initialData.contactId.toString());
@@ -160,6 +214,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
             setNotes(initialData.notes || "");
             setCostType(initialData.costType || "02");
             setTaxTreatment(initialData.taxTreatment || (initialData.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT"));
+            setPurchaseType(initialData.type || "FORMAL");
             setItems(initialData.items.map((item: any) => ({
                 description: item.description,
                 quantity: item.quantity,
@@ -197,7 +252,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         setSubmitting(true);
 
         const formData = new FormData();
-        formData.append("type", "FORMAL");
+        formData.append("type", purchaseType);
         formData.append("contactId", contactId);
         if (showSupplierFields) {
             formData.append("contactName", contactName);
@@ -212,6 +267,12 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         formData.append("taxTreatment", taxTreatment);
         if (isFromQR && targetProfileId) {
             formData.append("targetProfileId", String(targetProfileId));
+        }
+        if (importAttachment) {
+            formData.append("attachmentStoragePath", importAttachment.storagePath || "");
+            formData.append("attachmentFileName", importAttachment.fileName || "");
+            formData.append("attachmentMimeType", importAttachment.mimeType || "");
+            formData.append("attachmentFileSize", String(importAttachment.fileSize || 0));
         }
         formData.append("projectId", projectId);
         if (projectId === "new") {
