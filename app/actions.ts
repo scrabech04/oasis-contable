@@ -2038,16 +2038,27 @@ export async function processDGIIQR(qrText: string) {
       (profile) => normalizeProfileTaxId(profile.taxId) === normalizedBuyerTaxId,
     );
     const pageDetails = await fetchDgiiTimbreDetails(qrText);
+    const targetProfileId = targetProfile?.id || await getActiveProfileId();
+    const supplierTaxId = params.get("RncEmisor") || params.get("rnc") || "";
+    const ncf = params.get("eNCF") || params.get("ENCF") || params.get("encf") || params.get("ncf") || "";
+    const duplicate = await findDuplicatePurchase(targetProfileId, ncf, supplierTaxId);
+    if (duplicate) {
+      const profileName = targetProfile?.name ? ` en el perfil ${targetProfile.name}` : "";
+      return {
+        success: false,
+        error: `Esta factura ya fue registrada${profileName}: ${ncf}${supplierTaxId ? ` / RNC ${supplierTaxId}` : ""}. No se abrirá el formulario para evitar duplicarla.`,
+      };
+    }
 
     return {
       success: true,
       data: {
-        supplierTaxId: params.get("RncEmisor") || params.get("rnc") || "",
+        supplierTaxId,
         supplierName: pageDetails.supplierName,
         buyerTaxId,
         targetProfileId: targetProfile?.id || null,
         targetProfileName: targetProfile?.name || null,
-        ncf: params.get("eNCF") || params.get("ENCF") || params.get("encf") || params.get("ncf") || "",
+        ncf,
         total: pageDetails.total || moneyParam("MontoTotal", "Total", "total"),
         taxAmount: pageDetails.taxAmount,
         date: params.get("FechaEmision") || "",

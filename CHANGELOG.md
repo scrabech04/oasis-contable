@@ -17,6 +17,7 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - Las fotos tomadas desde camara se normalizan a JPEG antes de enviarse a Gemini para evitar fallos con formatos moviles.
 - La IA de compras ahora refuerza la extraccion de razon social/RNC del proveedor y evita usar el proveedor como descripcion del item.
 - El footer del formulario de compras deja los creditos debajo de los botones y el boton inferior de registrar mantiene apariencia activa.
+- El escaneo QR de DGII vuelve a validar duplicados antes de abrir el formulario, usando el perfil destino detectado por RNC comprador cuando aplique.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.
