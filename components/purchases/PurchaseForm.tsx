@@ -338,7 +338,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all rounded-lg flex items-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         <span className="material-icons-outlined text-[18px]">save</span>
                         {submitting ? "Guardando..." : initialData ? "Actualizar Compra" : "Registrar Compra"}
@@ -759,7 +759,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all rounded-lg flex items-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                         <span className="material-icons-outlined text-[18px]">save</span>
                         {submitting ? "Guardando..." : initialData ? "Actualizar Compra" : "Registrar Compra"}
