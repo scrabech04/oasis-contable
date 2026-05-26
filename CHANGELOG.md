@@ -18,6 +18,7 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - La IA de compras ahora refuerza la extraccion de razon social/RNC del proveedor y evita usar el proveedor como descripcion del item.
 - El footer del formulario de compras deja los creditos debajo de los botones y el boton inferior de registrar mantiene apariencia activa.
 - El escaneo QR de DGII vuelve a validar duplicados antes de abrir el formulario, usando el perfil destino detectado por RNC comprador cuando aplique.
+- La reconstruccion e-NCF/QR ahora devuelve la respuesta en el formato esperado por la interfaz, usa Playwright headless por defecto y guarda cache temporal en una ruta escribible para despliegues en la nube.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.

@@ -77,13 +77,25 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
         body: JSON.stringify(form),
       });
 
-      const data = (await response.json()) as EncfRebuildResponse;
-      if (!response.ok || !data.ok) {
-        setError(data.message || "No fue posible reconstruir el timbre.");
+      const raw = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        setError(raw || "El servidor no devolviÃ³ una respuesta vÃ¡lida al consultar la DGII.");
         return;
       }
 
-      setResult(data);
+      const payload = data.data && !data.timbreUrl
+        ? { ok: Boolean(data.success), ...data.data }
+        : data;
+
+      if (!response.ok || !payload.ok) {
+        setError(payload.message || payload.error || "No fue posible reconstruir el timbre.");
+        return;
+      }
+
+      setResult(payload);
     } catch {
       setError("No se pudo comunicar con el servidor para consultar la DGII.");
     } finally {

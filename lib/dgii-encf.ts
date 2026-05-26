@@ -1,14 +1,15 @@
 import path from "path";
 import fs from "fs/promises";
+import os from "os";
 import QRCode from "qrcode";
 import { chromium, type BrowserContext, type Page } from "playwright";
 
-const HEADLESS = process.env.DGII_ENCF_HEADLESS === "true";
+const HEADLESS = process.env.DGII_ENCF_HEADLESS !== "false";
 const SLOW_MO = Number(process.env.DGII_ENCF_SLOW_MO || 125);
 const DEFAULT_SWEEP_SECONDS = Number(process.env.DGII_ENCF_SWEEP_SECONDS || 15);
 const DGII_URL =
   "https://dgii.gov.do/app/WebApps/ConsultasWeb2/ConsultasWeb/consultas/ncf.aspx";
-const CACHE_DIR = path.join(process.cwd(), ".cache", "dgii-encf");
+const CACHE_DIR = process.env.DGII_ENCF_CACHE_DIR || path.join(os.tmpdir(), "oasis-dgii-encf");
 const SCREENSHOT_DIR = path.join(CACHE_DIR, "screenshots");
 const USER_DATA_DIR = path.join(CACHE_DIR, "playwright-profile");
 const CHROME_USER_AGENTS = [
