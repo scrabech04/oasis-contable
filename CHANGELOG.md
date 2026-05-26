@@ -14,6 +14,9 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - Si Gemini detecta total pero no desglose de items, se crea una linea base para evitar formularios con monto cero.
 - La importacion con IA de compras ahora fuerza una sola linea por factura: subtotal/base imponible como precio, ITBIS total como impuesto y total final cuadrado.
 - El uploader de compras separa "Tomar foto" de "Galeria/PDF" y reinicia el input despues de cada seleccion para que la camara movil dispare el procesamiento.
+- Las fotos tomadas desde camara se normalizan a JPEG antes de enviarse a Gemini para evitar fallos con formatos moviles.
+- La IA de compras ahora refuerza la extraccion de razon social/RNC del proveedor y evita usar el proveedor como descripcion del item.
+- El footer del formulario de compras deja los creditos debajo de los botones y el boton inferior de registrar mantiene apariencia activa.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.

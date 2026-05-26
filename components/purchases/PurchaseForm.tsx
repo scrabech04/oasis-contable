@@ -46,6 +46,16 @@ function itemTotal(item: { quantity: number; price: number; taxRate: number }) {
     return toFiniteNumber(item.quantity) * toFiniteNumber(item.price) * (1 + toFiniteNumber(item.taxRate) / 100);
 }
 
+function importedItemDescription(imported: any, item: any) {
+    return item.description ||
+        imported.description ||
+        imported.concept ||
+        imported.concepto ||
+        imported.invoiceDescription ||
+        imported.serviceDescription ||
+        "Compra importada con IA";
+}
+
 export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseFormProps) {
     const router = useRouter();
     const [items, setItems] = useState([
@@ -183,7 +193,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                             : 0;
 
                     return {
-                        description: item.description || imported.supplierName || "Compra importada con IA",
+                        description: importedItemDescription(imported, item),
                         quantity,
                         price: toFiniteNumber(item.price, baseAmount / quantity),
                         taxRate,
@@ -737,9 +747,8 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                     </div>
                 </div>
             </div>
-            <div className="mt-12 flex flex-col gap-4 md:flex-row md:items-center md:justify-between opacity-50 hover:opacity-100 transition-opacity">
-                <p className="text-xs text-slate-500">© 2026 Accounting System Premium</p>
-                <div className="flex items-center gap-3">
+            <div className="mt-12 flex flex-col items-stretch gap-4 md:items-end">
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
                     <button
                         type="button"
                         onClick={() => router.back()}
@@ -756,6 +765,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                         {submitting ? "Guardando..." : initialData ? "Actualizar Compra" : "Registrar Compra"}
                     </button>
                 </div>
+                <p className="text-center text-xs text-slate-500 md:text-right">© 2026 Accounting System Premium</p>
             </div>
         </form>
     );

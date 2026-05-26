@@ -9,6 +9,47 @@ interface InvoiceUploaderProps {
     onDataExtracted: (data: any[]) => void;
 }
 
+async function imageToUploadJpeg(file: File) {
+    const looksLikeImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);
+    if (!looksLikeImage) return file;
+    if (file.type === "image/gif") return file;
+
+    const imageUrl = URL.createObjectURL(file);
+    try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = imageUrl;
+        });
+
+        const maxSize = 1800;
+        const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) return file;
+
+        context.drawImage(image, 0, 0, width, height);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+        if (!blob) return file;
+
+        return new File(
+            [blob],
+            `${file.name.replace(/\.[^.]+$/, "") || "factura-camara"}.jpg`,
+            { type: "image/jpeg", lastModified: Date.now() }
+        );
+    } catch {
+        return file;
+    } finally {
+        URL.revokeObjectURL(imageUrl);
+    }
+}
+
 export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -19,14 +60,16 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         setIsUploading(true);
         setError(null);
 
-        if (file.size > 15 * 1024 * 1024) {
+        const uploadFile = await imageToUploadJpeg(file);
+
+        if (uploadFile.size > 15 * 1024 * 1024) {
             setError("El archivo supera el límite de 15 MB para importar con IA.");
             setIsUploading(false);
             return;
         }
 
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("file", uploadFile);
 
         try {
             const result = await processInvoiceAction(formData);
@@ -83,7 +126,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                                     id="purchase-ai-camera"
                                     type="file"
                                     className="hidden"
-                                    accept="image/*"
+                                    accept="image/jpeg,image/png,image/webp"
                                     capture="environment"
                                     onChange={handleFileChange}
                                 />
@@ -97,7 +140,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                                     id="purchase-ai-file"
                                     type="file"
                                     className="hidden"
-                                    accept="image/*,application/pdf"
+                                    accept="image/jpeg,image/png,image/webp,application/pdf"
                                     onChange={handleFileChange}
                                 />
                             </label>

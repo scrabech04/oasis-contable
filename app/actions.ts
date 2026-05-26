@@ -472,6 +472,15 @@ function firstMoney(row: any, keys: string[]) {
   return 0;
 }
 
+function firstText(row: any, keys: string[]) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (value && typeof value !== "object") return String(value).trim();
+  }
+  return "";
+}
+
 function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
   const sourceItems = normalizeImportedItems(row.items, fallbackDescription);
   const itemsSubtotal = sourceItems.reduce((sum, item) => sum + item.baseAmount, 0);
@@ -503,10 +512,20 @@ function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
   }
 
   const taxRate = subtotal > 0 ? (taxAmount / subtotal) * 100 : 0;
+  const itemDescription = firstText(row, [
+    "description",
+    "concept",
+    "concepto",
+    "invoiceDescription",
+    "serviceDescription",
+    "detalle",
+    "descripcion",
+  ]) || firstText(row.items?.[0] || {}, ["description", "descripcion", "concept", "concepto"]) || "Compra importada con IA";
+
   return {
     total,
     items: [{
-      description: String(row.description || row.category || fallbackDescription || "Compra importada con IA"),
+      description: itemDescription,
       quantity: 1,
       baseAmount: subtotal,
       taxAmount,
@@ -612,7 +631,7 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
   });
   const prompt =
     mode === "purchase"
-      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. Cada factura debe traer exactamente un item resumen en items. El item debe tener description "Compra importada con IA", quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
+      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. supplierName debe ser la razon social/nombre del emisor o proveedor. supplierTaxId debe ser el RNC/Cedula del emisor o proveedor. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
       : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. Si falta un dato usa cadena vacia o 0.`;
 
   try {
@@ -630,13 +649,35 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
     const data =
       mode === "purchase"
         ? rows.map((row: any) => {
-            const supplierName = String(row.supplierName || row.vendorName || row.contactName || "Proveedor sin identificar");
+            const supplierName = firstText(row, [
+              "supplierName",
+              "vendorName",
+              "providerName",
+              "razonSocialEmisor",
+              "razonSocial",
+              "nombreEmisor",
+              "contactName",
+            ]) ||
+              firstText(row.supplier || {}, ["name", "razonSocial", "businessName"]) ||
+              firstText(row.emisor || {}, ["name", "nombre", "razonSocial", "businessName"]) ||
+              "Proveedor sin identificar";
+            const supplierTaxId = firstText(row, [
+              "supplierTaxId",
+              "vendorTaxId",
+              "providerTaxId",
+              "rncEmisor",
+              "rnc",
+              "taxId",
+              "cedula",
+            ]) ||
+              firstText(row.supplier || {}, ["taxId", "rnc", "cedula"]) ||
+              firstText(row.emisor || {}, ["taxId", "rnc", "cedula"]);
             const normalized = normalizePurchaseSingleItem(row, supplierName);
             return {
               type: row.type === "INFORMAL" ? "INFORMAL" : "FORMAL",
               taxTreatment: String(row.taxTreatment || (row.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT")),
               supplierName,
-              supplierTaxId: String(row.supplierTaxId || row.taxId || ""),
+              supplierTaxId,
               ncf: String(row.ncf || row.encf || "").toUpperCase(),
               date: normalizeDateString(row.date),
               dueDate: row.dueDate ? normalizeDateString(row.dueDate) : normalizeDateString(row.date),
