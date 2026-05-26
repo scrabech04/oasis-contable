@@ -4,6 +4,8 @@ import { InvoicesTable } from "@/components/invoices/InvoicesTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Repeat } from "lucide-react";
 import { primaryActionClass } from "@/lib/ui-styles";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
 export default async function InvoicesPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -12,9 +14,19 @@ export default async function InvoicesPage(props: {
     const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
     const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "date";
     const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
+    const period = getPeriodParams(searchParams);
+    const hrefWith = (next: Record<string, string>) => {
+        const query = new URLSearchParams();
+        for (const [key, value] of Object.entries(searchParams)) {
+            if (Array.isArray(value)) value.forEach((item) => item && query.append(key, item));
+            else if (value) query.set(key, value);
+        }
+        Object.entries(next).forEach(([key, value]) => query.set(key, value));
+        return `/invoices?${query.toString()}`;
+    };
 
     const { generatedCount } = await processRecurringInvoices();
-    const invoices = await getInvoices({ search, sortBy, sortOrder });
+    const invoices = await getInvoices({ search, sortBy, sortOrder, ...period });
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -48,8 +60,12 @@ export default async function InvoicesPage(props: {
                 </Alert>
             )}
 
+            <ListPeriodFilter basePath="/invoices" searchParams={searchParams} total={invoices.length} itemSingular="factura registrada" itemPlural="facturas registradas" />
+
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                 <form className="relative w-full md:w-96">
+                    {period.year ? <input type="hidden" name="year" value={period.year} /> : null}
+                    {period.month ? <input type="hidden" name="month" value={period.month} /> : null}
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                         <span className="material-icons-round text-lg">search</span>
                     </span>
@@ -65,19 +81,19 @@ export default async function InvoicesPage(props: {
                 <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
                     <span className="text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap mr-2">Ordenar por:</span>
                     <Link
-                        href={`/invoices?sortBy=date&sortOrder=${sortBy === "date" && sortOrder === "desc" ? "asc" : "desc"}${search ? `&search=${search}` : ""}`}
+                        href={hrefWith({ sortBy: "date", sortOrder: sortBy === "date" && sortOrder === "desc" ? "asc" : "desc" })}
                         className={`px-3 py-1.5 text-xs font-medium border rounded-md transition-all ${sortBy === "date" ? "bg-blue-50 dark:bg-blue-900/30 text-primary border-blue-100 dark:border-blue-900/50" : "text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                     >
                         Fecha {sortBy === "date" && (sortOrder === "desc" ? "↓" : "↑")}
                     </Link>
                     <Link
-                        href={`/invoices?sortBy=client&sortOrder=${sortBy === "client" && sortOrder === "asc" ? "desc" : "asc"}${search ? `&search=${search}` : ""}`}
+                        href={hrefWith({ sortBy: "client", sortOrder: sortBy === "client" && sortOrder === "asc" ? "desc" : "asc" })}
                         className={`px-3 py-1.5 text-xs font-medium border rounded-md transition-all ${sortBy === "client" ? "bg-blue-50 dark:bg-blue-900/30 text-primary border-blue-100 dark:border-blue-900/50" : "text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                     >
                         Cliente {sortBy === "client" && (sortOrder === "asc" ? "↑" : "↓")}
                     </Link>
                     <Link
-                        href={`/invoices?sortBy=total&sortOrder=${sortBy === "total" && sortOrder === "desc" ? "asc" : "desc"}${search ? `&search=${search}` : ""}`}
+                        href={hrefWith({ sortBy: "total", sortOrder: sortBy === "total" && sortOrder === "desc" ? "asc" : "desc" })}
                         className={`px-3 py-1.5 text-xs font-medium border rounded-md transition-all ${sortBy === "total" ? "bg-blue-50 dark:bg-blue-900/30 text-primary border-blue-100 dark:border-blue-900/50" : "text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                     >
                         Monto {sortBy === "total" && (sortOrder === "desc" ? "↓" : "↑")}

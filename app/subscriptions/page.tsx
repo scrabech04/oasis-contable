@@ -4,6 +4,8 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { primaryActionClass } from "@/lib/ui-styles";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, CreditCard, ExternalLink, Pause, Plus, Trash2, XCircle } from "lucide-react";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
 const categoryLabels: Record<string, string> = {
   DOMAIN: "Dominio",
@@ -45,9 +47,13 @@ function renewalTone(days: number | null, reminderDays: number) {
   return "bg-emerald-50 text-emerald-700 border-emerald-100";
 }
 
-export default async function SubscriptionsPage() {
+export default async function SubscriptionsPage(props: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const searchParams = await props.searchParams;
+  const period = getPeriodParams(searchParams);
   const [subscriptions, projects] = await Promise.all([
-    getSubscriptions(),
+    getSubscriptions(period),
     getProjects(),
   ]);
 
@@ -92,6 +98,8 @@ export default async function SubscriptionsPage() {
           </div>
         </div>
       </header>
+
+      <ListPeriodFilter basePath="/subscriptions" searchParams={searchParams} total={subscriptions.length} itemSingular="suscripcion registrada" itemPlural="suscripciones registradas" />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <form action={createSubscriptionFromPage} className="grid grid-cols-1 gap-4 lg:grid-cols-12">

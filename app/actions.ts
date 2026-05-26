@@ -13,6 +13,7 @@ import {
   getScopedCompanySettings,
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
+import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 
 type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number } | { success: false; error: string };
 
@@ -870,8 +871,9 @@ export async function deleteAccountProfile(id: number) {
   return { success: true };
 }
 
-export async function getContacts(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string }) {
+export async function getContacts(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string } & PeriodParams) {
   const profileId = await getActiveProfileId();
+  const period = getPeriodDateRange(options || {});
   const typeFilter =
     options?.type === "CLIENT"
       ? { OR: [{ type: "CLIENT" }, { type: "BOTH" }] }
@@ -882,6 +884,7 @@ export async function getContacts(options?: { search?: string; sortBy?: string; 
     where: {
       profileId,
       ...typeFilter,
+      ...(period.gte ? { createdAt: period } : {}),
       ...(options?.search
         ? { name: { contains: options.search } }
         : {}),
@@ -954,10 +957,12 @@ export async function deleteContact(id: number) {
   return { success: true };
 }
 
-export async function getProjects() {
+export async function getProjects(options?: PeriodParams) {
   const profileId = await getActiveProfileId();
+  const period = getPeriodDateRange(options || {});
   return prisma.project.findMany({
     where: {
+      ...(period.gte ? { startDate: period } : {}),
       OR: [
         { profileId },
         { sharedWith: { some: { profileId } } },
@@ -1134,9 +1139,10 @@ export async function deleteNumberingSequence(id: number) {
   return { success: true };
 }
 
-export async function getInvoices(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
+export async function getInvoices(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
   const profileId = await getActiveProfileId();
   const search = options?.search;
+  const period = getPeriodDateRange(options || {});
   const orderBy =
     options?.sortBy === "client"
       ? { contact: { name: options.sortOrder || "asc" } }
@@ -1144,6 +1150,7 @@ export async function getInvoices(options?: { search?: string; sortBy?: string; 
   return prisma.invoice.findMany({
     where: {
       profileId,
+      ...(period.gte ? { date: period } : {}),
       ...(search
         ? {
             OR: [
@@ -1280,10 +1287,11 @@ export async function duplicateInvoice(id: number) {
   return { success: true, id: created.id, newId: created.id };
 }
 
-export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc" | "desc" }) {
+export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
   const profileId = await getActiveProfileId();
+  const period = getPeriodDateRange(options || {});
   return prisma.purchase.findMany({
-    where: { profileId },
+    where: { profileId, ...(period.gte ? { date: period } : {}) },
     include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true } } },
     orderBy: { [options?.sortBy === "createdAt" ? "createdAt" : "date"]: options?.sortOrder || "desc" } as any,
   });
@@ -1397,10 +1405,11 @@ export async function deletePurchase(id: number) {
   return { success: true };
 }
 
-export async function getSubscriptions() {
+export async function getSubscriptions(options?: PeriodParams) {
   const profileId = await getActiveProfileId();
+  const period = getPeriodDateRange(options || {});
   return prisma.subscription.findMany({
-    where: { profileId },
+    where: { profileId, ...(period.gte ? { createdAt: period } : {}) },
     include: { project: true },
     orderBy: [
       { status: "asc" },
@@ -1462,10 +1471,11 @@ export async function createExpense(formData: FormData) {
   return createPurchase(formData);
 }
 
-export async function getExpenses() {
+export async function getExpenses(options?: PeriodParams) {
   const profileId = await getActiveProfileId();
+  const period = getPeriodDateRange(options || {});
   return prisma.purchase.findMany({
-    where: { profileId, type: "INFORMAL" },
+    where: { profileId, type: "INFORMAL", ...(period.gte ? { date: period } : {}) },
     include: { contact: true, items: true, attachments: true },
     orderBy: { date: "desc" },
   });
@@ -1477,10 +1487,11 @@ export async function getNextQuotationNumber() {
   return `COT-${String((last?.id || 0) + 1).padStart(4, "0")}`;
 }
 
-export async function getQuotations() {
+export async function getQuotations(options?: PeriodParams) {
   const profileId = await getActiveProfileId();
+  const period = getPeriodDateRange(options || {});
   return prisma.quotation.findMany({
-    where: { profileId },
+    where: { profileId, ...(period.gte ? { date: period } : {}) },
     include: { contact: true, project: true, items: true },
     orderBy: { date: "desc" },
   });

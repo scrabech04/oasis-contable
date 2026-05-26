@@ -3,9 +3,15 @@ import { Receipt } from "lucide-react";
 import { getExpenses } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
 import { primaryActionClass } from "@/lib/ui-styles";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
-export default async function ExpensesPage() {
-    const expenses = await getExpenses();
+export default async function ExpensesPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+    const searchParams = await props.searchParams;
+    const period = getPeriodParams(searchParams);
+    const expenses = await getExpenses(period);
 
     return (
         <div className="flex flex-col gap-6">
@@ -16,6 +22,8 @@ export default async function ExpensesPage() {
                     Registrar Gasto
                 </Link>
             </div>
+
+            <ListPeriodFilter basePath="/expenses" searchParams={searchParams} total={expenses.length} itemSingular="gasto registrado" itemPlural="gastos registrados" />
 
             <div className="rounded-md border">
                 {expenses.length === 0 ? (

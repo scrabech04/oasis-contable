@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getContacts } from "@/app/actions";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { primaryActionClass } from "@/lib/ui-styles";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
 export default async function ContactsPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -10,8 +12,9 @@ export default async function ContactsPage(props: {
     const sortBy = (searchParams.sortBy as string) || 'name';
     const sortOrder = (searchParams.sortOrder as 'asc' | 'desc') || 'asc';
     const type = searchParams.type as string | undefined;
+    const period = getPeriodParams(searchParams);
 
-    const contacts = await getContacts({ sortBy, sortOrder, type: type as any });
+    const contacts = await getContacts({ sortBy, sortOrder, type: type as any, ...period });
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -30,6 +33,8 @@ export default async function ContactsPage(props: {
                     </Link>
                 </div>
             </header>
+
+            <ListPeriodFilter basePath="/contacts" searchParams={searchParams} total={contacts.length} itemSingular="contacto registrado" itemPlural="contactos registrados" />
 
             <div className="flex flex-wrap gap-2 items-center text-sm font-medium bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <span className="text-slate-400 px-3 py-1 flex items-center gap-1.5">

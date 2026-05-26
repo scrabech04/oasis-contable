@@ -6,10 +6,16 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Button } from "@/components/ui/button";
 import { primaryActionClass } from "@/lib/ui-styles";
 import { getActiveProfile } from "@/lib/account-profiles";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+    const searchParams = await props.searchParams;
+    const period = getPeriodParams(searchParams);
     const [projects, activeProfile] = await Promise.all([
-        getProjects(),
+        getProjects(period),
         getActiveProfile(),
     ]);
 
@@ -47,6 +53,8 @@ export default async function ProjectsPage() {
                     Nuevo Proyecto
                 </Link>
             </div>
+
+            <ListPeriodFilter basePath="/projects" searchParams={searchParams} total={projects.length} itemSingular="proyecto registrado" itemPlural="proyectos registrados" />
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

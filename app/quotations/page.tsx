@@ -2,9 +2,15 @@ import Link from "next/link";
 import { getQuotations } from "@/app/actions";
 import { QuotationsTable } from "@/components/quotations/QuotationsTable";
 import { primaryActionClass } from "@/lib/ui-styles";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
-export default async function QuotationsPage() {
-    const quotations = await getQuotations();
+export default async function QuotationsPage(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+    const searchParams = await props.searchParams;
+    const period = getPeriodParams(searchParams);
+    const quotations = await getQuotations(period);
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -18,6 +24,8 @@ export default async function QuotationsPage() {
                     Nueva Cotización
                 </Link>
             </header>
+
+            <ListPeriodFilter basePath="/quotations" searchParams={searchParams} total={quotations.length} itemSingular="cotizacion registrada" itemPlural="cotizaciones registradas" />
 
             <QuotationsTable quotations={quotations} />
         </div>

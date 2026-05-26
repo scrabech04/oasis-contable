@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/format";
 import { PurchasesTable } from "@/components/purchases/PurchasesTable";
 import { PurchasesActions } from "@/components/purchases/PurchasesActions";
 import { primaryActionClass } from "@/lib/ui-styles";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { getPeriodParams } from "@/lib/list-period";
 
 export default async function PurchasesPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -14,8 +16,18 @@ export default async function PurchasesPage(props: {
     const sortBy = searchParams.sortBy === 'createdAt' ? 'createdAt' : 'date';
     const sortOrder = searchParams.sortOrder === 'asc' ? 'asc' : 'desc';
     const autoOpenQR = searchParams.scan === "qr";
+    const period = getPeriodParams(searchParams);
+    const hrefWith = (next: Record<string, string>) => {
+        const query = new URLSearchParams();
+        for (const [key, value] of Object.entries(searchParams)) {
+            if (Array.isArray(value)) value.forEach((item) => item && query.append(key, item));
+            else if (value) query.set(key, value);
+        }
+        Object.entries(next).forEach(([key, value]) => query.set(key, value));
+        return `/purchases?${query.toString()}`;
+    };
 
-    const purchases = await getPurchases({ sortBy, sortOrder });
+    const purchases = await getPurchases({ sortBy, sortOrder, ...period });
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -43,13 +55,15 @@ export default async function PurchasesPage(props: {
                 </div>
             </header>
 
+            <ListPeriodFilter basePath="/purchases" searchParams={searchParams} total={purchases.length} itemSingular="compra registrada" itemPlural="compras registradas" />
+
             <div className="flex flex-wrap gap-2 items-center text-sm font-medium bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <span className="text-slate-400 px-3 py-1 flex items-center gap-1.5">
                     <span className="material-icons-round text-sm">sort</span>
                     Ordenar por:
                 </span>
                 <Link
-                    href={`/purchases?sortBy=date&sortOrder=${sortBy === 'date' && sortOrder === 'desc' ? 'asc' : 'desc'}`}
+                    href={hrefWith({ sortBy: "date", sortOrder: sortBy === 'date' && sortOrder === 'desc' ? 'asc' : 'desc' })}
                     className={`px-4 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 ${sortBy === 'date' ? 'bg-blue-50/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-100 dark:border-blue-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                     Fecha Factura
@@ -58,7 +72,7 @@ export default async function PurchasesPage(props: {
                     )}
                 </Link>
                 <Link
-                    href={`/purchases?sortBy=createdAt&sortOrder=${sortBy === 'createdAt' && sortOrder === 'desc' ? 'asc' : 'desc'}`}
+                    href={hrefWith({ sortBy: "createdAt", sortOrder: sortBy === 'createdAt' && sortOrder === 'desc' ? 'asc' : 'desc' })}
                     className={`px-4 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 ${sortBy === 'createdAt' ? 'bg-blue-50/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-100 dark:border-blue-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                     Recién Añadida
