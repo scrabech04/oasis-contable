@@ -224,10 +224,13 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
 
             if (result.success) {
                 router.push("/invoices");
+            } else if ("error" in result) {
+                alert(result.error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al guardar la factura");
+            const message = error instanceof Error ? error.message : "Error al guardar la factura";
+            alert(message);
         } finally {
             setSubmitting(false);
         }

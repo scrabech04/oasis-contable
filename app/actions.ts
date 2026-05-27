@@ -80,6 +80,24 @@ function statusFor(total: number, paidAmount: number) {
   return "PARTIAL";
 }
 
+async function getNextInvoiceNumber() {
+  const last = await prisma.invoice.findFirst({
+    orderBy: { id: "desc" },
+    select: { id: true },
+  });
+  let next = (last?.id || 0) + 1;
+
+  while (true) {
+    const number = `INV-${String(next).padStart(4, "0")}`;
+    const exists = await prisma.invoice.findUnique({
+      where: { number },
+      select: { id: true },
+    });
+    if (!exists) return number;
+    next += 1;
+  }
+}
+
 async function resolveContact(formData: FormData, profileId: number, fallbackType = "CLIENT") {
   const contactId = text(formData, "contactId");
   if (contactId && contactId !== "new" && contactId !== "manual") {
@@ -1181,10 +1199,10 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
   const total = totals(items);
   const contactId = await resolveContact(formData, profileId, "CLIENT");
   const projectId = await resolveProject(formData, profileId, contactId);
-  const last = await prisma.invoice.findFirst({ where: { profileId }, orderBy: { id: "desc" } });
+  const number = await getNextInvoiceNumber();
   const invoice = await prisma.invoice.create({
     data: {
-      number: `INV-${String((last?.id || 0) + 1).padStart(4, "0")}`,
+      number,
       ncf: optionalText(formData, "ncf"),
       date: dateValue(formData, "date"),
       dueDate: dateValue(formData, "dueDate"),
@@ -1610,10 +1628,10 @@ export async function convertQuotationToInvoice(id: number) {
   const activeProfileId = await getActiveProfileId();
   const quote = await prisma.quotation.findFirst({ where: { id, profileId: activeProfileId }, include: { items: true } });
   if (!quote) return { success: false, error: "Cotización no encontrada" };
-  const last = await prisma.invoice.findFirst({ where: { profileId: quote.profileId }, orderBy: { id: "desc" } });
+  const number = await getNextInvoiceNumber();
   const invoice = await prisma.invoice.create({
     data: {
-      number: `INV-${String((last?.id || 0) + 1).padStart(4, "0")}`,
+      number,
       date: new Date(),
       dueDate: new Date(),
       contactId: quote.contactId,
@@ -1901,7 +1919,7 @@ async function createInvoiceFromRecurringTemplate(template: any, issueDate: Date
   }
 
   const total = totals(template.items);
-  const last = await prisma.invoice.findFirst({ where: { profileId }, orderBy: { id: "desc" } });
+  const number = await getNextInvoiceNumber();
   let ncf: string | null = null;
 
   if (template.ncfSequenceId) {
@@ -1920,7 +1938,7 @@ async function createInvoiceFromRecurringTemplate(template: any, issueDate: Date
 
   const invoice = await prisma.invoice.create({
     data: {
-      number: `INV-${String((last?.id || 0) + 1).padStart(4, "0")}`,
+      number,
       ncf,
       date,
       dueDate: addDays(date, Number(template.dueDays) || 30),
