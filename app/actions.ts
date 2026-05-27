@@ -74,6 +74,22 @@ function totals(items: any[]) {
   return { subtotal, tax, total: subtotal + tax };
 }
 
+function invoiceItemsData(items: any[]) {
+  return items.map((item) => {
+    const quantity = Number(item.quantity) || 0;
+    const price = Number(item.price) || 0;
+    const taxRate = Number(item.taxRate) || 0;
+
+    return {
+      description: String(item.description || ""),
+      quantity,
+      price,
+      taxRate,
+      total: quantity * price * (1 + taxRate / 100),
+    };
+  });
+}
+
 function statusFor(total: number, paidAmount: number) {
   if (paidAmount <= 0) return "OPEN";
   if (paidAmount >= total) return "PAID";
@@ -1194,78 +1210,88 @@ export async function getInvoice(id: number) {
 }
 
 export async function createInvoice(formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
-  const items = parseItems(formData);
-  const total = totals(items);
-  const contactId = await resolveContact(formData, profileId, "CLIENT");
-  const projectId = await resolveProject(formData, profileId, contactId);
-  const number = await getNextInvoiceNumber();
-  const invoice = await prisma.invoice.create({
-    data: {
-      number,
-      ncf: optionalText(formData, "ncf"),
-      date: dateValue(formData, "date"),
-      dueDate: dateValue(formData, "dueDate"),
-      contactId,
-      projectId,
-      subtotal: total.subtotal,
-      tax: total.tax,
-      total: total.total,
-      incomeType: text(formData, "incomeType", "01"),
-      title: optionalText(formData, "title"),
-      subtitle: optionalText(formData, "subtitle"),
-      notes: optionalText(formData, "notes"),
-      termsAndConditions: optionalText(formData, "termsAndConditions"),
-      includeCoverPage: checkboxValue(formData, "includeCoverPage"),
-      includeTermsPage: checkboxValue(formData, "includeTermsPage"),
-      profileId,
-      items: { create: items.map((item) => ({ ...item, total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100) })) },
-    },
-  });
-
-  const ncf = text(formData, "ncf");
-  if (ncf) {
-    await prisma.numberingSequence.updateMany({
-      where: { profileId, prefix: ncf.slice(0, 3), nextNumber: Number(ncf.slice(3)) },
-      data: { nextNumber: { increment: 1 } },
+  try {
+    const profileId = await getActiveProfileId();
+    const items = parseItems(formData);
+    const total = totals(items);
+    const contactId = await resolveContact(formData, profileId, "CLIENT");
+    const projectId = await resolveProject(formData, profileId, contactId);
+    const number = await getNextInvoiceNumber();
+    const invoice = await prisma.invoice.create({
+      data: {
+        number,
+        ncf: optionalText(formData, "ncf"),
+        date: dateValue(formData, "date"),
+        dueDate: dateValue(formData, "dueDate"),
+        contactId,
+        projectId,
+        subtotal: total.subtotal,
+        tax: total.tax,
+        total: total.total,
+        incomeType: text(formData, "incomeType", "01"),
+        title: optionalText(formData, "title"),
+        subtitle: optionalText(formData, "subtitle"),
+        notes: optionalText(formData, "notes"),
+        termsAndConditions: optionalText(formData, "termsAndConditions"),
+        includeCoverPage: checkboxValue(formData, "includeCoverPage"),
+        includeTermsPage: checkboxValue(formData, "includeTermsPage"),
+        profileId,
+        items: { create: invoiceItemsData(items) },
+      },
     });
+
+    const ncf = text(formData, "ncf");
+    if (ncf) {
+      await prisma.numberingSequence.updateMany({
+        where: { profileId, prefix: ncf.slice(0, 3), nextNumber: Number(ncf.slice(3)) },
+        data: { nextNumber: { increment: 1 } },
+      });
+    }
+    revalidatePath("/invoices");
+    return { success: true, id: invoice.id };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No fue posible guardar la factura.";
+    return { success: false, error: message };
   }
-  revalidatePath("/invoices");
-  return { success: true, id: invoice.id };
 }
 
 export async function updateInvoice(id: number, formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
-  const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true } });
-  if (!existing) return { success: false, error: "Factura no encontrada para el perfil activo." };
-  const items = parseItems(formData);
-  const total = totals(items);
-  const contactId = await resolveContact(formData, profileId, "CLIENT");
-  const projectId = await resolveProject(formData, profileId, contactId);
-  await prisma.invoice.update({
-    where: { id },
-    data: {
-      ncf: optionalText(formData, "ncf"),
-      date: dateValue(formData, "date"),
-      dueDate: dateValue(formData, "dueDate"),
-      contactId,
-      projectId,
-      subtotal: total.subtotal,
-      tax: total.tax,
-      total: total.total,
-      status: statusFor(total.total, existing.paidAmount || 0),
-      incomeType: text(formData, "incomeType", "01"),
-      title: optionalText(formData, "title"),
-      subtitle: optionalText(formData, "subtitle"),
-      notes: optionalText(formData, "notes"),
-      termsAndConditions: optionalText(formData, "termsAndConditions"),
-      includeCoverPage: checkboxValue(formData, "includeCoverPage"),
-      includeTermsPage: checkboxValue(formData, "includeTermsPage"),
-      items: { deleteMany: {}, create: items.map((item) => ({ ...item, total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100) })) },
-    },
-  });
-  revalidatePath("/invoices");
-  return { success: true, id };
+  try {
+    const profileId = await getActiveProfileId();
+    const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true } });
+    if (!existing) return { success: false, error: "Factura no encontrada para el perfil activo." };
+    const items = parseItems(formData);
+    const total = totals(items);
+    const contactId = await resolveContact(formData, profileId, "CLIENT");
+    const projectId = await resolveProject(formData, profileId, contactId);
+    await prisma.invoice.update({
+      where: { id },
+      data: {
+        ncf: optionalText(formData, "ncf"),
+        date: dateValue(formData, "date"),
+        dueDate: dateValue(formData, "dueDate"),
+        contactId,
+        projectId,
+        subtotal: total.subtotal,
+        tax: total.tax,
+        total: total.total,
+        status: statusFor(total.total, existing.paidAmount || 0),
+        incomeType: text(formData, "incomeType", "01"),
+        title: optionalText(formData, "title"),
+        subtitle: optionalText(formData, "subtitle"),
+        notes: optionalText(formData, "notes"),
+        termsAndConditions: optionalText(formData, "termsAndConditions"),
+        includeCoverPage: checkboxValue(formData, "includeCoverPage"),
+        includeTermsPage: checkboxValue(formData, "includeTermsPage"),
+        items: { deleteMany: {}, create: invoiceItemsData(items) },
+      },
+    });
+    revalidatePath("/invoices");
+    return { success: true, id };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No fue posible actualizar la factura.";
+    return { success: false, error: message };
+  }
 }
 
 export async function deleteInvoice(id: number) {
@@ -1298,7 +1324,7 @@ export async function duplicateInvoice(id: number) {
       includeCoverPage: source.includeCoverPage,
       includeTermsPage: source.includeTermsPage,
       profileId: source.profileId,
-      items: { create: source.items.map(({ id: _id, invoiceId: _invoiceId, ...item }) => item) },
+      items: { create: invoiceItemsData(source.items) },
     },
   });
   revalidatePath("/invoices");
@@ -1646,7 +1672,7 @@ export async function convertQuotationToInvoice(id: number) {
       includeCoverPage: quote.includeCoverPage,
       includeTermsPage: quote.includeTermsPage,
       profileId: quote.profileId,
-      items: { create: quote.items.map(({ id: _id, quotationId: _quotationId, ...item }) => item) },
+      items: { create: invoiceItemsData(quote.items) },
     },
   });
   await prisma.quotation.update({ where: { id: quote.id }, data: { status: "INVOICED" } });
@@ -1953,7 +1979,7 @@ async function createInvoiceFromRecurringTemplate(template: any, issueDate: Date
       notes: template.notes,
       profileId,
       items: {
-        create: template.items.map(({ id: _id, recurringInvoiceId: _recurringInvoiceId, ...item }: any) => item),
+        create: invoiceItemsData(template.items),
       },
     },
   });

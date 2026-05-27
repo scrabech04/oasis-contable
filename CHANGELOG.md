@@ -21,6 +21,8 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - La reconstruccion e-NCF/QR ahora devuelve la respuesta en el formato esperado por la interfaz, usa Playwright headless por defecto y guarda cache temporal en una ruta escribible para despliegues en la nube.
 - Se agregaron filtros por mes/ano y contador de registros en listados principales: facturas, compras, cotizaciones, gastos, contactos, proyectos, suscripciones, cuentas por cobrar y cuentas por pagar.
 - Se corrigio la generacion del numero interno de facturas para evitar choques entre perfiles al crear facturas, convertir cotizaciones o generar recurrentes.
+- Se corrigio el guardado de facturas de venta sanitizando los items antes de enviarlos a Prisma y evitando que campos de UI como `itemType` rompan el guardado.
+- La importacion IA de ventas ahora detiene el lote y muestra el error real si una factura no se pudo guardar.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.

@@ -36,11 +36,15 @@ export function SalesBatchReview({ invoices: initialInvoices, onComplete, onCanc
                 formData.append("incomeType", inv.incomeType || "01");
                 formData.append("notes", inv.notes || "");
 
-                await createInvoice(formData);
+                const result = await createInvoice(formData);
+                if (!result.success) {
+                    throw new Error(result.error || "No fue posible guardar una factura de venta.");
+                }
             }
             onComplete();
         } catch (error) {
-            alert("Error al guardar algunas facturas");
+            const message = error instanceof Error ? error.message : "Error al guardar algunas facturas";
+            alert(message);
         } finally {
             setIsSaving(false);
         }
