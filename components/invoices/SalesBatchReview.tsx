@@ -13,6 +13,12 @@ interface SalesBatchReviewProps {
     onCancel: () => void;
 }
 
+function normalizeTaxRate(value: unknown) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
+}
+
 export function SalesBatchReview({ invoices: initialInvoices, onComplete, onCancel }: SalesBatchReviewProps) {
     const [invoices, setInvoices] = useState(initialInvoices);
     const [isSaving, setIsSaving] = useState(false);
@@ -122,7 +128,7 @@ export function SalesBatchReview({ invoices: initialInvoices, onComplete, onCanc
                                 <div>
                                     <p className="text-muted-foreground text-xs">Monto Total (aprox)</p>
                                     <p className="font-bold text-green-600">
-                                        RD${formatCurrency(inv.items.reduce((acc: number, item: any) => acc + (item.price * item.quantity * (1 + item.taxRate / 100)), 0))}
+                                        RD${formatCurrency(inv.items.reduce((acc: number, item: any) => acc + (item.price * item.quantity * (1 + normalizeTaxRate(item.taxRate) / 100)), 0))}
                                     </p>
                                 </div>
                             </div>
@@ -131,7 +137,7 @@ export function SalesBatchReview({ invoices: initialInvoices, onComplete, onCanc
                                 <ul className="text-xs space-y-1">
                                     {inv.items.map((item: any, i: number) => (
                                         <li key={i} className="flex justify-between border-b border-muted py-1">
-                                            <span>{item.quantity}x {item.description} (ITBIS {item.taxRate}%)</span>
+                                            <span>{item.quantity}x {item.description} (ITBIS {normalizeTaxRate(item.taxRate)}%)</span>
                                             <span>RD${formatCurrency(item.price * item.quantity)}</span>
                                         </li>
                                     ))}

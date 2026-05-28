@@ -71,6 +71,12 @@ interface Payment {
     withholdings: any[];
 }
 
+function normalizeTaxRate(value: unknown) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
+}
+
 export function InvoiceForm({ contacts, projects = [], initialData, numberingSequences = [] }: InvoiceFormProps) {
     const router = useRouter();
     const [items, setItems] = useState<Item[]>([
@@ -135,7 +141,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                 quantity: item.quantity,
                 itemType: item.itemType || "ITEM",
                 price: item.price,
-                taxRate: item.taxRate || 0
+                taxRate: normalizeTaxRate(item.taxRate)
             })));
             setProjectId(initialData.projectId?.toString() || "");
             setTitle(initialData.title || "");

@@ -61,6 +61,12 @@ function parseItems(formData: FormData) {
   }
 }
 
+function normalizeTaxRateValue(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
+}
+
 function totals(items: any[]) {
   const subtotal = items.reduce((sum, item) => {
     if (item.itemType && item.itemType !== "ITEM") return sum;
@@ -69,7 +75,7 @@ function totals(items: any[]) {
   const tax = items.reduce((sum, item) => {
     if (item.itemType && item.itemType !== "ITEM") return sum;
     const line = (Number(item.quantity) || 0) * (Number(item.price) || 0);
-    return sum + line * ((Number(item.taxRate) || 0) / 100);
+    return sum + line * (normalizeTaxRateValue(item.taxRate) / 100);
   }, 0);
   return { subtotal, tax, total: subtotal + tax };
 }
@@ -78,7 +84,7 @@ function invoiceItemsData(items: any[]) {
   return items.map((item) => {
     const quantity = Number(item.quantity) || 0;
     const price = Number(item.price) || 0;
-    const taxRate = Number(item.taxRate) || 0;
+    const taxRate = normalizeTaxRateValue(item.taxRate);
 
     return {
       description: String(item.description || ""),
@@ -482,8 +488,9 @@ function normalizeImportedItems(items: any[], fallbackDescription: string) {
     const unitPrice = normalizeMoney(item.price ?? item.unitPrice ?? 0);
     const baseAmount = explicitBaseAmount > 0 ? explicitBaseAmount : unitPrice * quantity;
     const taxAmount = normalizeMoney(item.taxAmount ?? item.itbis ?? item.tax ?? item.impuesto ?? 0);
-    const taxRate = Number.isFinite(Number(item.taxRate))
-      ? Number(item.taxRate)
+    const rawTaxRate = normalizeTaxRateValue(item.taxRate);
+    const taxRate = rawTaxRate > 0
+      ? rawTaxRate
       : baseAmount > 0
         ? (taxAmount / baseAmount) * 100
         : 0;
@@ -684,7 +691,7 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
   const prompt =
     mode === "purchase"
       ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. supplierName debe ser SIEMPRE la razon social/nombre del emisor o proveedor que aparece como "Razon social emisor", "Nombre emisor", "Proveedor" o equivalente. supplierTaxId debe ser SIEMPRE el RNC/Cedula del emisor o proveedor que aparece como "RNC Emisor", "RNC proveedor", "Cedula emisor" o equivalente. No uses el RNC del comprador como supplierTaxId. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
-      : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. Si falta un dato usa cadena vacia o 0.`;
+      : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Si falta un dato usa cadena vacia o 0.`;
 
   try {
     const result = await model.generateContent([prompt, await fileToGenerativePart(file)]);
