@@ -77,12 +77,16 @@ export function BatchReview({ invoices: initialInvoices, onComplete, onCancel }:
                     }))));
                 }
 
-                await createPurchase(formData);
+                const result = await createPurchase(formData);
+                if (!result.success) {
+                    throw new Error(result.error || "No fue posible guardar una factura de compra.");
+                }
             }
             onComplete();
         } catch (error) {
             console.error("Error saving purchases:", error);
-            alert("Error al guardar algunas facturas");
+            const message = error instanceof Error ? error.message : "Error al guardar algunas facturas";
+            alert(message);
         } finally {
             setIsSaving(false);
         }
@@ -150,9 +154,20 @@ export function BatchReview({ invoices: initialInvoices, onComplete, onCancel }:
                                     )}>
                                         {inv.type === 'FORMAL' ? 'Fiscal/Formal' : 'Gasto Menor'}
                                     </span>
-                                    <h4 className="font-bold text-slate-900 dark:text-white truncate max-w-[300px]">
-                                        {inv.type === 'FORMAL' ? (inv.supplierName || 'Proveedor Desconocido') : (inv.items?.[0]?.description || 'Gasto Menor')}
-                                    </h4>
+                                    <input
+                                        className="max-w-[300px] rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-bold text-slate-900 outline-none transition-all focus:border-slate-200 focus:bg-white dark:text-white dark:focus:border-slate-700 dark:focus:bg-slate-900"
+                                        value={inv.type === 'FORMAL' ? (inv.supplierName || '') : (inv.items?.[0]?.description || 'Gasto Menor')}
+                                        placeholder={inv.type === 'FORMAL' ? 'Proveedor desconocido' : 'Gasto menor'}
+                                        onChange={(e) => {
+                                            const newInvoices = [...invoices];
+                                            if (newInvoices[index].type === 'FORMAL') {
+                                                newInvoices[index].supplierName = e.target.value;
+                                            } else if (newInvoices[index].items?.[0]) {
+                                                newInvoices[index].items[0].description = e.target.value;
+                                            }
+                                            setInvoices(newInvoices);
+                                        }}
+                                    />
                                 </div>
                                 <button
                                     className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"

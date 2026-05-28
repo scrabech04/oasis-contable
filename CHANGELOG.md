@@ -23,6 +23,7 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 - Se corrigio la generacion del numero interno de facturas para evitar choques entre perfiles al crear facturas, convertir cotizaciones o generar recurrentes.
 - Se corrigio el guardado de facturas de venta sanitizando los items antes de enviarlos a Prisma y evitando que campos de UI como `itemType` rompan el guardado.
 - La importacion IA de ventas ahora detiene el lote y muestra el error real si una factura no se pudo guardar.
+- La importacion IA de compras ahora reconoce claves con acentos/espacios como "RNC Emisor" y "Razon social emisor", y permite editar el proveedor en la revision por lotes antes de guardar.
 
 ### Cambiado
 - Se agrego soporte opcional para `GEMINI_MODEL`, permitiendo cambiar el modelo desde variables de entorno sin editar codigo.

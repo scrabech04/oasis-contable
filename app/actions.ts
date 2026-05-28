@@ -501,15 +501,32 @@ function normalizeImportedItems(items: any[], fallbackDescription: string) {
 
 function firstMoney(row: any, keys: string[]) {
   for (const key of keys) {
-    const value = normalizeMoney(row?.[key]);
+    const value = normalizeMoney(looseValue(row, key));
     if (value > 0) return value;
   }
   return 0;
 }
 
+function normalizeJsonKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+function looseValue(row: any, key: string) {
+  if (!row || typeof row !== "object") return undefined;
+  if (Object.prototype.hasOwnProperty.call(row, key)) return row[key];
+
+  const target = normalizeJsonKey(key);
+  const entry = Object.entries(row).find(([candidate]) => normalizeJsonKey(candidate) === target);
+  return entry?.[1];
+}
+
 function firstText(row: any, keys: string[]) {
   for (const key of keys) {
-    const value = row?.[key];
+    const value = looseValue(row, key);
     if (typeof value === "string" && value.trim()) return value.trim();
     if (value && typeof value !== "object") return String(value).trim();
   }
@@ -666,7 +683,7 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
   });
   const prompt =
     mode === "purchase"
-      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. supplierName debe ser la razon social/nombre del emisor o proveedor. supplierTaxId debe ser el RNC/Cedula del emisor o proveedor. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
+      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. supplierName debe ser SIEMPRE la razon social/nombre del emisor o proveedor que aparece como "Razon social emisor", "Nombre emisor", "Proveedor" o equivalente. supplierTaxId debe ser SIEMPRE el RNC/Cedula del emisor o proveedor que aparece como "RNC Emisor", "RNC proveedor", "Cedula emisor" o equivalente. No uses el RNC del comprador como supplierTaxId. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
       : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. Si falta un dato usa cadena vacia o 0.`;
 
   try {
@@ -689,35 +706,61 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
               "vendorName",
               "providerName",
               "razonSocialEmisor",
+              "razón social emisor",
+              "razon social emisor",
+              "razon_social_emisor",
+              "nombre o razon social emisor",
+              "nombre o razón social emisor",
               "razonSocial",
+              "razón social",
+              "razon social",
               "nombreEmisor",
+              "nombre emisor",
+              "emisor",
+              "proveedor",
+              "nombre proveedor",
+              "razonSocialProveedor",
+              "razon social proveedor",
               "contactName",
             ]) ||
-              firstText(row.supplier || {}, ["name", "razonSocial", "businessName"]) ||
-              firstText(row.emisor || {}, ["name", "nombre", "razonSocial", "businessName"]) ||
+              firstText(looseValue(row, "supplier") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName"]) ||
+              firstText(looseValue(row, "proveedor") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName"]) ||
+              firstText(looseValue(row, "emisor") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName"]) ||
               "Proveedor sin identificar";
             const supplierTaxId = firstText(row, [
               "supplierTaxId",
               "vendorTaxId",
               "providerTaxId",
               "rncEmisor",
+              "rnc emisor",
+              "rnc_emisor",
+              "rnc proveedor",
+              "rncProveedor",
+              "cedula emisor",
+              "cedulaEmisor",
+              "cédula emisor",
+              "id tributario emisor",
               "rnc",
               "taxId",
               "cedula",
+              "cédula",
             ]) ||
-              firstText(row.supplier || {}, ["taxId", "rnc", "cedula"]) ||
-              firstText(row.emisor || {}, ["taxId", "rnc", "cedula"]);
+              firstText(looseValue(row, "supplier") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
+              firstText(looseValue(row, "proveedor") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
+              firstText(looseValue(row, "emisor") || {}, ["taxId", "rnc", "cedula", "cédula"]);
             const normalized = normalizePurchaseSingleItem(row, supplierName);
             return {
               type: row.type === "INFORMAL" ? "INFORMAL" : "FORMAL",
               taxTreatment: String(row.taxTreatment || (row.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT")),
               supplierName,
               supplierTaxId,
-              ncf: String(row.ncf || row.encf || "").toUpperCase(),
-              date: normalizeDateString(row.date),
-              dueDate: row.dueDate ? normalizeDateString(row.dueDate) : normalizeDateString(row.date),
-              costType: String(row.costType || "02"),
-              category: String(row.category || "Otros"),
+              ncf: firstText(row, ["ncf", "encf", "eNCF", "e-ncf", "comprobante", "numero comprobante"]).toUpperCase(),
+              date: normalizeDateString(firstText(row, ["date", "fecha", "fechaEmision", "fecha emision", "fecha de emision"])),
+              dueDate: firstText(row, ["dueDate", "fechaVencimiento", "fecha vencimiento"])
+                ? normalizeDateString(firstText(row, ["dueDate", "fechaVencimiento", "fecha vencimiento"]))
+                : normalizeDateString(firstText(row, ["date", "fecha", "fechaEmision", "fecha emision", "fecha de emision"])),
+              costType: firstText(row, ["costType", "tipoGasto", "tipo gasto"]) || "02",
+              category: firstText(row, ["category", "categoria", "categoría"]) || "Otros",
               total: normalized.total,
               notes: row.notes ? String(row.notes) : "",
               items: normalized.items,
