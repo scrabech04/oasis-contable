@@ -114,7 +114,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                             <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden md:table-cell">Fecha</th>
                             <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden sm:table-cell">Tipo</th>
                             <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">Proveedor / Detalle</th>
-                            <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden xs:table-cell">NCF</th>
+                            <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">NCF</th>
                             <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden lg:table-cell">Estado</th>
                             <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 text-right">Monto</th>
                             <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 text-right w-[100px] md:w-[140px]">Acciones</th>
@@ -171,7 +171,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-4 md:px-6 py-4 text-[10px] font-numeric font-extrabold text-slate-500 tracking-wider hidden xs:table-cell">
+                                    <td className="px-4 md:px-6 py-4 text-[10px] font-numeric font-extrabold text-slate-500 tracking-wider">
                                         {purchase.ncf || <span className="text-slate-300 dark:text-slate-600 tracking-normal font-normal">-</span>}
                                     </td>
                                     <td className="px-6 py-4 hidden lg:table-cell">
