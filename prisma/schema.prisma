@@ -250,6 +250,7 @@ model Payment {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   withholdings Withholding[]
+  attachments  PaymentAttachment[]
 }
 
 model Withholding {
@@ -260,6 +261,18 @@ model Withholding {
   payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model PaymentAttachment {
+  id          Int      @id @default(autoincrement())
+  paymentId   Int
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String
+  fileSize    Int
+  storagePath String
+  type        String   @default("PAYMENT_PROOF")
+  createdAt   DateTime @default(now())
 }
 
 model PurchaseItem {

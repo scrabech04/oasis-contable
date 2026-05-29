@@ -2,6 +2,20 @@
 
 Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-28 - Seguridad y soportes de compras
+
+### Agregado
+- Se agrego login con Google OAuth para proteger la aplicacion en produccion.
+- Se agrego middleware de sesion para bloquear paginas y APIs privadas cuando no hay usuario autenticado.
+- Se agrego cierre de sesion desde el menu lateral.
+- Se agregaron comprobantes adjuntos a los pagos/cobros, visibles desde el detalle de la factura.
+
+### Corregido
+- Los soportes PDF/foto importados con IA ya no dependen del disco temporal del servidor; se guardan en el registro del adjunto para poder abrirlos en Firebase/App Hosting.
+
+### Pendiente de configuracion
+- Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SECRET` y `AUTH_ALLOWED_EMAILS` en Firebase App Hosting antes de desplegar.
+
 ## 2026-05-25 - Actualizacion modelo Gemini IA
 
 ### Corregido

@@ -1,4 +1,3 @@
-import { readFile } from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveProfileId } from "@/lib/account-profiles";
@@ -25,14 +24,19 @@ export async function GET(
   const attachmentId = Number(id);
 
   if (!Number.isFinite(attachmentId)) {
-    return NextResponse.json({ error: "Adjunto inválido" }, { status: 400 });
+    return NextResponse.json({ error: "Adjunto invalido" }, { status: 400 });
   }
 
   const profileId = await getActiveProfileId();
-  const attachment = await prisma.purchaseAttachment.findFirst({
+  const attachment = await prisma.paymentAttachment.findFirst({
     where: {
       id: attachmentId,
-      purchase: { profileId },
+      payment: {
+        OR: [
+          { invoice: { profileId } },
+          { purchase: { profileId } },
+        ],
+      },
     },
   });
 
@@ -41,26 +45,15 @@ export async function GET(
   }
 
   const inlineAttachment = readInlineAttachment(attachment.storagePath);
-  if (inlineAttachment) {
-    return new NextResponse(inlineAttachment.file, {
-      headers: {
-        "Content-Type": attachment.mimeType || inlineAttachment.mimeType,
-        "Content-Length": String(inlineAttachment.file.byteLength),
-        "Content-Disposition": `inline; filename="${attachment.fileName.replace(/"/g, "")}"`,
-      },
-    });
-  }
-
-  try {
-    const file = await readFile(attachment.storagePath);
-    return new NextResponse(file, {
-      headers: {
-        "Content-Type": attachment.mimeType,
-        "Content-Length": String(attachment.fileSize),
-        "Content-Disposition": `inline; filename="${attachment.fileName.replace(/"/g, "")}"`,
-      },
-    });
-  } catch {
+  if (!inlineAttachment) {
     return NextResponse.json({ error: "No se pudo leer el archivo adjunto" }, { status: 404 });
   }
+
+  return new NextResponse(inlineAttachment.file, {
+    headers: {
+      "Content-Type": attachment.mimeType || inlineAttachment.mimeType,
+      "Content-Length": String(inlineAttachment.file.byteLength),
+      "Content-Disposition": `inline; filename="${attachment.fileName.replace(/"/g, "")}"`,
+    },
+  });
 }

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, X as CloseIcon, Trash2, Receipt, User, CreditCard } from "lucide-react";
+import { Plus, X as CloseIcon, Trash2, Receipt, User, CreditCard, Paperclip } from "lucide-react";
 
 const WITHHOLDING_TYPES = [
     { label: "Retención ITBIS - 30%", value: "ITBIS_30" },
@@ -54,6 +54,7 @@ export function PaymentDialog({
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [submitting, setSubmitting] = useState(false);
     const [withholdings, setWithholdings] = useState<{ type: string, amount: string }[]>([]);
+    const [proofFile, setProofFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -69,12 +70,14 @@ export function PaymentDialog({
                 } else {
                     setWithholdings([]);
                 }
+                setProofFile(null);
             } else {
                 // New Payment Mode
                 setAmount((total - paidAmount).toFixed(2));
                 setMethod("BANK_TRANSFER");
                 setDate(new Date().toISOString().split('T')[0]);
                 setWithholdings([]);
+                setProofFile(null);
             }
         }
     }, [isOpen, initialPaymentData, total, paidAmount]);
@@ -142,6 +145,9 @@ export function PaymentDialog({
         formData.append("method", method);
         formData.append("date", date);
         formData.append("withholdings", JSON.stringify(withholdings));
+        if (proofFile) {
+            formData.append("attachment", proofFile);
+        }
 
         try {
             if (initialPaymentData) {
@@ -241,6 +247,47 @@ export function PaymentDialog({
                                 </Select>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="payment-proof" className="text-xs font-bold uppercase text-slate-500">Comprobante</Label>
+                        <label
+                            htmlFor="payment-proof"
+                            className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
+                        >
+                            <span className="flex min-w-0 items-center gap-2 text-slate-600 dark:text-slate-300">
+                                <Paperclip className="h-4 w-4 shrink-0" />
+                                <span className="truncate">
+                                    {proofFile?.name || "Adjuntar PDF, foto o captura"}
+                                </span>
+                            </span>
+                            <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-[10px] font-bold uppercase text-slate-500 shadow-sm dark:bg-slate-950">
+                                Elegir
+                            </span>
+                        </label>
+                        <Input
+                            id="payment-proof"
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                        />
+                        {initialPaymentData?.attachments?.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {initialPaymentData.attachments.map((attachment: any) => (
+                                    <a
+                                        key={attachment.id}
+                                        href={`/api/payments/attachments/${attachment.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:border-slate-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                                    >
+                                        <Paperclip className="h-3 w-3" />
+                                        {attachment.fileName || "Soporte"}
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Retenciones Section */}

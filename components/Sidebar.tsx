@@ -114,6 +114,13 @@ export function Sidebar({
 
       <div className="border-t border-slate-200 p-4 dark:border-slate-800">
         <ThemeToggle />
+        <a
+          href="/api/auth/logout"
+          className="mt-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50 dark:text-[#c5cedd] dark:hover:bg-[#202733]"
+        >
+          <span className="material-icons-round text-[20px]">logout</span>
+          Cerrar sesion
+        </a>
       </div>
     </div>
   );

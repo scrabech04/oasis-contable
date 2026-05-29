@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CreditCard, Pencil, Trash2, Plus } from "lucide-react";
+import { CreditCard, Paperclip, Pencil, Trash2, Plus } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { PaymentDialog } from "@/components/payments/PaymentDialog";
 import { deletePayment } from "@/app/actions";
@@ -13,6 +13,7 @@ interface Payment {
     date: Date | string; // Handle both due to serialization
     method: string;
     withholdings: any[];
+    attachments?: Array<{ id: number; fileName: string }>;
 }
 
 interface InvoicePaymentsManagerProps {
@@ -57,6 +58,7 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                             <tr>
                                 <th className="px-4 py-3">Fecha</th>
                                 <th className="px-4 py-3">Método</th>
+                                <th className="px-4 py-3">Soporte</th>
                                 <th className="px-4 py-3 text-right">Monto</th>
                                 <th className="px-4 py-3 text-right">Acciones</th>
                             </tr>
@@ -69,6 +71,21 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                                     </td>
                                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
                                         {payment.method}
+                                    </td>
+                                    <td className="px-4 py-3 text-xs">
+                                        {payment.attachments?.[0] ? (
+                                            <a
+                                                href={`/api/payments/attachments/${payment.attachments[0].id}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300"
+                                            >
+                                                <Paperclip className="h-3 w-3" />
+                                                Soporte
+                                            </a>
+                                        ) : (
+                                            <span className="text-slate-400">Sin soporte</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-200">
                                         RD$ {formatCurrency(payment.amount)}
@@ -106,7 +123,7 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                         </tbody>
                         <tfoot className="bg-slate-50 dark:bg-slate-800/50">
                             <tr>
-                                <td colSpan={2} className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Total Pagado</td>
+                                <td colSpan={3} className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Total Pagado</td>
                                 <td className="px-4 py-3 text-right font-black text-emerald-600">
                                     RD$ {formatCurrency(payments.reduce((acc: number, p: Payment) => acc + p.amount, 0))}
                                 </td>

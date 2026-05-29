@@ -20,3 +20,22 @@ env:
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
+  - variable: GOOGLE_CLIENT_ID
+    secret: GOOGLE_CLIENT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: GOOGLE_CLIENT_SECRET
+    secret: GOOGLE_CLIENT_SECRET
+    availability:
+      - RUNTIME
+  - variable: AUTH_SECRET
+    secret: AUTH_SECRET
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: AUTH_ALLOWED_EMAILS
+    secret: AUTH_ALLOWED_EMAILS
+    availability:
+      - BUILD
+      - RUNTIME

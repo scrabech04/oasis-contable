@@ -3,9 +3,6 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_PROFILE_COOKIE,
@@ -16,8 +13,6 @@ import {
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 
 type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number } | { success: false; error: string };
-
-const PURCHASE_UPLOAD_DIR = path.join(process.cwd(), "uploads", "purchases");
 
 function text(formData: FormData, key: string, fallback = "") {
   const value = formData.get(key);
@@ -603,24 +598,16 @@ function safeFileName(name: string) {
     .slice(0, 120) || "soporte";
 }
 
-async function savePurchaseEvidenceFile(file: File, profileId: number) {
-  const profileDir = path.join(PURCHASE_UPLOAD_DIR, String(profileId));
-  await mkdir(profileDir, { recursive: true });
-
+async function savePurchaseEvidenceFile(file: File, _profileId: number) {
   const originalName = safeFileName(file.name || "soporte");
-  const ext = path.extname(originalName);
-  const base = ext ? originalName.slice(0, -ext.length) : originalName;
-  const storedName = `${Date.now()}-${randomUUID()}-${base}${ext}`;
-  const storagePath = path.join(profileDir, storedName);
-
   const bytes = Buffer.from(await file.arrayBuffer());
-  await writeFile(storagePath, bytes);
+  const mimeType = file.type || "application/octet-stream";
 
   return {
     fileName: file.name || originalName,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     fileSize: file.size,
-    storagePath,
+    storagePath: `data:${mimeType};base64,${bytes.toString("base64")}`,
   };
 }
 
@@ -638,6 +625,23 @@ function attachmentFromFormData(formData: FormData) {
     fileSize,
     storagePath,
     type: "ORIGINAL_INVOICE",
+  };
+}
+
+async function paymentAttachmentFromFormData(formData: FormData) {
+  const value = formData.get("attachment");
+  if (!(value instanceof File) || value.size <= 0) return null;
+
+  const originalName = safeFileName(value.name || "comprobante-pago");
+  const bytes = Buffer.from(await value.arrayBuffer());
+  const mimeType = value.type || "application/octet-stream";
+
+  return {
+    fileName: value.name || originalName,
+    mimeType,
+    fileSize: value.size,
+    storagePath: `data:${mimeType};base64,${bytes.toString("base64")}`,
+    type: "PAYMENT_PROOF",
   };
 }
 
@@ -1245,7 +1249,7 @@ export async function getInvoices(options?: { search?: string; sortBy?: string; 
           }
         : {}),
     },
-    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true } } },
+    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true, attachments: true } } },
     orderBy: orderBy as any,
   });
 }
@@ -1254,7 +1258,7 @@ export async function getInvoice(id: number) {
   const profileId = await getActiveProfileId();
   const invoice = await prisma.invoice.findFirst({
     where: { id, profileId },
-    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true }, orderBy: { date: "desc" } } },
+    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true, attachments: true }, orderBy: { date: "desc" } } },
   });
   return invoice ? { ...invoice, client: invoice.contact } : null;
 }
@@ -1386,7 +1390,7 @@ export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc
   const period = getPeriodDateRange(options || {});
   return prisma.purchase.findMany({
     where: { profileId, ...(period.gte ? { date: period } : {}) },
-    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true } } },
+    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: true } } },
     orderBy: { [options?.sortBy === "createdAt" ? "createdAt" : "date"]: options?.sortOrder || "desc" } as any,
   });
 }
@@ -1395,7 +1399,7 @@ export async function getPurchase(id: number) {
   const profileId = await getActiveProfileId();
   return prisma.purchase.findFirst({
     where: { id, profileId },
-    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true } } },
+    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: true } } },
   });
 }
 
@@ -1759,6 +1763,7 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
 
   const amount = numberValue(formData, "amount");
   const withholdings = JSON.parse(text(formData, "withholdings", "[]"));
+  const attachment = await paymentAttachmentFromFormData(formData);
   const payment = await prisma.payment.create({
     data: {
       amount,
@@ -1771,6 +1776,7 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
       withholdings: {
         create: withholdings.map((w: any) => ({ type: w.type, amount: Number(w.amount) || 0 })),
       },
+      ...(attachment ? { attachments: { create: attachment } } : {}),
     },
   });
   await recomputePaid(targetId, targetType);
@@ -1788,6 +1794,7 @@ export async function updatePayment(id: number, formData: FormData) {
   });
   if (!existing) return { success: false, error: "Pago no encontrado para el perfil activo." };
   const withholdings = JSON.parse(text(formData, "withholdings", "[]"));
+  const attachment = await paymentAttachmentFromFormData(formData);
   await prisma.payment.update({
     where: { id },
     data: {
@@ -1795,6 +1802,7 @@ export async function updatePayment(id: number, formData: FormData) {
       date: dateValue(formData, "date"),
       method: text(formData, "method", "BANK_TRANSFER"),
       withholdings: { deleteMany: {}, create: withholdings.map((w: any) => ({ type: w.type, amount: Number(w.amount) || 0 })) },
+      ...(attachment ? { attachments: { create: attachment } } : {}),
     },
   });
   if (existing?.invoiceId) await recomputePaid(existing.invoiceId, "INVOICE");
