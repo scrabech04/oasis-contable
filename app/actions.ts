@@ -97,6 +97,11 @@ function statusFor(total: number, paidAmount: number) {
   return "PARTIAL";
 }
 
+function effectivePaymentAmount(payment: { amount: number; withholdings?: Array<{ amount: number }> }) {
+  const withheld = (payment.withholdings || []).reduce((sum, withholding) => sum + (Number(withholding.amount) || 0), 0);
+  return (Number(payment.amount) || 0) + withheld;
+}
+
 async function getNextInvoiceNumber() {
   const last = await prisma.invoice.findFirst({
     orderBy: { id: "desc" },
@@ -1830,8 +1835,11 @@ export async function deletePayment(id: number) {
 async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE") {
   const profileId = await getActiveProfileId();
   const where = type === "INVOICE" ? { invoiceId: id } : { purchaseId: id };
-  const aggregate = await prisma.payment.aggregate({ where, _sum: { amount: true } });
-  const paidAmount = aggregate._sum.amount || 0;
+  const payments = await prisma.payment.findMany({
+    where,
+    include: { withholdings: true },
+  });
+  const paidAmount = payments.reduce((sum, payment) => sum + effectivePaymentAmount(payment), 0);
   if (type === "INVOICE") {
     const invoice = await prisma.invoice.findFirst({ where: { id, profileId } });
     if (invoice) await prisma.invoice.update({ where: { id }, data: { paidAmount, status: statusFor(invoice.total, paidAmount) } });

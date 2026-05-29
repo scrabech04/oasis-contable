@@ -12,6 +12,7 @@ Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las func
 
 ### Corregido
 - Los soportes PDF/foto importados con IA ya no dependen del disco temporal del servidor; se guardan en el registro del adjunto para poder abrirlos en Firebase/App Hosting.
+- Las retenciones en pagos/cobros ahora cuentan como parte del monto aplicado a la factura o compra, evitando que documentos saldados aparezcan como pagos parciales.
 
 ### Pendiente de configuracion
 - Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AUTH_SECRET` y `AUTH_ALLOWED_EMAILS` en Firebase App Hosting antes de desplegar.

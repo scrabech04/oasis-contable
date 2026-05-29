@@ -20,11 +20,17 @@ interface InvoicePaymentsManagerProps {
     invoice: any; // Using any for simplicity as strictly typing full Prisma objects on client can be verbose, but ideally should be typed
 }
 
+function effectivePaymentAmount(payment: Payment) {
+    const withheld = (payment.withholdings || []).reduce((sum: number, withholding: any) => sum + (Number(withholding.amount) || 0), 0);
+    return (Number(payment.amount) || 0) + withheld;
+}
+
 export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps) {
     const router = useRouter();
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
     const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
     const payments = invoice.payments || [];
+    const paidTotal = payments.reduce((acc: number, payment: Payment) => acc + effectivePaymentAmount(payment), 0);
 
     // Calculate totals for display within this manager if needed, 
     // though the main page likely shows them. 
@@ -125,7 +131,7 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                             <tr>
                                 <td colSpan={3} className="px-4 py-3 text-right text-xs font-bold uppercase text-slate-500">Total Pagado</td>
                                 <td className="px-4 py-3 text-right font-black text-emerald-600">
-                                    RD$ {formatCurrency(payments.reduce((acc: number, p: Payment) => acc + p.amount, 0))}
+                                    RD$ {formatCurrency(paidTotal)}
                                 </td>
                                 <td></td>
                             </tr>
@@ -146,7 +152,7 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                 total={invoice.total}
                 subtotal={invoice.subtotal} // Using invoice subtotal
                 tax={invoice.tax}
-                paidAmount={payments.reduce((acc: number, p: Payment) => acc + p.amount, 0)}
+                paidAmount={paidTotal}
                 number={invoice.number}
                 entityName={invoice.client?.name || ""}
                 onSuccess={() => {

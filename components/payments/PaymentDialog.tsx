@@ -20,6 +20,11 @@ const WITHHOLDING_TYPES = [
     { label: "Retención Proveedores del Estado - 5%", value: "ESTADO_5" },
 ];
 
+function effectivePaymentAmount(payment: any) {
+    const withheld = (payment?.withholdings || []).reduce((sum: number, withholding: any) => sum + (Number(withholding.amount) || 0), 0);
+    return (Number(payment?.amount) || 0) + withheld;
+}
+
 interface PaymentDialogProps {
     isOpen: boolean;
     onClose: () => void;
@@ -102,7 +107,7 @@ export function PaymentDialog({
     // Auto-adjust main amount when withholdings change
     useEffect(() => {
         const totalWithholding = withholdings.reduce((sum, w) => sum + (parseFloat(w.amount) || 0), 0);
-        const pending = total - (initialPaymentData ? paidAmount - initialPaymentData.amount : paidAmount);
+        const pending = total - (initialPaymentData ? paidAmount - effectivePaymentAmount(initialPaymentData) : paidAmount);
         const suggestedAmount = Math.max(0, pending - totalWithholding);
         setAmount(suggestedAmount.toFixed(2));
     }, [withholdings, total, paidAmount, initialPaymentData]);
@@ -165,7 +170,7 @@ export function PaymentDialog({
         }
     };
 
-    const pending = total - (initialPaymentData ? paidAmount - initialPaymentData.amount : paidAmount);
+    const pending = total - (initialPaymentData ? paidAmount - effectivePaymentAmount(initialPaymentData) : paidAmount);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>

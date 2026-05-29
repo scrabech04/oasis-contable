@@ -71,6 +71,11 @@ interface Payment {
     withholdings: any[];
 }
 
+function effectivePaymentAmount(payment: Payment) {
+    const withheld = (payment.withholdings || []).reduce((sum: number, withholding: any) => sum + (Number(withholding.amount) || 0), 0);
+    return (Number(payment.amount) || 0) + withheld;
+}
+
 function normalizeTaxRate(value: unknown) {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -101,6 +106,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
     const [submitting, setSubmitting] = useState(false);
 
     const payments = initialData?.payments || [];
+    const paidTotal = payments.reduce((acc: number, payment: Payment) => acc + effectivePaymentAmount(payment), 0);
 
 
 
@@ -715,7 +721,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                 <div className="flex justify-between items-center text-sm py-2">
                                     <span className="text-green-600 font-bold uppercase tracking-tighter text-[11px]">Pagado</span>
                                     <span className="font-bold text-green-600 font-mono text-base">
-                                        RD$ {formatCurrency(payments.reduce((acc: number, p: any) => acc + p.amount, 0))}
+                                        RD$ {formatCurrency(paidTotal)}
                                     </span>
                                 </div>
                             )}
@@ -732,7 +738,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                 <div className="mt-4 pt-4 border-t border-blue-500/30 flex justify-between items-center text-blue-100">
                                     <span className="text-[10px] font-bold uppercase tracking-wider">Pendiente</span>
                                     <span className="font-mono font-bold text-lg">
-                                        RD$ {formatCurrency(total - payments.reduce((acc: number, p: any) => acc + p.amount, 0))}
+                                        RD$ {formatCurrency(total - paidTotal)}
                                     </span>
                                 </div>
                             )}
