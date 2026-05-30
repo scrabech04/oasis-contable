@@ -39,3 +39,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: AUTH_ORIGIN
+    value: https://oasis-contable--oasis-contable.us-east4.hosted.app
+    availability:
+      - BUILD
+      - RUNTIME

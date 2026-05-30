@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_STATE_COOKIE } from "@/lib/auth";
+import { AUTH_STATE_COOKIE, getGoogleCallbackUrl } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   }
 
   const state = crypto.randomUUID();
-  const redirectUri = new URL("/api/auth/google/callback", request.url).toString();
+  const redirectUri = getGoogleCallbackUrl(request);
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);

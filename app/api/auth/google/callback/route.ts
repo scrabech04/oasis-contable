@@ -5,6 +5,7 @@ import {
   createSessionToken,
   decodeJwtPayload,
   getAuthSecret,
+  getGoogleCallbackUrl,
   isEmailAllowed,
 } from "@/lib/auth";
 
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     return loginRedirect(request, "invalid_state");
   }
 
-  const redirectUri = new URL("/api/auth/google/callback", request.url).toString();
+  const redirectUri = getGoogleCallbackUrl(request);
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

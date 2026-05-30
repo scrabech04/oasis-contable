@@ -84,6 +84,21 @@ export function isEmailAllowed(email: string) {
   return allowedEmails.includes(email.trim().toLowerCase());
 }
 
+export function getAuthOrigin(request: { url: string; headers: { get(name: string): string | null } }) {
+  const configuredOrigin = process.env.AUTH_ORIGIN || process.env.NEXT_PUBLIC_APP_URL || "";
+  if (configuredOrigin) return configuredOrigin.replace(/\/+$/g, "");
+
+  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || (forwardedHost?.startsWith("localhost") ? "http" : "https");
+  if (forwardedHost) return `${forwardedProto}://${forwardedHost}`;
+
+  return new URL(request.url).origin;
+}
+
+export function getGoogleCallbackUrl(request: { url: string; headers: { get(name: string): string | null } }) {
+  return `${getAuthOrigin(request)}/api/auth/google/callback`;
+}
+
 export async function createSessionToken(
   input: Omit<AuthSession, "exp">,
   secret: string,
