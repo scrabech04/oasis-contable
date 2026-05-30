@@ -1,4 +1,4 @@
-const CACHE_NAME = "contableapp-pwa-v1";
+const CACHE_NAME = "oflow-by-oasis-pwa-v2";
 const APP_SHELL = [
   "/",
   "/mobile/quick-actions",

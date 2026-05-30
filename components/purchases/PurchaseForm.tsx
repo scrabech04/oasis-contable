@@ -765,7 +765,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                         {submitting ? "Guardando..." : initialData ? "Actualizar Compra" : "Registrar Compra"}
                     </button>
                 </div>
-                <p className="text-center text-xs text-slate-500 md:text-right">© 2026 Accounting System Premium</p>
+                <p className="text-center text-xs text-slate-500 md:text-right">© 2026 oFlow by Oasis</p>
             </div>
         </form>
     );

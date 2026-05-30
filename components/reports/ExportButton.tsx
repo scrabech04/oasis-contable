@@ -84,6 +84,16 @@ function sumWithholdingsByKind(payments: any[], kind: "ITBIS" | "ISR") {
     }, 0);
 }
 
+function getLatestWithholdingDate(payments: any[]) {
+    const dates = payments
+        .filter((payment) => (payment.withholdings || []).some((withholding: any) => Number(withholding.amount) > 0))
+        .map((payment) => new Date(payment.date))
+        .filter((date) => !Number.isNaN(date.getTime()))
+        .sort((a, b) => b.getTime() - a.getTime());
+
+    return dates[0] ? formatDgiiDate(dates[0]) : "";
+}
+
 function getIsrRetentionType(payments: any[]) {
     const withholdingTypes = payments
         .flatMap((payment) => payment.withholdings || [])
@@ -174,11 +184,15 @@ export function ExportButton({ type, data, period, companyTaxId }: ExportButtonP
                 const rnc = normalizeTaxId(inv.contact?.taxId) || "000000000";
                 const ncf = inv.ncf || "";
                 const date = formatDgiiDate(inv.date);
+                const payments = inv.payments || [];
+                const fechaRetencion = getLatestWithholdingDate(payments);
                 const subtotal = formatAmount(inv.subtotal);
                 const tax = formatAmount(inv.tax);
+                const itbisRetenido = sumWithholdingsByKind(payments, "ITBIS");
+                const retencionRenta = sumWithholdingsByKind(payments, "ISR");
                 const incomeType = inv.incomeType || "01";
 
-                return `${rnc};${getTipoId(rnc)};${ncf};;${incomeType};${date};;${subtotal};${tax};0.00;0.00;0.00;0.00;0.00;0.00;${formatAmount(inv.total)}`;
+                return `${rnc};${getTipoId(rnc)};${ncf};;${incomeType};${date};${fechaRetencion};${subtotal};${tax};${formatAmount(itbisRetenido)};0.00;${formatAmount(retencionRenta)};0.00;0.00;0.00;${formatAmount(inv.total)}`;
             }).join("\n");
         }
 

@@ -107,7 +107,7 @@ export function InvoiceViewer({ invoice, identities = [], companySettings }: Inv
                             <div className="flex items-center gap-2">
                                 <span className="material-icons-round text-3xl text-blue-600">account_balance_wallet</span>
                                 <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                                    Contable<span className="font-normal text-slate-500">App</span>
+                                    oFlow<span className="ml-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">by Oasis</span>
                                 </span>
                             </div>
                             {selectedIdentity?.logoUrl && (

@@ -1,7 +1,7 @@
 {
-  "name": "ContableApp",
-  "short_name": "ContableApp",
-  "description": "Gestion contable, compras, cotizaciones y suscripciones.",
+  "name": "oFlow by Oasis",
+  "short_name": "oFlow",
+  "description": "Flujo financiero, compras, cotizaciones, facturas y suscripciones.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

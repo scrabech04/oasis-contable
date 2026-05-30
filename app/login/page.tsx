@@ -32,9 +32,10 @@ export default async function LoginPage({
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500 text-white">
             <span className="material-icons-round">account_balance_wallet</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">ContableApp</h1>
+          <h1 className="text-3xl font-bold tracking-tight">oFlow</h1>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-200">by Oasis</p>
           <p className="mt-2 text-sm text-slate-300">
-            Entra con tu cuenta autorizada de Google para ver tu contabilidad.
+            Entra con tu cuenta autorizada de Google para ver tu flujo financiero.
           </p>
         </div>
 

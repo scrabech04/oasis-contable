@@ -438,7 +438,7 @@ async function fetchDgiiTimbreDetails(url: string) {
       cache: "no-store",
       signal: AbortSignal.timeout(7000),
       headers: {
-        "user-agent": "Mozilla/5.0 compatible; OasisContable/1.0",
+        "user-agent": "Mozilla/5.0 compatible; oFlowByOasis/1.0",
         accept: "text/html,application/xhtml+xml",
       },
     });

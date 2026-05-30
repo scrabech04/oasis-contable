@@ -22,12 +22,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ContableApp - Software Contable",
-  description: "Administracion contable para PYMES en Republica Dominicana",
+  title: "oFlow by Oasis",
+  description: "Flujo financiero, facturacion, compras y reportes fiscales para negocios modernos.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "ContableApp",
+    title: "oFlow",
     statusBarStyle: "default",
   },
   icons: {

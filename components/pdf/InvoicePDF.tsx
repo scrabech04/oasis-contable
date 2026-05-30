@@ -336,7 +336,7 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
             <View style={styles.footer}>
                 <Text style={{ marginBottom: 2 }}>{company.name} • {company.taxId} • {company.email}</Text>
                 <Text>Esta factura es un documento legal. Gracias por su confianza.</Text>
-                <Text style={{ marginTop: 4, color: '#cbd5e1' }}>Generado por ContableApp</Text>
+                <Text style={{ marginTop: 4, color: '#cbd5e1' }}>Generado por oFlow by Oasis</Text>
             </View>
         </Page>
         {options.includeTermsPage && (

@@ -1,6 +1,14 @@
 # Changelog
 
-Bitacora de cambios del proyecto Oasis Software Contable. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
+Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
+
+## 2026-05-30 - Marca oFlow y retenciones 607
+
+### Cambiado
+- La aplicacion pasa de la marca generica `ContableApp` a `oFlow by Oasis` en metadata, login, sidebar, PWA, documentos PDF y vistas imprimibles.
+
+### Corregido
+- El exportador 607 ahora refleja `ITBIS_Retenido`, `Retencion_Renta` y `Fecha_Retencion` usando las retenciones registradas en los pagos de facturas de venta.
 
 ## 2026-05-28 - Seguridad y soportes de compras
 
