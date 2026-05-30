@@ -25,6 +25,18 @@ function effectivePaymentAmount(payment: Payment) {
     return (Number(payment.amount) || 0) + withheld;
 }
 
+function withholdingLabel(type: string) {
+    switch (type) {
+        case "ITBIS_30": return "ITBIS 30%";
+        case "ITBIS_100": return "ITBIS 100%";
+        case "ISR_10": return "ISR 10%";
+        case "ISR_2": return "ISR 2%";
+        case "ISR_1": return "ISR 1%";
+        case "ESTADO_5": return "Estado 5%";
+        default: return type || "Retencion";
+    }
+}
+
 export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps) {
     const router = useRouter();
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -65,7 +77,7 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                                 <th className="px-4 py-3">Fecha</th>
                                 <th className="px-4 py-3">Método</th>
                                 <th className="px-4 py-3">Soporte</th>
-                                <th className="px-4 py-3 text-right">Monto</th>
+                                <th className="px-4 py-3 text-right">Aplicado</th>
                                 <th className="px-4 py-3 text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -93,8 +105,24 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                                             <span className="text-slate-400">Sin soporte</span>
                                         )}
                                     </td>
-                                    <td className="px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-200">
-                                        RD$ {formatCurrency(payment.amount)}
+                                    <td className="px-4 py-3 text-right">
+                                        <div className="space-y-1">
+                                            <div className="font-bold text-slate-800 dark:text-slate-200">
+                                                RD$ {formatCurrency(effectivePaymentAmount(payment))}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                Transferencia: RD$ {formatCurrency(payment.amount)}
+                                            </div>
+                                            {payment.withholdings?.length > 0 && (
+                                                <div className="space-y-0.5">
+                                                    {payment.withholdings.map((withholding: any) => (
+                                                        <div key={withholding.id || `${withholding.type}-${withholding.amount}`} className="text-[11px] text-amber-700 dark:text-amber-300">
+                                                            {withholdingLabel(withholding.type)}: RD$ {formatCurrency(withholding.amount || 0)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
