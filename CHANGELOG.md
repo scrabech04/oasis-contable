@@ -2,6 +2,17 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-30 - Exportacion TXT 607 DGII
+
+### Cambiado
+- Se comparo el exportador 607 contra la herramienta oficial `Herramienta de Envio Formato 607.xls` de DGII.
+- El reporte 607 ahora descarga un archivo `.TXT` con nombre `DGII_F_607_RNC_PERIODO.TXT`, alineado al nombre generado por la herramienta DGII.
+- El contenido del 607 ahora usa separador `|` y no incluye una fila de encabezados de columnas, dejando solo la linea de control y los registros.
+- El orden de campos del detalle se mantiene igual al de la herramienta oficial, incluyendo las columnas de formas de venta 17 a 23.
+
+### Pendiente de prueba funcional
+- Descargar un 607 real desde la app y cargarlo en la herramienta de pre-validacion de DGII.
+
 ## 2026-05-30 - Marca oFlow y retenciones 607
 
 ### Cambiado
@@ -9,6 +20,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 
 ### Corregido
 - El exportador 607 ahora refleja `ITBIS_Retenido`, `Retencion_Renta` y `Fecha_Retencion` usando las retenciones registradas en los pagos de facturas de venta.
+- El exportador 607 ahora incluye las formas de venta 17 a 23 del instructivo DGII: efectivo, transferencia/cheque/deposito, tarjeta, credito, bonos, permuta y otras formas de venta.
 
 ## 2026-05-28 - Seguridad y soportes de compras
 

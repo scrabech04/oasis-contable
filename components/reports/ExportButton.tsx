@@ -66,6 +66,51 @@ function getPaymentMethodCode(payments: any[], status: string) {
     return methodCodes.size === 1 ? Array.from(methodCodes)[0] : "7";
 }
 
+function effectivePaymentAmount(payment: any) {
+    const withheld = (payment.withholdings || []).reduce(
+        (sum: number, withholding: any) => sum + (Number(withholding.amount) || 0),
+        0
+    );
+    return (Number(payment.amount) || 0) + withheld;
+}
+
+function getSalesPaymentBreakdown(payments: any[], invoiceTotal: number) {
+    const breakdown = {
+        efectivo: 0,
+        transferencia: 0,
+        tarjeta: 0,
+        credito: 0,
+        bonos: 0,
+        permuta: 0,
+        otras: 0,
+    };
+
+    for (const payment of payments) {
+        const amount = effectivePaymentAmount(payment);
+
+        switch (payment.method) {
+            case "CASH":
+                breakdown.efectivo += amount;
+                break;
+            case "BANK_TRANSFER":
+            case "CHECK":
+                breakdown.transferencia += amount;
+                break;
+            case "CARD":
+                breakdown.tarjeta += amount;
+                break;
+            default:
+                breakdown.otras += amount;
+                break;
+        }
+    }
+
+    const applied = Object.values(breakdown).reduce((sum, amount) => sum + amount, 0);
+    breakdown.credito = Math.max(0, invoiceTotal - applied);
+
+    return breakdown;
+}
+
 function sumWithholdingsByKind(payments: any[], kind: "ITBIS" | "ISR") {
     return payments.reduce((sum, payment) => {
         const paymentTotal = (payment.withholdings || [])
@@ -125,13 +170,15 @@ export function ExportButton({ type, data, period, companyTaxId }: ExportButtonP
             return;
         }
 
-        let csvContent = "";
+        let fileContent = "";
+        let fileName = `Reporte_${type}_${period}.csv`;
+        let mimeType = "text/csv;charset=utf-8;";
         const emitterTaxId = normalizeTaxId(companyTaxId) || "000000000";
         const controlLine = `${type}|${emitterTaxId}|${period}|${data.length}\n`;
 
         if (type === "606") {
             const headers = "RNC;TipoID;NCF;NCF_Mod;Fecha;FechaPago;Servicios;Bienes;Monto_Total;ITBIS_Facturado;ITBIS_Retenido;ITBIS_Sujeto_Proporcionalidad;ITBIS_Llevado_Costo;ITBIS_por_Adelantar;ITBIS_Percibido;Tipo_Retencion_ISR;Monto_Retencion_Renta;ISR_Percibido;ISC;Otros_Impuestos_Tasas;Propina_Legal;Tipo_Gasto;Forma_Pago\n";
-            csvContent = controlLine + headers + data.map(p => {
+            fileContent = controlLine + headers + data.map(p => {
                 const rnc = normalizeTaxId(p.contact?.taxId || p.supplierTaxId) || "000000000";
                 const ncf = p.ncf || "";
                 const date = formatDgiiDate(p.date);
@@ -178,9 +225,9 @@ export function ExportButton({ type, data, period, companyTaxId }: ExportButtonP
                 ].join(";");
             }).join("\n");
         } else {
-            // DGII 607 Headers
-            const headers = "RNC;TipoID;NCF;NCF_Mod;Tipo_Ingreso;Fecha;Fecha_Retencion;Monto_Facturado;ITBIS_Facturado;ITBIS_Retenido;ITBIS_Percibido;Retencion_Renta;Impuesto_Consumo;Otros_Impuestos;Propina;Monto_Efectivo\n";
-            csvContent = controlLine + headers + data.map(inv => {
+            fileName = `DGII_F_607_${emitterTaxId}_${period}.TXT`;
+            mimeType = "text/plain;charset=utf-8;";
+            fileContent = controlLine + data.map(inv => {
                 const rnc = normalizeTaxId(inv.contact?.taxId) || "000000000";
                 const ncf = inv.ncf || "";
                 const date = formatDgiiDate(inv.date);
@@ -191,16 +238,41 @@ export function ExportButton({ type, data, period, companyTaxId }: ExportButtonP
                 const itbisRetenido = sumWithholdingsByKind(payments, "ITBIS");
                 const retencionRenta = sumWithholdingsByKind(payments, "ISR");
                 const incomeType = inv.incomeType || "01";
+                const paymentBreakdown = getSalesPaymentBreakdown(payments, inv.total || 0);
 
-                return `${rnc};${getTipoId(rnc)};${ncf};;${incomeType};${date};${fechaRetencion};${subtotal};${tax};${formatAmount(itbisRetenido)};0.00;${formatAmount(retencionRenta)};0.00;0.00;0.00;${formatAmount(inv.total)}`;
+                return [
+                    rnc,
+                    getTipoId(rnc),
+                    ncf,
+                    "",
+                    incomeType,
+                    date,
+                    fechaRetencion,
+                    subtotal,
+                    tax,
+                    formatAmount(itbisRetenido),
+                    "0.00",
+                    formatAmount(retencionRenta),
+                    "0.00",
+                    "0.00",
+                    "0.00",
+                    "0.00",
+                    formatAmount(paymentBreakdown.efectivo),
+                    formatAmount(paymentBreakdown.transferencia),
+                    formatAmount(paymentBreakdown.tarjeta),
+                    formatAmount(paymentBreakdown.credito),
+                    formatAmount(paymentBreakdown.bonos),
+                    formatAmount(paymentBreakdown.permuta),
+                    formatAmount(paymentBreakdown.otras),
+                ].join("|");
             }).join("\n");
         }
 
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob([fileContent], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `Reporte_${type}_${period}.csv`);
+        link.setAttribute("download", fileName);
         link.style.visibility = "hidden";
         document.body.appendChild(link);
         link.click();
@@ -213,7 +285,7 @@ export function ExportButton({ type, data, period, companyTaxId }: ExportButtonP
             className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
         >
             <FileDown className="h-4 w-4" />
-            Exportar CSV {type}
+            Exportar {type === "607" ? "TXT" : "CSV"} {type}
         </Button>
     );
 }
