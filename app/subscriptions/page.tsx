@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { createSubscription, deleteSubscription, getProjects, getSubscriptions, updateSubscriptionStatus } from "@/app/actions";
+import { createSubscription, deleteSubscription, getProjects, getSubscriptions, updateSubscription, updateSubscriptionStatus } from "@/app/actions";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { primaryActionClass } from "@/lib/ui-styles";
 import { Button } from "@/components/ui/button";
-import { CalendarClock, CreditCard, ExternalLink, Pause, Plus, Trash2, XCircle } from "lucide-react";
+import { CalendarClock, CreditCard, Edit3, ExternalLink, Pause, Plus, Save, Trash2, XCircle } from "lucide-react";
 import { ListPeriodFilter } from "@/components/ListPeriodFilter";
 import { getPeriodParams } from "@/lib/list-period";
 
@@ -47,6 +47,21 @@ function renewalTone(days: number | null, reminderDays: number) {
   return "bg-emerald-50 text-emerald-700 border-emerald-100";
 }
 
+function currencyPrefix(currency: string | null | undefined) {
+  return currency === "USD" ? "US$" : "RD$";
+}
+
+function amountInDop(subscription: any) {
+  const amount = Number(subscription.amount) || 0;
+  const rate = Number(subscription.exchangeRate) || 1;
+  return subscription.currency === "USD" ? amount * rate : amount;
+}
+
+function inputDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
+}
+
 export default async function SubscriptionsPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
@@ -59,7 +74,7 @@ export default async function SubscriptionsPage(props: {
 
   const activeSubscriptions = subscriptions.filter((subscription) => subscription.status === "ACTIVE");
   const monthlyEstimate = activeSubscriptions.reduce((sum, subscription) => {
-    const amount = subscription.amount || 0;
+    const amount = amountInDop(subscription);
     if (subscription.billingCycle === "YEARLY") return sum + amount / 12;
     if (subscription.billingCycle === "QUARTERLY") return sum + amount / 3;
     if (subscription.billingCycle === "WEEKLY") return sum + amount * 4;
@@ -134,7 +149,18 @@ export default async function SubscriptionsPage(props: {
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Monto</label>
             <input name="amount" type="number" step="0.01" min="0" placeholder="0.00" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
           </div>
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Moneda</label>
+            <select name="currency" defaultValue="DOP" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+              <option value="DOP">RD$</option>
+              <option value="USD">US$</option>
+            </select>
+          </div>
+          <div className="lg:col-span-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tasa</label>
+            <input name="exchangeRate" type="number" step="0.01" min="0.01" defaultValue="1" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+          </div>
+          <div className="lg:col-span-1">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Ciclo</label>
             <select name="billingCycle" defaultValue="MONTHLY" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
               <option value="MONTHLY">Mensual</option>
@@ -204,7 +230,10 @@ export default async function SubscriptionsPage(props: {
                     <span>{subscription.provider}</span>
                     {subscription.project && <span>Proyecto: {subscription.project.name}</span>}
                     <span>{cycleLabels[subscription.billingCycle] || subscription.billingCycle}</span>
-                    <span>{subscription.currency} {formatCurrency(subscription.amount)}</span>
+                    <span>{currencyPrefix(subscription.currency)} {formatCurrency(subscription.amount)}</span>
+                    {subscription.currency === "USD" && (
+                      <span>RD$ {formatCurrency(amountInDop(subscription))} a {formatCurrency(subscription.exchangeRate)}</span>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-[520px]">
@@ -266,6 +295,120 @@ export default async function SubscriptionsPage(props: {
                   </div>
                 </div>
               </div>
+              <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-950/50">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                  <Edit3 className="h-4 w-4" />
+                  Editar suscripcion
+                </summary>
+                <form
+                  action={async (formData) => {
+                    "use server";
+                    await updateSubscription(subscription.id, formData);
+                  }}
+                  className="grid grid-cols-1 gap-4 border-t border-slate-200 p-4 dark:border-slate-800 lg:grid-cols-12"
+                >
+                  <div className="lg:col-span-3">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Que compraste</label>
+                    <input name="name" required defaultValue={subscription.name} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proveedor</label>
+                    <input name="provider" required defaultValue={subscription.provider} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proyecto</label>
+                    <select name="projectId" defaultValue={subscription.projectId || ""} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                      <option value="">Sin proyecto</option>
+                      {projects.map((project: any) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Categoria</label>
+                    <select name="category" defaultValue={subscription.category} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                      <option value="DOMAIN">Dominio</option>
+                      <option value="HOSTING">Hosting</option>
+                      <option value="SOFTWARE">Software</option>
+                      <option value="PLATFORM">Plataforma</option>
+                      <option value="OTHER">Otro</option>
+                    </select>
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Monto</label>
+                    <input name="amount" type="number" step="0.01" min="0" defaultValue={subscription.amount} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Moneda</label>
+                    <select name="currency" defaultValue={subscription.currency || "DOP"} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                      <option value="DOP">RD$</option>
+                      <option value="USD">US$</option>
+                    </select>
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tasa</label>
+                    <input name="exchangeRate" type="number" step="0.01" min="0.01" defaultValue={subscription.exchangeRate || 1} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Ciclo</label>
+                    <select name="billingCycle" defaultValue={subscription.billingCycle} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                      <option value="MONTHLY">Mensual</option>
+                      <option value="YEARLY">Anual</option>
+                      <option value="QUARTERLY">Trimestral</option>
+                      <option value="WEEKLY">Semanal</option>
+                      <option value="ONE_TIME">Unico</option>
+                    </select>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proximo cobro</label>
+                    <input name="nextBillingDate" type="date" defaultValue={inputDate(subscription.nextBillingDate)} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</label>
+                    <select name="paymentMethod" defaultValue={subscription.paymentMethod} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                      <option value="CARD">Tarjeta</option>
+                      <option value="BANK_TRANSFER">Transferencia</option>
+                      <option value="PAYPAL">PayPal</option>
+                      <option value="CASH">Efectivo</option>
+                      <option value="OTHER">Otro</option>
+                    </select>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tarjeta/cuenta</label>
+                    <input name="paymentAccount" defaultValue={subscription.paymentAccount || ""} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sitio web</label>
+                    <input name="websiteUrl" type="url" defaultValue={subscription.websiteUrl || ""} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Donde cancelar</label>
+                    <input name="managementUrl" type="url" defaultValue={subscription.managementUrl || ""} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-1">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Aviso</label>
+                    <input name="reminderDays" type="number" min="0" defaultValue={subscription.reminderDays} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Estado</label>
+                    <select name="status" defaultValue={subscription.status} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                      <option value="ACTIVE">Activa</option>
+                      <option value="PAUSED">Pausada</option>
+                      <option value="CANCELLED">Cancelada</option>
+                    </select>
+                  </div>
+                  <div className="lg:col-span-5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Notas</label>
+                    <input name="notes" defaultValue={subscription.notes || ""} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+                  </div>
+                  <div className="flex items-end lg:col-span-2">
+                    <button type="submit" className={`${primaryActionClass} w-full`}>
+                      <Save className="h-4 w-4" />
+                      Guardar
+                    </button>
+                  </div>
+                </form>
+              </details>
               {(subscription.notes || subscription.description) && (
                 <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500 dark:bg-slate-950 dark:text-slate-400">
                   {subscription.notes || subscription.description}

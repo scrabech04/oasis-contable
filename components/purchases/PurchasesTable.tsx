@@ -42,6 +42,10 @@ function websiteHref(value?: string | null) {
     return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+function sourceCurrencyLabel(purchase: any) {
+    return purchase.currency === "USD" ? "US$" : "RD$";
+}
+
 export function PurchasesTable({ purchases }: { purchases: any[] }) {
     const router = useRouter();
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
@@ -105,6 +109,11 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                     <p className="font-mono text-sm font-black text-slate-900 dark:text-white">
                                         RD${formatCurrency(purchase.total)}
                                     </p>
+                                    {purchase.currency === "USD" && (
+                                        <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+                                            {sourceCurrencyLabel(purchase)} {formatCurrency(purchase.sourceTotal || 0)}
+                                        </p>
+                                    )}
                                     <span className="mt-2 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800">
                                         {statusLabel(purchase.status)}
                                     </span>
@@ -227,6 +236,11 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                         <div className="font-numeric font-black text-slate-900 dark:text-white text-sm md:text-base">
                                             RD${formatCurrency(purchase.total)}
                                         </div>
+                                        {purchase.currency === "USD" && (
+                                            <div className="text-[9px] md:text-[10px] text-slate-500 dark:text-slate-400 font-bold font-numeric">
+                                                US${formatCurrency(purchase.sourceTotal || 0)} @ RD${formatCurrency(purchase.exchangeRate || 1)}
+                                            </div>
+                                        )}
                                         {purchase.paidAmount > 0 && purchase.paidAmount < purchase.total && (
                                             <div className="text-[9px] md:text-[10px] text-emerald-600 dark:text-emerald-400 font-bold font-numeric">
                                                 Restan: RD${formatCurrency(purchase.total - purchase.paidAmount)}

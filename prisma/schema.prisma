@@ -191,6 +191,11 @@ model Purchase {
   supplierName  String?      // Nombre del emisor, aunque no exista como contacto
   supplierTaxId String?      // RNC/Cedula del emisor, aunque no exista como contacto
   supplierWebsiteUrl String?  // Sitio oficial del proveedor, util para compras internacionales
+  currency     String        @default("DOP") // DOP, USD
+  exchangeRate Float         @default(1)
+  sourceSubtotal Float?
+  sourceTax      Float?
+  sourceTotal    Float?
   
   contactId   Int?           // Optional for Informal
   contact     Contact?       @relation(fields: [contactId], references: [id])
@@ -410,7 +415,8 @@ model Subscription {
   paymentMethod   String          @default("CARD") // CARD, BANK_TRANSFER, PAYPAL, CASH, OTHER
   paymentAccount  String?
   amount          Float           @default(0)
-  currency        String          @default("RD$")
+  currency        String          @default("DOP")
+  exchangeRate    Float           @default(1)
   billingCycle    String          @default("MONTHLY") // MONTHLY, YEARLY, WEEKLY, QUARTERLY, ONE_TIME
   startDate       DateTime        @default(now())
   nextBillingDate DateTime?

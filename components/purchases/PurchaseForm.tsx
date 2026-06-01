@@ -71,6 +71,8 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
     const [notes, setNotes] = useState("");
     const [costType, setCostType] = useState("02");
     const [taxTreatment, setTaxTreatment] = useState("LOCAL_CREDIT");
+    const [purchaseCurrency, setPurchaseCurrency] = useState<"DOP" | "USD">("DOP");
+    const [exchangeRate, setExchangeRate] = useState("1");
     const [submitting, setSubmitting] = useState(false);
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState("");
@@ -185,6 +187,8 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
             setNotes(imported.notes || "");
             setCostType(imported.costType || "02");
             setTaxTreatment(imported.taxTreatment || (imported.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT"));
+            setPurchaseCurrency(imported.currency === "USD" ? "USD" : "DOP");
+            setExchangeRate(String(imported.exchangeRate || 1));
             setImportAttachment(imported.attachment || null);
 
             const importedItems = Array.isArray(imported.items) ? imported.items : [];
@@ -233,10 +237,14 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
             setCostType(initialData.costType || "02");
             setTaxTreatment(initialData.taxTreatment || (initialData.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT"));
             setPurchaseType(initialData.type || "FORMAL");
+            const initialCurrency = initialData.currency === "USD" ? "USD" : "DOP";
+            const initialExchangeRate = initialCurrency === "USD" ? toFiniteNumber(initialData.exchangeRate, 1) || 1 : 1;
+            setPurchaseCurrency(initialCurrency);
+            setExchangeRate(String(initialExchangeRate));
             setItems(initialData.items.map((item: any) => ({
                 description: item.description,
                 quantity: item.quantity,
-                price: item.price,
+                price: initialCurrency === "USD" ? toFiniteNumber(item.price) / initialExchangeRate : item.price,
                 taxRate: item.taxRate
             })));
         }
@@ -262,6 +270,11 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
     const subtotal = items.reduce((acc, item) => acc + toFiniteNumber(item.quantity) * toFiniteNumber(item.price), 0);
     const tax = items.reduce((acc, item) => acc + (toFiniteNumber(item.quantity) * toFiniteNumber(item.price) * (toFiniteNumber(item.taxRate) / 100)), 0);
     const total = subtotal + tax;
+    const exchangeRateValue = purchaseCurrency === "USD" ? Math.max(toFiniteNumber(exchangeRate, 1), 0.0001) : 1;
+    const currencyPrefix = purchaseCurrency === "USD" ? "US$" : "RD$";
+    const subtotalDop = subtotal * exchangeRateValue;
+    const taxDop = tax * exchangeRateValue;
+    const totalDop = total * exchangeRateValue;
     const isManualSupplier = contactId === "manual";
     const showSupplierFields = contactId === "new" || isManualSupplier || isFromQR || (!contactId && (!!contactName || !!contactTaxId));
 
@@ -285,6 +298,8 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         formData.append("notes", notes);
         formData.append("costType", costType);
         formData.append("taxTreatment", taxTreatment);
+        formData.append("currency", purchaseCurrency);
+        formData.append("exchangeRate", String(exchangeRateValue));
         if (isFromQR && targetProfileId) {
             formData.append("targetProfileId", String(targetProfileId));
         }
@@ -591,6 +606,35 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                         onChange={(e) => setDueDate(e.target.value)}
                                     />
                                 </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Moneda</label>
+                                        <select
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all py-2.5 px-3"
+                                            value={purchaseCurrency}
+                                            onChange={(e) => {
+                                                const nextCurrency = e.target.value === "USD" ? "USD" : "DOP";
+                                                setPurchaseCurrency(nextCurrency);
+                                                if (nextCurrency === "DOP") setExchangeRate("1");
+                                            }}
+                                        >
+                                            <option value="DOP">Pesos RD$</option>
+                                            <option value="USD">Dolares US$</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tasa</label>
+                                        <input
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all py-2.5 px-3"
+                                            type="number"
+                                            min="0.01"
+                                            step="0.01"
+                                            value={exchangeRate}
+                                            onChange={(e) => setExchangeRate(e.target.value)}
+                                            disabled={purchaseCurrency === "DOP"}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -702,7 +746,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <span className="text-[10px] font-bold text-slate-400">RD$</span>
+                                                    <span className="text-[10px] font-bold text-slate-400">{currencyPrefix}</span>
                                                     <input
                                                         className="w-20 bg-transparent border-none p-0 focus:ring-0 text-sm text-right text-slate-700 dark:text-slate-200 font-mono"
                                                         type="number"
@@ -725,7 +769,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <span className="text-[10px] font-bold text-slate-400 font-sans">RD$</span>
+                                                    <span className="text-[10px] font-bold text-slate-400 font-sans">{currencyPrefix}</span>
                                                     <span className="text-sm font-semibold text-slate-900 dark:text-white font-mono">
                                                         {formatCurrency(itemTotal(item))}
                                                     </span>
@@ -775,19 +819,31 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                         <div className="space-y-4">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500 dark:text-slate-400">Subtotal</span>
-                                <span className="font-medium text-slate-700 dark:text-slate-200 font-mono">RD$ {formatCurrency(subtotal)}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-200 font-mono">{currencyPrefix} {formatCurrency(subtotal)}</span>
                             </div>
                             <div className="flex justify-between items-center text-sm pb-4 border-b border-slate-100 dark:border-slate-700">
                                 <span className="text-slate-500 dark:text-slate-400">Impuestos</span>
-                                <span className="font-medium text-slate-700 dark:text-slate-200 font-mono">RD$ {formatCurrency(tax)}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-200 font-mono">{currencyPrefix} {formatCurrency(tax)}</span>
                             </div>
                             <div className="flex justify-between items-end pt-2">
                                 <span className="text-sm font-bold text-slate-900 dark:text-white">Total Compra</span>
                                 <div className="text-right">
                                     <span className="block text-[10px] font-bold text-orange-500 uppercase opacity-75">Monto Final</span>
-                                    <span className="text-3xl font-bold text-orange-600 dark:text-orange-500 font-mono">RD$ {formatCurrency(total)}</span>
+                                    <span className="text-3xl font-bold text-orange-600 dark:text-orange-500 font-mono">{currencyPrefix} {formatCurrency(total)}</span>
                                 </div>
                             </div>
+                            {purchaseCurrency === "USD" && (
+                                <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300">
+                                    <div className="flex justify-between">
+                                        <span>Equivalente contable</span>
+                                        <span className="font-mono font-black">RD$ {formatCurrency(totalDop)}</span>
+                                    </div>
+                                    <div className="mt-1 flex justify-between text-[11px] opacity-80">
+                                        <span>Tasa RD$ {formatCurrency(exchangeRateValue)}</span>
+                                        <span>Base RD$ {formatCurrency(subtotalDop)} + ITBIS RD$ {formatCurrency(taxDop)}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

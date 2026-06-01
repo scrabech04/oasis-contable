@@ -75,6 +75,20 @@ function totals(items: any[]) {
   return { subtotal, tax, total: subtotal + tax };
 }
 
+function moneyContext(formData: FormData) {
+  const currency = text(formData, "currency", "DOP").toUpperCase() === "USD" ? "USD" : "DOP";
+  const rawRate = numberValue(formData, "exchangeRate", 1);
+  const exchangeRate = currency === "USD" ? Math.max(rawRate || 0, 0.0001) : 1;
+  return { currency, exchangeRate };
+}
+
+function convertItemsToDop(items: any[], exchangeRate: number) {
+  return items.map((item) => ({
+    ...item,
+    price: (Number(item.price) || 0) * exchangeRate,
+  }));
+}
+
 function invoiceItemsData(items: any[]) {
   return items.map((item) => {
     const quantity = Number(item.quantity) || 0;
@@ -1485,7 +1499,10 @@ export async function getPurchase(id: number) {
 export async function createPurchase(formData: FormData): Promise<ActionResult> {
   const profileId = await resolvePurchaseProfileId(formData);
   const items = parseItems(formData);
-  const total = totals(items);
+  const { currency, exchangeRate } = moneyContext(formData);
+  const sourceTotal = totals(items);
+  const accountingItems = convertItemsToDop(items, exchangeRate);
+  const total = totals(accountingItems);
   const contactId = optionalNumber(formData, "contactId");
   let finalContactId = contactId;
   if (text(formData, "contactId") === "new" && text(formData, "saveAsContact") === "true") {
@@ -1514,6 +1531,11 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       supplierName: optionalText(formData, "contactName"),
       supplierTaxId,
       supplierWebsiteUrl: optionalText(formData, "supplierWebsiteUrl"),
+      currency,
+      exchangeRate,
+      sourceSubtotal: sourceTotal.subtotal,
+      sourceTax: sourceTotal.tax,
+      sourceTotal: sourceTotal.total,
       contactId: finalContactId,
       projectId,
       subtotal: total.subtotal,
@@ -1523,7 +1545,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       ...taxClassification,
       notes: optionalText(formData, "notes"),
       profileId,
-      items: { create: items.map((item) => ({ ...item, total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100) })) },
+      items: { create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
       ...(attachment ? { attachments: { create: attachment } } : {}),
     },
   });
@@ -1536,7 +1558,10 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
   const existing = await prisma.purchase.findFirst({ where: { id, profileId }, select: { paidAmount: true } });
   if (!existing) return { success: false, error: "Compra no encontrada para el perfil activo." };
   const items = parseItems(formData);
-  const total = totals(items);
+  const { currency, exchangeRate } = moneyContext(formData);
+  const sourceTotal = totals(items);
+  const accountingItems = convertItemsToDop(items, exchangeRate);
+  const total = totals(accountingItems);
   const rawContactId = text(formData, "contactId");
   const contactId = rawContactId && rawContactId !== "manual" ? await resolveContact(formData, profileId, "SUPPLIER") : null;
   const projectId = await resolveProject(formData, profileId, contactId);
@@ -1560,6 +1585,11 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       supplierName: optionalText(formData, "contactName"),
       supplierTaxId,
       supplierWebsiteUrl: optionalText(formData, "supplierWebsiteUrl"),
+      currency,
+      exchangeRate,
+      sourceSubtotal: sourceTotal.subtotal,
+      sourceTax: sourceTotal.tax,
+      sourceTotal: sourceTotal.total,
       contactId,
       projectId,
       subtotal: total.subtotal,
@@ -1569,7 +1599,7 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       costType: text(formData, "costType", "02"),
       ...taxClassification,
       notes: optionalText(formData, "notes"),
-      items: { deleteMany: {}, create: items.map((item) => ({ ...item, total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100) })) },
+      items: { deleteMany: {}, create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
     },
   });
   revalidatePath("/purchases");
@@ -1600,6 +1630,7 @@ export async function getSubscriptions(options?: PeriodParams) {
 
 export async function createSubscription(formData: FormData): Promise<ActionResult> {
   const profileId = await getActiveProfileId();
+  const { currency, exchangeRate } = moneyContext(formData);
   await prisma.subscription.create({
     data: {
       name: text(formData, "name"),
@@ -1611,7 +1642,8 @@ export async function createSubscription(formData: FormData): Promise<ActionResu
       paymentMethod: text(formData, "paymentMethod", "CARD"),
       paymentAccount: optionalText(formData, "paymentAccount"),
       amount: numberValue(formData, "amount"),
-      currency: text(formData, "currency", "RD$"),
+      currency,
+      exchangeRate,
       billingCycle: text(formData, "billingCycle", "MONTHLY"),
       startDate: optionalDate(formData, "startDate") || new Date(),
       nextBillingDate: optionalDate(formData, "nextBillingDate"),
@@ -1622,6 +1654,37 @@ export async function createSubscription(formData: FormData): Promise<ActionResu
       profileId,
     },
   });
+  revalidatePath("/subscriptions");
+  return { success: true };
+}
+
+export async function updateSubscription(id: number, formData: FormData): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const { currency, exchangeRate } = moneyContext(formData);
+  const result = await prisma.subscription.updateMany({
+    where: { id, profileId },
+    data: {
+      name: text(formData, "name"),
+      description: optionalText(formData, "description"),
+      category: text(formData, "category", "SOFTWARE"),
+      provider: text(formData, "provider"),
+      websiteUrl: optionalText(formData, "websiteUrl"),
+      managementUrl: optionalText(formData, "managementUrl"),
+      paymentMethod: text(formData, "paymentMethod", "CARD"),
+      paymentAccount: optionalText(formData, "paymentAccount"),
+      amount: numberValue(formData, "amount"),
+      currency,
+      exchangeRate,
+      billingCycle: text(formData, "billingCycle", "MONTHLY"),
+      startDate: optionalDate(formData, "startDate") || new Date(),
+      nextBillingDate: optionalDate(formData, "nextBillingDate"),
+      reminderDays: numberValue(formData, "reminderDays", 7),
+      status: text(formData, "status", "ACTIVE"),
+      notes: optionalText(formData, "notes"),
+      projectId: optionalNumber(formData, "projectId"),
+    },
+  });
+  if (result.count === 0) return { success: false, error: "Suscripcion no encontrada para el perfil activo." };
   revalidatePath("/subscriptions");
   return { success: true };
 }

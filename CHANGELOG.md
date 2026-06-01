@@ -2,6 +2,20 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-01 - Moneda en compras y suscripciones
+
+### Agregado
+- Las suscripciones ahora pueden registrarse y editarse en RD$ o US$, con tasa cambiaria.
+- La lista de suscripciones calcula el estimado mensual en RD$ aunque el costo original este en dolares.
+- Cada suscripcion creada puede abrir un bloque de edicion para cambiar proveedor, proyecto, monto, moneda, tasa, fechas, metodo de pago, URLs y estado.
+- Las compras ahora permiten seleccionar moneda RD$/US$ y tasa cambiaria.
+- Cuando una compra se registra en USD, el sistema conserva el monto original y guarda los totales contables convertidos a RD$ para dashboard, reportes y cuentas por pagar.
+- El listado de compras muestra el total contable en RD$ y, cuando aplica, el monto original en US$ con la tasa usada.
+
+### Migracion
+- Se agregan `currency`, `exchangeRate`, `sourceSubtotal`, `sourceTax` y `sourceTotal` a `Purchase`.
+- Se agrega `exchangeRate` a `Subscription` y se normaliza la moneda anterior `RD$` a `DOP`.
+
 ## 2026-06-01 - UI comprobantes de pago
 
 ### Corregido
