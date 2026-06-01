@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/format";
 import { DeleteButton } from "@/components/DeleteButton";
 import { deleteInvoice, duplicateInvoice } from "@/app/actions";
 import { PaymentDialog } from "@/components/payments/PaymentDialog";
+import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurringButton";
 
 export function InvoicesTable({ invoices }: { invoices: any[] }) {
     const router = useRouter();
@@ -94,6 +95,7 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                         {duplicatingId === invoice.id ? "sync" : "content_copy"}
                                     </span>
                                 </button>
+                                <ConvertToRecurringButton invoiceId={invoice.id} mode="icon" />
                                 <Link href={`/invoices/${invoice.id}/edit`} className="rounded-lg p-2 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white" title="Editar">
                                     <span className="material-icons-round text-[20px]">edit</span>
                                 </Link>
@@ -176,6 +178,7 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                                 {duplicatingId === invoice.id ? "sync" : "content_copy"}
                                             </span>
                                         </button>
+                                        <ConvertToRecurringButton invoiceId={invoice.id} mode="icon" />
                                         <Link href={`/invoices/${invoice.id}/edit`} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white rounded-lg transition-all" title="Editar">
                                             <span className="material-icons-round text-[18px] md:text-[20px]">edit</span>
                                         </Link>

@@ -2,6 +2,19 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-31 - Facturas a recurrentes
+
+### Agregado
+- Las facturas existentes ahora pueden convertirse en plantillas recurrentes desde el detalle de factura y desde el listado.
+- La conversion copia cliente, proyecto, titulo, subtitulo, notas e items facturables, dejando intacta la factura original.
+- La plantilla creada queda mensual por defecto, con proxima emision calculada por el dia de la factura original y vencimiento basado en los dias originales de credito.
+
+### Corregido
+- La creacion de facturas recurrentes ahora sanitiza los items para enviar a Prisma solo los campos soportados por la tabla recurrente.
+
+### Pendiente de prueba funcional
+- Convertir una factura real en recurrente y generar una factura desde esa plantilla para confirmar cliente, proyecto, montos e items.
+
 ## 2026-05-30 - Exportacion TXT 607 DGII
 
 ### Cambiado

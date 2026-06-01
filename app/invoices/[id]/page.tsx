@@ -7,6 +7,7 @@ import { Edit2, ArrowLeft, DollarSign } from "lucide-react";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { InvoicePaymentsManager } from "@/components/invoices/InvoicePaymentsManager";
 import { InvoiceViewer } from "@/components/invoices/InvoiceViewer";
+import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurringButton";
 import clsx from "clsx";
 
 interface InvoiceDetailPageProps {
@@ -70,6 +71,7 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
                         includeCoverPage={invoice.includeCoverPage}
                         includeTermsPage={invoice.includeTermsPage}
                     />
+                    <ConvertToRecurringButton invoiceId={invoice.id} />
                     <Link href={`/invoices/${invoice.id}/edit`}>
                         <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
                             <Edit2 className="h-4 w-4" /> Editar

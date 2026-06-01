@@ -12,7 +12,7 @@ import {
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 
-type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number } | { success: false; error: string };
+type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number; recurringInvoiceId?: number } | { success: false; error: string };
 
 function text(formData: FormData, key: string, fallback = "") {
   const value = formData.get(key);
@@ -89,6 +89,24 @@ function invoiceItemsData(items: any[]) {
       total: quantity * price * (1 + taxRate / 100),
     };
   });
+}
+
+function recurringInvoiceItemsData(items: any[]) {
+  return items
+    .filter((item) => !item.itemType || item.itemType === "ITEM")
+    .map((item) => {
+      const quantity = Number(item.quantity) || 0;
+      const price = Number(item.price) || 0;
+      const taxRate = normalizeTaxRateValue(item.taxRate);
+
+      return {
+        description: String(item.description || ""),
+        quantity,
+        price,
+        taxRate,
+        total: quantity * price * (1 + taxRate / 100),
+      };
+    });
 }
 
 function statusFor(total: number, paidAmount: number) {
@@ -264,6 +282,22 @@ function nextRecurringDate(date: Date, frequency: string, dayOfMonth?: number | 
 
 function startOfLocalDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function daysBetween(start: Date, end: Date) {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.round((startOfLocalDay(end).getTime() - startOfLocalDay(start).getTime()) / msPerDay));
+}
+
+function nextMonthlyDateForDay(dayOfMonth: number) {
+  const today = startOfLocalDay(new Date());
+  const candidate = addMonthsClamped(new Date(today.getFullYear(), today.getMonth(), 1), 0, dayOfMonth);
+
+  if (candidate <= today) {
+    return addMonthsClamped(candidate, 1, dayOfMonth);
+  }
+
+  return candidate;
 }
 
 async function fileToGenerativePart(file: File) {
@@ -1928,6 +1962,7 @@ export async function getIT1Data(period: string) {
 export async function createRecurringInvoice(formData: FormData) {
   const profileId = await getActiveProfileId();
   const items = parseItems(formData);
+  const recurringItems = recurringInvoiceItemsData(items);
   const contactId = await resolveContact(formData, profileId, "CLIENT");
   const projectId = await resolveProject(formData, profileId, contactId);
   const recurring = await prisma.recurringInvoice.create({
@@ -1945,11 +1980,50 @@ export async function createRecurringInvoice(formData: FormData) {
       subtitle: optionalText(formData, "subtitle"),
       notes: optionalText(formData, "notes"),
       profileId,
-      items: { create: items.map((item) => ({ ...item, total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100) })) },
+      items: { create: recurringItems },
     },
   });
   revalidatePath("/invoices/recurring");
   return { success: true, id: recurring.id };
+}
+
+export async function createRecurringInvoiceFromInvoice(id: number): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const source = await prisma.invoice.findFirst({
+    where: { id, profileId },
+    include: { items: true },
+  });
+
+  if (!source) return { success: false, error: "Factura no encontrada para el perfil activo." };
+
+  const recurringItems = recurringInvoiceItemsData(source.items);
+  if (recurringItems.length === 0) {
+    return { success: false, error: "La factura no tiene lineas facturables para convertir." };
+  }
+
+  const dayOfMonth = source.date.getDate();
+  const nextGeneration = nextMonthlyDateForDay(dayOfMonth);
+  const dueDays = daysBetween(source.date, source.dueDate) || 30;
+  const recurring = await prisma.recurringInvoice.create({
+    data: {
+      contactId: source.contactId,
+      projectId: source.projectId,
+      frequency: "MONTHLY",
+      dayOfMonth,
+      startDate: nextGeneration,
+      nextGeneration,
+      dueDays,
+      title: source.title,
+      subtitle: source.subtitle,
+      notes: source.notes,
+      profileId,
+      items: { create: recurringItems },
+    },
+  });
+
+  revalidatePath("/invoices");
+  revalidatePath("/invoices/recurring");
+  return { success: true, id: recurring.id, recurringInvoiceId: recurring.id };
 }
 
 export async function getRecurringInvoices() {
