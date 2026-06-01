@@ -99,6 +99,10 @@ export function getGoogleCallbackUrl(request: { url: string; headers: { get(name
   return `${getAuthOrigin(request)}/api/auth/google/callback`;
 }
 
+export function getAppUrl(path: string, request: { url: string; headers: { get(name: string): string | null } }) {
+  return new URL(path, getAuthOrigin(request));
+}
+
 export async function createSessionToken(
   input: Omit<AuthSession, "exp">,
   secret: string,

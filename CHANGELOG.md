@@ -2,6 +2,11 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-01 - Redirect OAuth en App Hosting
+
+### Corregido
+- El login, callback y logout de Google ahora construyen redirecciones internas con `AUTH_ORIGIN`, evitando volver a hosts internos de Firebase como `https://0.0.0.0:8080/`.
+
 ## 2026-06-01 - PDFs desde HTML imprimible
 
 ### Cambiado

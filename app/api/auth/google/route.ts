@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_STATE_COOKIE, getGoogleCallbackUrl } from "@/lib/auth";
+import { AUTH_STATE_COOKIE, getAppUrl, getGoogleCallbackUrl } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
-    return NextResponse.redirect(new URL("/login?error=auth_config", request.url));
+    return NextResponse.redirect(getAppUrl("/login?error=auth_config", request));
   }
 
   const state = crypto.randomUUID();

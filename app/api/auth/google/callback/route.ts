@@ -4,13 +4,14 @@ import {
   AUTH_STATE_COOKIE,
   createSessionToken,
   decodeJwtPayload,
+  getAppUrl,
   getAuthSecret,
   getGoogleCallbackUrl,
   isEmailAllowed,
 } from "@/lib/auth";
 
 function loginRedirect(request: NextRequest, error: string) {
-  return NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
+  return NextResponse.redirect(getAppUrl(`/login?error=${error}`, request));
 }
 
 export async function GET(request: NextRequest) {
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
     picture: typeof profile?.picture === "string" ? profile.picture : undefined,
   }, authSecret);
 
-  const response = NextResponse.redirect(new URL("/", request.url));
+  const response = NextResponse.redirect(getAppUrl("/", request));
   response.cookies.set(AUTH_SESSION_COOKIE, sessionToken, {
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 30,
