@@ -2,6 +2,12 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-01 - Estabilizacion temporal de PDFs
+
+### Corregido
+- Los botones normales de imprimir/descargar facturas y cotizaciones vuelven a usar el generador PDF estable anterior para evitar errores 500 en produccion.
+- El render HTML con Playwright queda disponible solo de forma opt-in usando `renderer=html`, evitando cargar Chromium en el flujo normal mientras se valida Firebase App Hosting.
+
 ## 2026-06-01 - Nuevo contacto desde proyectos
 
 ### Agregado

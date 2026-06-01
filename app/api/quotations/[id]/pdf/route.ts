@@ -4,7 +4,6 @@ import { pdf } from "@react-pdf/renderer";
 import { QuotationPDF } from "@/components/pdf/QuotationPDF";
 import { prisma } from "@/lib/prisma";
 import { getActiveProfileId, getScopedCompanySettings } from "@/lib/account-profiles";
-import { renderRouteToPdfResponse } from "@/lib/html-pdf";
 
 export const runtime = "nodejs";
 
@@ -35,17 +34,22 @@ export async function GET(
     includeTermsPage: optionValue("terms", quotation.includeTermsPage),
   };
 
-  const params = new URLSearchParams({
-    pdf: "1",
-    cover: options.includeCoverPage ? "1" : "0",
-    terms: options.includeTermsPage ? "1" : "0",
-  });
   const filename = `${quotation.number || `cotizacion-${quotation.id}`}.pdf`;
+  const useHtmlRenderer = searchParams.get("renderer") === "html";
 
-  try {
-    return await renderRouteToPdfResponse(request, `/quotations/${quotation.id}?${params.toString()}`, filename);
-  } catch (error) {
-    console.error("HTML quotation PDF render failed, falling back to react-pdf:", error);
+  if (useHtmlRenderer) {
+    const params = new URLSearchParams({
+      pdf: "1",
+      cover: options.includeCoverPage ? "1" : "0",
+      terms: options.includeTermsPage ? "1" : "0",
+    });
+
+    try {
+      const { renderRouteToPdfResponse } = await import("@/lib/html-pdf");
+      return await renderRouteToPdfResponse(request, `/quotations/${quotation.id}?${params.toString()}`, filename);
+    } catch (error) {
+      console.error("HTML quotation PDF render failed, falling back to react-pdf:", error);
+    }
   }
 
   const blob = await pdf(createElement(QuotationPDF, { quotation, company, options }) as any).toBlob();
