@@ -1235,6 +1235,32 @@ export async function updateProject(id: number, formData: FormData): Promise<Act
   return { success: true, id };
 }
 
+export async function deleteProject(id: number): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const existing = await prisma.project.findFirst({
+    where: { id, profileId },
+    select: { id: true },
+  });
+  if (!existing) return { success: false, error: "Proyecto no encontrado para el perfil activo." };
+
+  await prisma.$transaction([
+    prisma.invoice.updateMany({ where: { projectId: id, profileId }, data: { projectId: null } }),
+    prisma.purchase.updateMany({ where: { projectId: id, profileId }, data: { projectId: null } }),
+    prisma.quotation.updateMany({ where: { projectId: id, profileId }, data: { projectId: null } }),
+    prisma.recurringInvoice.updateMany({ where: { projectId: id, profileId }, data: { projectId: null } }),
+    prisma.subscription.updateMany({ where: { projectId: id, profileId }, data: { projectId: null } }),
+    prisma.projectShare.deleteMany({ where: { projectId: id } }),
+    prisma.project.delete({ where: { id } }),
+  ]);
+
+  revalidatePath("/projects");
+  revalidatePath("/invoices");
+  revalidatePath("/purchases");
+  revalidatePath("/quotations");
+  revalidatePath("/subscriptions");
+  return { success: true, id };
+}
+
 export async function getUnlinkedInvoicesByContact(contactId: number) {
   const profileId = await getActiveProfileId();
   return prisma.invoice.findMany({

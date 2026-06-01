@@ -1,4 +1,4 @@
-import { getProjects } from "@/app/actions";
+import { deleteProject, getProjects } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { primaryActionClass } from "@/lib/ui-styles";
 import { getActiveProfile } from "@/lib/account-profiles";
 import { ListPeriodFilter } from "@/components/ListPeriodFilter";
 import { getPeriodParams } from "@/lib/list-period";
+import { DeleteButton } from "@/components/DeleteButton";
 
 export default async function ProjectsPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -156,11 +157,14 @@ export default async function ProjectsPage(props: {
                                                 </Button>
                                             </Link>
                                             {project.profileId === activeProfile.id && (
-                                                <Link href={`/projects/${project.id}/edit`}>
-                                                    <Button variant="outline" size="sm" className="h-8 px-2 border-slate-200">
-                                                        <span className="material-icons-outlined text-sm">edit</span>
-                                                    </Button>
-                                                </Link>
+                                                <>
+                                                    <Link href={`/projects/${project.id}/edit`}>
+                                                        <Button variant="outline" size="sm" className="h-8 px-2 border-slate-200">
+                                                            <span className="material-icons-outlined text-sm">edit</span>
+                                                        </Button>
+                                                    </Link>
+                                                    <DeleteButton id={project.id} action={deleteProject} variant="ghost_icon" label="Eliminar proyecto" />
+                                                </>
                                             )}
                                         </div>
                                     </TableCell>

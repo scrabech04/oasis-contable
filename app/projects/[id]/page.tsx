@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { getActiveProfile } from "@/lib/account-profiles";
+import { ProjectDeleteButton } from "@/components/projects/ProjectDeleteButton";
 
 interface ProjectPageProps {
     params: Promise<{ id: string }>;
@@ -51,12 +52,15 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                         </Button>
                     </Link>
                     {project.profileId === activeProfile.id && (
-                        <Link href={`/projects/${projectId}/edit`}>
-                            <Button variant="outline" size="sm" className="h-9 px-4 border-slate-200">
-                                <span className="material-icons-outlined mr-2 text-[18px]">edit</span>
-                                Editar
-                            </Button>
-                        </Link>
+                        <>
+                            <Link href={`/projects/${projectId}/edit`}>
+                                <Button variant="outline" size="sm" className="h-9 px-4 border-slate-200">
+                                    <span className="material-icons-outlined mr-2 text-[18px]">edit</span>
+                                    Editar
+                                </Button>
+                            </Link>
+                            <ProjectDeleteButton id={projectId} />
+                        </>
                     )}
                 </div>
             </div>

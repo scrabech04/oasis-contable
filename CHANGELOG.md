@@ -22,9 +22,13 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Desde el panel de un proyecto ahora hay accesos directos para crear una factura o una compra vinculada a ese proyecto.
 - Al crear una factura desde un proyecto, se preselecciona el proyecto y el cliente cuando el contacto pertenece al perfil activo.
 - Al crear una compra desde un proyecto, se preselecciona el proyecto y al guardar vuelve al panel del proyecto.
+- Los proyectos propios ahora pueden eliminarse desde el listado y desde el panel del proyecto.
 
 ### Corregido
 - En `Nueva Compra`, se elimina el campo duplicado `Proyecto Relacionado` dentro de `Detalles del documento`; queda solo `Proyecto (Opcional)`.
+
+### Nota
+- Al eliminar un proyecto no se eliminan sus facturas, compras, cotizaciones, suscripciones ni facturas recurrentes; solo se desvinculan del proyecto para conservar la contabilidad.
 
 ## 2026-06-01 - UI comprobantes de pago
 
