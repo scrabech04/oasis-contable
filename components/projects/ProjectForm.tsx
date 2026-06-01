@@ -22,6 +22,10 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [selectedContactId, setSelectedContactId] = useState(project?.contactId?.toString() || "");
+    const [contactName, setContactName] = useState("");
+    const [contactTaxId, setContactTaxId] = useState("");
+    const [contactEmail, setContactEmail] = useState("");
+    const [contactPhone, setContactPhone] = useState("");
     const [startDate, setStartDate] = useState(project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
     const [isManualCode, setIsManualCode] = useState(false);
     const [code, setCode] = useState(project?.code || "");
@@ -35,8 +39,9 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
     useEffect(() => {
         if (!project && selectedContactId && startDate && !isManualCode) {
             const contact = contacts.find(c => c.id.toString() === selectedContactId);
-            if (contact) {
-                const initials = contact.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, 'X').padEnd(3, 'X');
+            const sourceName = selectedContactId === "new" ? contactName : contact?.name;
+            if (sourceName) {
+                const initials = sourceName.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, 'X').padEnd(3, 'X');
                 const date = new Date(startDate);
                 const day = date.getDate().toString().padStart(2, '0');
                 const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -45,11 +50,11 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
                 setCode(`${initials}${day}${month}${year}`);
             }
         }
-    }, [selectedContactId, startDate, contacts, project, isManualCode]);
+    }, [selectedContactId, contactName, startDate, contacts, project, isManualCode]);
 
     // Fetch unlinked invoices when contact changes
     useEffect(() => {
-        if (selectedContactId) {
+        if (selectedContactId && selectedContactId !== "new") {
             getUnlinkedInvoicesByContact(parseInt(selectedContactId)).then(invoices => {
                 // If editing, include already linked invoices in the list if they aren't there
                 const existingInvoices = project?.invoices || [];
@@ -58,6 +63,7 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
             });
         } else {
             setUnlinkedInvoices([]);
+            setSelectedInvoiceIds([]);
         }
     }, [selectedContactId, project]);
 
@@ -91,7 +97,8 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
             }
         } catch (error) {
             console.error("Error saving project:", error);
-            alert("Ocurrió un error inesperado al guardar el proyecto");
+            const message = error instanceof Error ? error.message : "Ocurrio un error inesperado al guardar el proyecto";
+            alert(message);
         } finally {
             setLoading(false);
         }
@@ -158,11 +165,11 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
 
                         {/* Contacto */}
                         <div className="relative group">
+                            <input type="hidden" name="contactId" value={selectedContactId} />
                             <label className="absolute left-3 -top-2.5 px-1 bg-white dark:bg-slate-900 text-xs font-medium text-slate-500 dark:text-slate-400 z-10">
                                 Contacto / Cliente
                             </label>
                             <Select
-                                name="contactId"
                                 value={selectedContactId}
                                 onValueChange={setSelectedContactId}
                                 required
@@ -176,8 +183,59 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
                                             {contact.name}
                                         </SelectItem>
                                     ))}
+                                    <SelectItem value="new" className="font-semibold text-blue-600">
+                                        + Nuevo Contacto
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
+                            {selectedContactId === "new" && (
+                                <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-900/10">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-blue-700 dark:text-blue-300">Nombre del cliente</Label>
+                                        <Input
+                                            name="contactName"
+                                            value={contactName}
+                                            onChange={(event) => setContactName(event.target.value)}
+                                            required
+                                            placeholder="Empresa o persona"
+                                            className="bg-white dark:bg-slate-950"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-bold text-blue-700 dark:text-blue-300">RNC / Cedula</Label>
+                                            <Input
+                                                name="contactTaxId"
+                                                value={contactTaxId}
+                                                onChange={(event) => setContactTaxId(event.target.value)}
+                                                placeholder="Opcional"
+                                                className="bg-white dark:bg-slate-950"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-bold text-blue-700 dark:text-blue-300">Telefono</Label>
+                                            <Input
+                                                name="contactPhone"
+                                                value={contactPhone}
+                                                onChange={(event) => setContactPhone(event.target.value)}
+                                                placeholder="Opcional"
+                                                className="bg-white dark:bg-slate-950"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-blue-700 dark:text-blue-300">Email</Label>
+                                        <Input
+                                            name="contactEmail"
+                                            type="email"
+                                            value={contactEmail}
+                                            onChange={(event) => setContactEmail(event.target.value)}
+                                            placeholder="Opcional"
+                                            className="bg-white dark:bg-slate-950"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Responsable */}

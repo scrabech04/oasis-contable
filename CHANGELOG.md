@@ -2,6 +2,17 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-01 - Nuevo contacto desde proyectos
+
+### Agregado
+- En la pantalla de nuevo/editar proyecto, el campo `Contacto / Cliente` ahora permite seleccionar `+ Nuevo Contacto` y crear el cliente en el mismo formulario.
+- El contacto nuevo puede guardarse con nombre, RNC/cedula, telefono y email.
+
+### Corregido
+- La creacion de proyectos ya no falla cuando el codigo autogenerado coincide con otro proyecto existente; el servidor genera un codigo unico agregando sufijo.
+- El formulario evita consultar facturas vinculables cuando el contacto seleccionado es `+ Nuevo Contacto`.
+- Si ocurre una excepcion al guardar el proyecto, la alerta intenta mostrar el mensaje real del error.
+
 ## 2026-06-01 - Redirect OAuth en App Hosting
 
 ### Corregido

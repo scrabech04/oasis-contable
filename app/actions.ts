@@ -156,12 +156,31 @@ async function resolveContact(formData: FormData, profileId: number, fallbackTyp
     data: {
       name,
       taxId: optionalText(formData, "contactTaxId"),
+      email: optionalText(formData, "contactEmail"),
+      phone: optionalText(formData, "contactPhone"),
       type: fallbackType,
       profileId,
     },
   });
 
   return contact.id;
+}
+
+async function uniqueProjectCode(baseCode: string) {
+  const normalized = (baseCode || `PROY${Date.now().toString().slice(-6)}`)
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
+    .slice(0, 24);
+  let candidate = normalized || `PROY${Date.now().toString().slice(-6)}`;
+  let suffix = 2;
+
+  while (await prisma.project.findUnique({ where: { code: candidate }, select: { id: true } })) {
+    const suffixText = `-${suffix}`;
+    candidate = `${normalized.slice(0, Math.max(1, 24 - suffixText.length))}${suffixText}`;
+    suffix += 1;
+  }
+
+  return candidate;
 }
 
 async function resolvePurchaseProfileId(formData: FormData) {
@@ -1115,35 +1134,40 @@ export async function getProject(id: number) {
 }
 
 export async function createProject(formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
-  const shareIds = sharedProfileIds(formData, profileId);
-  const validShares = shareIds.length
-    ? await prisma.accountProfile.findMany({ where: { id: { in: shareIds } }, select: { id: true } })
-    : [];
-  const invoiceIds = formData.getAll("invoiceIds").map(Number).filter(Boolean);
-  const contactId = await resolveContact(formData, profileId, "CLIENT");
-  const scopedInvoices = invoiceIds.length
-    ? await prisma.invoice.findMany({ where: { profileId, id: { in: invoiceIds } }, select: { id: true } })
-    : [];
-  const project = await prisma.project.create({
-    data: {
-      code: text(formData, "code"),
-      name: text(formData, "name"),
-      description: optionalText(formData, "description"),
-      responsible: optionalText(formData, "responsible"),
-      startDate: dateValue(formData, "startDate"),
-      endDate: optionalDate(formData, "endDate"),
-      status: text(formData, "status", "PROPOSAL"),
-      contactId,
-      budgetIncome: numberValue(formData, "budgetIncome"),
-      budgetCost: numberValue(formData, "budgetCost"),
-      profileId,
-      invoices: scopedInvoices.length ? { connect: scopedInvoices.map(({ id }) => ({ id })) } : undefined,
-      sharedWith: validShares.length ? { create: validShares.map(({ id }) => ({ profileId: id })) } : undefined,
-    },
-  });
-  revalidatePath("/projects");
-  return { success: true, id: project.id };
+  try {
+    const profileId = await getActiveProfileId();
+    const shareIds = sharedProfileIds(formData, profileId);
+    const validShares = shareIds.length
+      ? await prisma.accountProfile.findMany({ where: { id: { in: shareIds } }, select: { id: true } })
+      : [];
+    const invoiceIds = formData.getAll("invoiceIds").map(Number).filter(Boolean);
+    const contactId = await resolveContact(formData, profileId, "CLIENT");
+    const scopedInvoices = invoiceIds.length
+      ? await prisma.invoice.findMany({ where: { profileId, id: { in: invoiceIds } }, select: { id: true } })
+      : [];
+    const project = await prisma.project.create({
+      data: {
+        code: await uniqueProjectCode(text(formData, "code")),
+        name: text(formData, "name"),
+        description: optionalText(formData, "description"),
+        responsible: optionalText(formData, "responsible"),
+        startDate: dateValue(formData, "startDate"),
+        endDate: optionalDate(formData, "endDate"),
+        status: text(formData, "status", "PROPOSAL"),
+        contactId,
+        budgetIncome: numberValue(formData, "budgetIncome"),
+        budgetCost: numberValue(formData, "budgetCost"),
+        profileId,
+        invoices: scopedInvoices.length ? { connect: scopedInvoices.map(({ id }) => ({ id })) } : undefined,
+        sharedWith: validShares.length ? { create: validShares.map(({ id }) => ({ profileId: id })) } : undefined,
+      },
+    });
+    revalidatePath("/projects");
+    return { success: true, id: project.id };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No fue posible crear el proyecto.";
+    return { success: false, error: message };
+  }
 }
 
 export async function updateProject(id: number, formData: FormData): Promise<ActionResult> {
