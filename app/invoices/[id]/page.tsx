@@ -8,14 +8,17 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import { InvoicePaymentsManager } from "@/components/invoices/InvoicePaymentsManager";
 import { InvoiceViewer } from "@/components/invoices/InvoiceViewer";
 import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurringButton";
+import { PrintableCoverPage, PrintableTermsPage } from "@/components/documents/PrintablePages";
 import clsx from "clsx";
 
 interface InvoiceDetailPageProps {
     params: Promise<{ id: string }>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
+export default async function InvoiceDetailPage({ params, searchParams }: InvoiceDetailPageProps) {
     const { id } = await params;
+    const query = searchParams ? await searchParams : {};
     const invoiceId = parseInt(id);
 
     if (isNaN(invoiceId)) {
@@ -35,6 +38,23 @@ export default async function InvoiceDetailPage({ params }: InvoiceDetailPagePro
     const subtotal = invoice.subtotal;
     const tax = invoice.tax;
     const total = invoice.total;
+    const pdfMode = query.pdf === "1" || query.pdf === "true";
+    const includeCoverPage = query.cover === "1" || query.cover === "true";
+    const includeTermsPage = query.terms === "1" || query.terms === "true";
+
+    if (pdfMode) {
+        return (
+            <div className="mx-auto max-w-5xl bg-white text-slate-950 print:max-w-none">
+                {includeCoverPage && (
+                    <PrintableCoverPage document={invoice} company={companySettings} label="Factura" />
+                )}
+                <InvoiceViewer invoice={invoice} identities={identities} companySettings={companySettings} />
+                {includeTermsPage && (
+                    <PrintableTermsPage document={invoice} company={companySettings} />
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-5xl mx-auto px-4 py-8 space-y-8 animate-in fade-in duration-500">

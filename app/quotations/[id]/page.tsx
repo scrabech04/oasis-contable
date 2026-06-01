@@ -7,13 +7,16 @@ import { Edit2, ArrowLeft } from "lucide-react";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import clsx from "clsx";
 import { QuotationViewer } from "@/components/quotations/QuotationViewer";
+import { PrintableCoverPage, PrintableTermsPage } from "@/components/documents/PrintablePages";
 
 interface QuotationDetailPageProps {
     params: Promise<{ id: string }>;
+    searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function QuotationDetailPage({ params }: QuotationDetailPageProps) {
+export default async function QuotationDetailPage({ params, searchParams }: QuotationDetailPageProps) {
     const { id: idStr } = await params;
+    const query = searchParams ? await searchParams : {};
     const id = parseInt(idStr);
 
     if (isNaN(id)) {
@@ -28,6 +31,24 @@ export default async function QuotationDetailPage({ params }: QuotationDetailPag
 
     if (!quotation) {
         notFound();
+    }
+
+    const pdfMode = query.pdf === "1" || query.pdf === "true";
+    const includeCoverPage = query.cover === "1" || query.cover === "true";
+    const includeTermsPage = query.terms === "1" || query.terms === "true";
+
+    if (pdfMode) {
+        return (
+            <div className="mx-auto max-w-5xl bg-white text-slate-950 print:max-w-none">
+                {includeCoverPage && (
+                    <PrintableCoverPage document={quotation} company={companySettings} label="Cotizacion" />
+                )}
+                <QuotationViewer quotation={quotation} identities={identities} companySettings={companySettings} />
+                {includeTermsPage && (
+                    <PrintableTermsPage document={quotation} company={companySettings} />
+                )}
+            </div>
+        );
     }
 
     return (

@@ -2,6 +2,18 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-01 - PDFs desde HTML imprimible
+
+### Cambiado
+- La exportacion PDF de facturas y cotizaciones ahora intenta renderizar la misma vista HTML bonita usando Chromium/Playwright, en vez de depender solo del diseno separado de `@react-pdf/renderer`.
+- Las paginas de detalle aceptan modo `pdf=1` para renderizar portada opcional, documento y terminos opcionales con estructura imprimible.
+- Los endpoints PDF conservan un fallback al generador anterior si Chromium no puede generar el PDF en el servidor.
+
+### Pendiente de prueba funcional
+- Exportar una factura con y sin portada/terminos y comparar visualmente contra la vista de pantalla.
+- Exportar una cotizacion con y sin portada/terminos y validar que el PDF mantiene espaciado, colores y tabla.
+- Confirmar en Firebase App Hosting que Playwright puede generar PDF en produccion; si cae al fallback, revisar header `X-PDF-Renderer`.
+
 ## 2026-05-31 - Estabilidad PWA y cache
 
 ### Corregido
