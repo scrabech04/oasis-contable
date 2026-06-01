@@ -174,7 +174,7 @@ export function PaymentDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="w-[calc(100vw-2rem)] max-w-md overflow-hidden">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <CreditCard className="h-5 w-5 text-blue-600" />
@@ -193,12 +193,12 @@ export function PaymentDialog({
                                 </div>
                                 <span className="font-semibold">{number}</span>
                             </div>
-                            <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2 text-muted-foreground">
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                                <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
                                     <User className="h-4 w-4" />
                                     <span>{targetType === 'INVOICE' ? 'Cliente' : 'Proveedor'}</span>
                                 </div>
-                                <span className="font-semibold text-right">{entityName}</span>
+                                <span className="min-w-0 truncate text-right font-semibold" title={entityName}>{entityName}</span>
                             </div>
                             <div className="pt-2 border-t flex items-center justify-between">
                                 <span className="text-sm font-bold text-slate-700">Saldo Pendiente (Actual)</span>
@@ -258,11 +258,11 @@ export function PaymentDialog({
                         <Label htmlFor="payment-proof" className="text-xs font-bold uppercase text-slate-500">Comprobante</Label>
                         <label
                             htmlFor="payment-proof"
-                            className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
+                            className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
                         >
-                            <span className="flex min-w-0 items-center gap-2 text-slate-600 dark:text-slate-300">
+                            <span className="flex min-w-0 items-center gap-2 overflow-hidden text-slate-600 dark:text-slate-300">
                                 <Paperclip className="h-4 w-4 shrink-0" />
-                                <span className="truncate">
+                                <span className="block min-w-0 truncate" title={proofFile?.name || "Adjuntar PDF, foto o captura"}>
                                     {proofFile?.name || "Adjuntar PDF, foto o captura"}
                                 </span>
                             </span>
@@ -285,10 +285,11 @@ export function PaymentDialog({
                                         href={`/api/payments/attachments/${attachment.id}`}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:border-slate-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                                        className="inline-flex max-w-full items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50 dark:border-slate-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                                        title={attachment.fileName || "Soporte"}
                                     >
                                         <Paperclip className="h-3 w-3" />
-                                        {attachment.fileName || "Soporte"}
+                                        <span className="min-w-0 truncate">{attachment.fileName || "Soporte"}</span>
                                     </a>
                                 ))}
                             </div>

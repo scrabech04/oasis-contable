@@ -2,6 +2,13 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-01 - UI comprobantes de pago
+
+### Corregido
+- El modal de registrar pago/cobro ya no se deforma cuando el comprobante adjunto tiene un nombre de archivo muy largo.
+- Los nombres de comprobantes se muestran truncados con tooltip, manteniendo visible el boton `Elegir`.
+- El nombre del cliente/proveedor en el resumen del pago tambien se trunca para no romper el ancho del modal.
+
 ## 2026-06-01 - Estabilizacion temporal de PDFs
 
 ### Corregido
