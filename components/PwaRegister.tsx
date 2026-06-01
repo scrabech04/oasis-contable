@@ -13,8 +13,20 @@ export function PwaRegister() {
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((registration) => registration.update().catch(() => undefined))
+        .catch(() => undefined);
     }
 
     const standalone =
@@ -28,7 +40,12 @@ export function PwaRegister() {
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+      }
+    };
   }, []);
 
   if (!installPrompt || isStandalone) return null;

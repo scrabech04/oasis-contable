@@ -1,16 +1,14 @@
-const CACHE_NAME = "oflow-by-oasis-pwa-v2";
-const APP_SHELL = [
-  "/",
-  "/mobile/quick-actions",
-  "/purchases/quick",
-  "/purchases/new",
-  "/subscriptions",
-  "/manifest.webmanifest"
+const CACHE_NAME = "oflow-by-oasis-static-v3";
+const STATIC_ASSETS = [
+  "/manifest.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).catch(() => undefined)
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).catch(() => undefined)
   );
   self.skipWaiting();
 });
@@ -28,11 +26,22 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
+  if (
+    request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/_next/") ||
+    url.pathname === "/login" ||
+    url.pathname.startsWith("/auth/")
+  ) {
     return;
   }
 
   if (request.mode === "navigate") {
+    return;
+  }
+
+  if (STATIC_ASSETS.includes(url.pathname)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -40,15 +49,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          return cached || caches.match("/");
-        })
+        .catch(async () => caches.match(request))
     );
-    return;
   }
-
-  event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request))
-  );
 });

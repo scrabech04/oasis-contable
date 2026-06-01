@@ -2,6 +2,16 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-05-31 - Estabilidad PWA y cache
+
+### Corregido
+- El service worker dejo de cachear paginas dinamicas, rutas autenticadas y assets de Next (`/_next`) para evitar pantallas en blanco por mezclar builds viejos con deploys nuevos.
+- La PWA ahora fuerza actualizacion del service worker y recarga una vez cuando toma control una version nueva.
+
+### Pendiente de prueba funcional
+- Despues del proximo deploy, abrir la app en navegador y PWA instalada, navegar entre dashboard, facturacion, compras y reportes, y confirmar que no queda el contenido en blanco.
+- Si un dispositivo ya tenia la app instalada, cerrar y abrir la PWA una vez despues del deploy para que tome el nuevo service worker.
+
 ## 2026-05-31 - Facturas a recurrentes
 
 ### Agregado
