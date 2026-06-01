@@ -35,6 +35,8 @@ interface PurchaseFormProps {
     contacts: Contact[];
     projects?: { id: number; name: string }[];
     initialData?: any;
+    defaultProjectId?: string;
+    successRedirect?: string;
 }
 
 function toFiniteNumber(value: unknown, fallback = 0) {
@@ -56,7 +58,7 @@ function importedItemDescription(imported: any, item: any) {
         "Compra importada con IA";
 }
 
-export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseFormProps) {
+export function PurchaseForm({ contacts, projects = [], initialData, defaultProjectId = "", successRedirect }: PurchaseFormProps) {
     const router = useRouter();
     const [items, setItems] = useState([
         { description: "", quantity: 1, price: 0, taxRate: 18 },
@@ -250,6 +252,12 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         }
     }, [initialData]);
 
+    useEffect(() => {
+        if (!initialData && defaultProjectId) {
+            setProjectId(defaultProjectId);
+        }
+    }, [defaultProjectId, initialData]);
+
     const addItem = () => {
         setItems([...items, { description: "", quantity: 1, price: 0, taxRate: 18 }]);
     };
@@ -324,7 +332,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
             }
 
             if (result.success) {
-                router.push("/purchases");
+                router.push(successRedirect || "/purchases");
             } else if ("error" in result) {
                 alert(result.error);
             }
@@ -552,24 +560,6 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                         value={date}
                                         onChange={(e) => setDate(e.target.value)}
                                     />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Proyecto Relacionado</label>
-                                    <div className="relative">
-                                        <select
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all py-2.5 px-3 appearance-none"
-                                            value={projectId}
-                                            onChange={(e) => setProjectId(e.target.value)}
-                                        >
-                                            <option value="">Sin Proyecto</option>
-                                            {projects.map((project) => (
-                                                <option key={project.id} value={project.id.toString()}>
-                                                    {project.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <span className="material-icons-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
-                                    </div>
                                 </div>
                             </div>
                             <div className="space-y-4">

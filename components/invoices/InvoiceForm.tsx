@@ -61,6 +61,9 @@ interface InvoiceFormProps {
     projects?: { id: number; name: string }[];
     initialData?: any;
     numberingSequences?: any[];
+    defaultProjectId?: string;
+    defaultContactId?: string;
+    successRedirect?: string;
 }
 
 interface Payment {
@@ -82,7 +85,7 @@ function normalizeTaxRate(value: unknown) {
     return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
 }
 
-export function InvoiceForm({ contacts, projects = [], initialData, numberingSequences = [] }: InvoiceFormProps) {
+export function InvoiceForm({ contacts, projects = [], initialData, numberingSequences = [], defaultProjectId = "", defaultContactId = "", successRedirect }: InvoiceFormProps) {
     const router = useRouter();
     const [items, setItems] = useState<Item[]>([
         { description: "", quantity: 1, price: 0, taxRate: 18, itemType: "ITEM" },
@@ -158,6 +161,13 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
             setIncludeTermsPage(Boolean(initialData.includeTermsPage));
         }
     }, [initialData]);
+
+    useEffect(() => {
+        if (!initialData) {
+            if (defaultProjectId) setProjectId(defaultProjectId);
+            if (defaultContactId) setContactId(defaultContactId);
+        }
+    }, [defaultProjectId, defaultContactId, initialData]);
 
     const addItem = (type: "ITEM" | "HEADING" | "SUBHEADING" = "ITEM") => {
         const newItem = {
@@ -235,7 +245,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
             }
 
             if (result.success) {
-                router.push("/invoices");
+                router.push(successRedirect || "/invoices");
             } else if ("error" in result) {
                 alert(result.error);
             }

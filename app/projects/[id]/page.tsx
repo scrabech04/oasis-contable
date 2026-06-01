@@ -37,16 +37,28 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 <div className="flex-1">
                     <h1 className="text-xl font-bold text-slate-800">Panel de Control</h1>
                 </div>
-                {project.profileId === activeProfile.id && (
-                    <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                    <Link href={`/invoices/new?projectId=${projectId}&contactId=${project.contact?.profileId === activeProfile.id ? project.contactId : ""}&returnTo=/projects/${projectId}`}>
+                        <Button variant="outline" size="sm" className="h-9 px-4 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                            <span className="material-icons-outlined mr-2 text-[18px]">receipt_long</span>
+                            Factura
+                        </Button>
+                    </Link>
+                    <Link href={`/purchases/new?projectId=${projectId}&returnTo=/projects/${projectId}`}>
+                        <Button variant="outline" size="sm" className="h-9 px-4 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100">
+                            <span className="material-icons-outlined mr-2 text-[18px]">shopping_cart</span>
+                            Compra
+                        </Button>
+                    </Link>
+                    {project.profileId === activeProfile.id && (
                         <Link href={`/projects/${projectId}/edit`}>
                             <Button variant="outline" size="sm" className="h-9 px-4 border-slate-200">
                                 <span className="material-icons-outlined mr-2 text-[18px]">edit</span>
                                 Editar
                             </Button>
                         </Link>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             <ProjectDashboard project={project as any} />

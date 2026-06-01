@@ -16,6 +16,16 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Se agregan `currency`, `exchangeRate`, `sourceSubtotal`, `sourceTax` y `sourceTotal` a `Purchase`.
 - Se agrega `exchangeRate` a `Subscription` y se normaliza la moneda anterior `RD$` a `DOP`.
 
+## 2026-06-01 - Acciones desde proyectos
+
+### Agregado
+- Desde el panel de un proyecto ahora hay accesos directos para crear una factura o una compra vinculada a ese proyecto.
+- Al crear una factura desde un proyecto, se preselecciona el proyecto y el cliente cuando el contacto pertenece al perfil activo.
+- Al crear una compra desde un proyecto, se preselecciona el proyecto y al guardar vuelve al panel del proyecto.
+
+### Corregido
+- En `Nueva Compra`, se elimina el campo duplicado `Proyecto Relacionado` dentro de `Detalles del documento`; queda solo `Proyecto (Opcional)`.
+
 ## 2026-06-01 - UI comprobantes de pago
 
 ### Corregido
