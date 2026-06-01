@@ -6,6 +6,10 @@ import { ExportButton } from "@/components/reports/ExportButton";
 import { PeriodSelector } from "@/components/reports/PeriodSelector";
 import { formatCurrency } from "@/lib/format";
 
+function isForeignPurchase(purchase: any) {
+    return purchase.origin === "FOREIGN" || ["FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"].includes(purchase.taxTreatment);
+}
+
 export default async function ReportsPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
@@ -103,12 +107,13 @@ export default async function ReportsPage(props: {
                                 ) : (
                                     purchases.map((p) => {
                                         const purchaseTaxId = p.contact?.taxId || p.supplierTaxId;
-                                        const isMissingData = !p.ncf || !purchaseTaxId || purchaseTaxId === '999999999';
+                                        const isForeign = isForeignPurchase(p);
+                                        const isMissingData = !isForeign && (!p.ncf || !purchaseTaxId || purchaseTaxId === '999999999');
                                         return (
                                             <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-4 md:px-6 py-4">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-numeric text-slate-600 dark:text-slate-400">{purchaseTaxId || '999999999'}</span>
+                                                        <span className="font-numeric text-slate-600 dark:text-slate-400">{isForeign ? 'No aplica' : purchaseTaxId || '999999999'}</span>
                                                         {isMissingData && <span className="material-icons-round text-amber-500 text-[14px]" title="Datos fiscales incompletos">warning</span>}
                                                     </div>
                                                 </td>

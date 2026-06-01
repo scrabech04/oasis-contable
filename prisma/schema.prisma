@@ -190,6 +190,7 @@ model Purchase {
   type        String         @default("FORMAL") // FORMAL (Proveedor), INFORMAL (Gasto Menor)
   supplierName  String?      // Nombre del emisor, aunque no exista como contacto
   supplierTaxId String?      // RNC/Cedula del emisor, aunque no exista como contacto
+  supplierWebsiteUrl String?  // Sitio oficial del proveedor, util para compras internacionales
   
   contactId   Int?           // Optional for Informal
   contact     Contact?       @relation(fields: [contactId], references: [id])

@@ -64,6 +64,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
     const [contactId, setContactId] = useState<string>("");
     const [contactName, setContactName] = useState("");
     const [contactTaxId, setContactTaxId] = useState("");
+    const [supplierWebsiteUrl, setSupplierWebsiteUrl] = useState("");
     const [ncf, setNcf] = useState("");
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
@@ -87,6 +88,11 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         }
         setItems((current) => current.map((item) => ({ ...item, taxRate: 0 })));
     };
+
+    const isForeignPurchase =
+        taxTreatment === "FOREIGN_EXPENSE" ||
+        taxTreatment === "IMPORT_GOODS" ||
+        taxTreatment === "FOREIGN_WITHHOLDING";
 
     useEffect(() => {
         const qrDataRaw = sessionStorage.getItem("qr_scanned_data");
@@ -171,6 +177,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
             setContactId("manual");
             setContactName(imported.supplierName || "Proveedor sin identificar");
             setContactTaxId(imported.supplierTaxId || "");
+            setSupplierWebsiteUrl(imported.supplierWebsiteUrl || imported.websiteUrl || imported.website || "");
             setSaveAsContact(false);
             setNcf(imported.ncf || "");
             setDate(imported.date || new Date().toISOString().split("T")[0]);
@@ -218,6 +225,7 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                 setContactTaxId(initialData.supplierTaxId || "");
                 setSaveAsContact(false);
             }
+            setSupplierWebsiteUrl(initialData.supplierWebsiteUrl || initialData.contact?.website || "");
             setNcf(initialData.ncf || "");
             setDate(new Date(initialData.date).toISOString().split('T')[0]);
             setDueDate(initialData.dueDate ? new Date(initialData.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
@@ -266,8 +274,10 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
         formData.append("contactId", contactId);
         if (showSupplierFields) {
             formData.append("contactName", contactName);
-            formData.append("contactTaxId", contactTaxId);
+            formData.append("contactTaxId", isForeignPurchase ? contactTaxId.trim() : contactTaxId);
         }
+        formData.append("supplierWebsiteUrl", supplierWebsiteUrl);
+        formData.append("contactWebsiteUrl", supplierWebsiteUrl);
         formData.append("saveAsContact", contactId === "new" && saveAsContact ? "true" : "false");
         formData.append("ncf", ncf);
         formData.append("date", date);
@@ -406,14 +416,34 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-bold uppercase text-orange-600">RNC / Cédula</Label>
                                         <Input
-                                            required
-                                            placeholder="130XXXX-X"
+                                            required={!isForeignPurchase}
+                                            placeholder={isForeignPurchase ? "No aplica para proveedor internacional" : "130XXXX-X"}
                                             className="h-10 rounded-xl bg-white dark:bg-slate-900 font-mono"
                                             value={contactTaxId}
                                             onChange={(e) => setContactTaxId(e.target.value)}
                                             readOnly={isFromQR}
                                         />
+                                        {isForeignPurchase && (
+                                            <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                                Para proveedores internacionales el RNC dominicano no aplica. Puedes dejarlo vacio.
+                                            </p>
+                                        )}
                                     </div>
+                                    {isForeignPurchase && (
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] font-bold uppercase text-orange-600">Sitio web oficial</Label>
+                                            <Input
+                                                type="url"
+                                                placeholder="https://proveedor.com"
+                                                className="h-10 rounded-xl bg-white dark:bg-slate-900"
+                                                value={supplierWebsiteUrl}
+                                                onChange={(e) => setSupplierWebsiteUrl(e.target.value)}
+                                            />
+                                            <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+                                                Util para software, licencias, hosting, dominios y plataformas digitales.
+                                            </p>
+                                        </div>
+                                    )}
                                     {!isFromQR && contactId === "new" && (
                                         <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                                             <input
@@ -471,6 +501,21 @@ export function PurchaseForm({ contacts, projects = [], initialData }: PurchaseF
                                                     : "No descuenta ITBIS; sí queda como gasto/costo para ISR."}
                                     </p>
                                 </div>
+                                {isForeignPurchase && !showSupplierFields && (
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sitio web oficial del proveedor</label>
+                                        <input
+                                            className="w-full border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 text-sm focus:ring-blue-600 focus:border-blue-600 transition-all placeholder:text-slate-400 py-2.5 px-3"
+                                            placeholder="https://proveedor.com"
+                                            type="url"
+                                            value={supplierWebsiteUrl}
+                                            onChange={(e) => setSupplierWebsiteUrl(e.target.value)}
+                                        />
+                                        <p className="text-[11px] text-slate-500">
+                                            Para software, licencias, hosting, dominios y plataformas digitales.
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="space-y-1.5">
                                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">NCF (Comprobante)</label>
                                     <input

@@ -32,6 +32,16 @@ function taxTreatmentLabel(value: string) {
     return labels[value] || "Sin clasificar";
 }
 
+function isForeignPurchase(purchase: any) {
+    return purchase.origin === "FOREIGN" || ["FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"].includes(purchase.taxTreatment);
+}
+
+function websiteHref(value?: string | null) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) return "";
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 export function PurchasesTable({ purchases }: { purchases: any[] }) {
     const router = useRouter();
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
@@ -42,7 +52,10 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                 {purchases.map((purchase) => {
                     const supplierName = purchase.contact?.name || purchase.supplierName;
                     const supplierTaxId = purchase.contact?.taxId || purchase.supplierTaxId;
-                    const isMissingData = purchase.type === "FORMAL" && (!purchase.ncf || !supplierTaxId || supplierTaxId === "999999999");
+                    const isForeign = isForeignPurchase(purchase);
+                    const supplierWebsite = purchase.supplierWebsiteUrl || purchase.contact?.website;
+                    const supplierWebsiteLink = websiteHref(supplierWebsite);
+                    const isMissingData = !isForeign && purchase.type === "FORMAL" && (!purchase.ncf || !supplierTaxId || supplierTaxId === "999999999");
 
                     return (
                         <article key={purchase.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -76,6 +89,17 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                             Ver soporte
                                         </a>
                                     )}
+                                    {supplierWebsiteLink && (
+                                        <a
+                                            href={supplierWebsiteLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600"
+                                        >
+                                            <span className="material-icons-round text-xs">language</span>
+                                            Sitio oficial
+                                        </a>
+                                    )}
                                 </div>
                                 <div className="text-right">
                                     <p className="font-mono text-sm font-black text-slate-900 dark:text-white">
@@ -88,7 +112,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                             </div>
                             <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
                                 <span className="text-[10px] font-medium text-slate-500">
-                                    RNC: {supplierTaxId || "Sin RNC"}
+                                    {isForeign ? "RNC: No aplica" : `RNC: ${supplierTaxId || "Sin RNC"}`}
                                 </span>
                                 <div className="flex items-center gap-1 text-slate-400">
                                     {purchase.status !== "PAID" && (
@@ -124,7 +148,10 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                         {purchases.map((purchase) => {
                             const supplierName = purchase.contact?.name || purchase.supplierName;
                             const supplierTaxId = purchase.contact?.taxId || purchase.supplierTaxId;
-                            const isMissingData = purchase.type === "FORMAL" && (!purchase.ncf || !supplierTaxId || supplierTaxId === "999999999");
+                            const isForeign = isForeignPurchase(purchase);
+                            const supplierWebsite = purchase.supplierWebsiteUrl || purchase.contact?.website;
+                            const supplierWebsiteLink = websiteHref(supplierWebsite);
+                            const isMissingData = !isForeign && purchase.type === "FORMAL" && (!purchase.ncf || !supplierTaxId || supplierTaxId === "999999999");
 
                             return (
                                 <tr key={purchase.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
@@ -151,7 +178,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                             </div>
                                             {purchase.type === "FORMAL" && (
                                                 <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                                                    RNC: {supplierTaxId || "Sin RNC registrado"}
+                                                    {isForeign ? "RNC: No aplica" : `RNC: ${supplierTaxId || "Sin RNC registrado"}`}
                                                 </div>
                                             )}
                                             <span className="mt-1 inline-flex w-fit rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800">
@@ -167,6 +194,18 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                                 >
                                                     <span className="material-icons-round text-xs">attach_file</span>
                                                     Soporte
+                                                </a>
+                                            )}
+                                            {supplierWebsiteLink && (
+                                                <a
+                                                    href={supplierWebsiteLink}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 hover:text-emerald-700"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
+                                                    <span className="material-icons-round text-xs">language</span>
+                                                    Sitio oficial
                                                 </a>
                                             )}
                                         </div>

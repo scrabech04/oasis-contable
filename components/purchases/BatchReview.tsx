@@ -40,6 +40,8 @@ export function BatchReview({ invoices: initialInvoices, onComplete, onCancel }:
                     formData.append("contactId", "manual");
                     formData.append("contactName", inv.supplierName || "");
                     formData.append("contactTaxId", inv.supplierTaxId || "");
+                    formData.append("supplierWebsiteUrl", inv.supplierWebsiteUrl || "");
+                    formData.append("contactWebsiteUrl", inv.supplierWebsiteUrl || "");
                     formData.append("supplierName", inv.supplierName || "");
                     formData.append("supplierTaxId", inv.supplierTaxId || "");
                     formData.append("saveAsContact", "false");
@@ -65,6 +67,8 @@ export function BatchReview({ invoices: initialInvoices, onComplete, onCancel }:
                     formData.append("contactId", "manual");
                     formData.append("contactName", inv.supplierName || "Gasto menor");
                     formData.append("contactTaxId", inv.supplierTaxId || "");
+                    formData.append("supplierWebsiteUrl", inv.supplierWebsiteUrl || "");
+                    formData.append("contactWebsiteUrl", inv.supplierWebsiteUrl || "");
                     formData.append("description", inv.items?.[0]?.description || "Gasto Informal");
                     formData.append("amount", (inv.total || inv.items?.[0]?.baseAmount || 0).toString());
                     formData.append("category", inv.category || "Otros");

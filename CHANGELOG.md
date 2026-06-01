@@ -9,6 +9,20 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Los nombres de comprobantes se muestran truncados con tooltip, manteniendo visible el boton `Elegir`.
 - El nombre del cliente/proveedor en el resumen del pago tambien se trunca para no romper el ancho del modal.
 
+## 2026-06-01 - Compras internacionales
+
+### Agregado
+- Las compras/gastos internacionales, importaciones y pagos al exterior ahora pueden guardar el sitio web oficial del proveedor.
+- El formulario permite dejar vacio el RNC cuando el proveedor es internacional, sin forzar datos fiscales dominicanos que no aplican.
+- El listado de compras muestra `RNC: No aplica` para compras internacionales y agrega acceso a `Sitio oficial` cuando existe.
+
+### Corregido
+- Las compras internacionales ya no muestran el icono de advertencia por faltar RNC dominicano.
+- El reporte DGII 606 muestra `No aplica` para el RNC de compras internacionales en vez de marcarlas como incompletas.
+
+### Migracion
+- Se agrega la columna `supplierWebsiteUrl` a `Purchase`.
+
 ## 2026-06-01 - Estabilizacion temporal de PDFs
 
 ### Corregido
