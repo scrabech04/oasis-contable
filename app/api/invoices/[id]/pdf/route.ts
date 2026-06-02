@@ -23,6 +23,22 @@ export async function GET(
   }
 
   const company = await getScopedCompanySettings();
+  const identity = await prisma.companyIdentity.findFirst({
+    where: { profileId },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+  });
+  const pdfCompany = identity
+    ? {
+        ...company,
+        name: identity.name || company.name,
+        taxId: identity.taxId || company.taxId,
+        email: identity.email || company.email,
+        phone: identity.phone || company.phone,
+        address: identity.address || company.address,
+        logo: identity.logoUrl || company.logo,
+        logoUrl: identity.logoUrl || company.logo,
+      }
+    : company;
   const searchParams = new URL(request.url).searchParams;
   const optionValue = (key: string, fallback: boolean) => {
     const value = searchParams.get(key);
@@ -52,7 +68,7 @@ export async function GET(
     }
   }
 
-  const blob = await pdf(createElement(InvoicePDF, { invoice, company, options }) as any).toBlob();
+  const blob = await pdf(createElement(InvoicePDF, { invoice, company: pdfCompany, options }) as any).toBlob();
 
   return new Response(blob, {
     headers: {

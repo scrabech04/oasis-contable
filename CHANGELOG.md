@@ -25,6 +25,13 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Los proyectos propios ahora pueden eliminarse desde el listado y desde el panel del proyecto.
 - En el detalle de proyecto, las transacciones asociadas ahora son clickeables: ventas abren su factura y compras abren su registro.
 
+## 2026-06-02 - PDF e impresion de facturas
+
+### Corregido
+- El PDF estable de facturas se rediseña para alinearse con la vista visual del sistema: marca oFlow, datos reales de identidad fiscal, encabezado limpio, tabla con espaciado correcto, notas separadas, total destacado y footer profesional.
+- El endpoint PDF de facturas ahora toma la identidad fiscal predeterminada del perfil activo, evitando caer en datos genericos como `Mi Empresa S.R.L.`.
+- El boton `Imprimir` ahora abre la vista HTML imprimible del documento y dispara la impresion automaticamente, usando el diseno bonito de pantalla.
+
 ### Corregido
 - En `Nueva Compra`, se elimina el campo duplicado `Proyecto Relacionado` dentro de `Detalles del documento`; queda solo `Proyecto (Opcional)`.
 - En `Nueva Compra`, los controles `Moneda` y `Tasa` se mueven a la franja de `Proveedor Seleccionado`, justo antes de los items de compra.

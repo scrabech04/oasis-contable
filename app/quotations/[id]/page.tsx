@@ -8,6 +8,7 @@ import { DocumentActions } from "@/components/documents/DocumentActions";
 import clsx from "clsx";
 import { QuotationViewer } from "@/components/quotations/QuotationViewer";
 import { PrintableCoverPage, PrintableTermsPage } from "@/components/documents/PrintablePages";
+import { AutoPrint } from "@/components/documents/AutoPrint";
 
 interface QuotationDetailPageProps {
     params: Promise<{ id: string }>;
@@ -34,12 +35,14 @@ export default async function QuotationDetailPage({ params, searchParams }: Quot
     }
 
     const pdfMode = query.pdf === "1" || query.pdf === "true";
+    const printMode = query.print === "1" || query.print === "true";
     const includeCoverPage = query.cover === "1" || query.cover === "true";
     const includeTermsPage = query.terms === "1" || query.terms === "true";
 
     if (pdfMode) {
         return (
             <div className="mx-auto max-w-5xl bg-white text-slate-950 print:max-w-none">
+                <AutoPrint enabled={printMode} />
                 {includeCoverPage && (
                     <PrintableCoverPage document={quotation} company={companySettings} label="Cotizacion" />
                 )}

@@ -9,6 +9,7 @@ import { InvoicePaymentsManager } from "@/components/invoices/InvoicePaymentsMan
 import { InvoiceViewer } from "@/components/invoices/InvoiceViewer";
 import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurringButton";
 import { PrintableCoverPage, PrintableTermsPage } from "@/components/documents/PrintablePages";
+import { AutoPrint } from "@/components/documents/AutoPrint";
 import clsx from "clsx";
 
 interface InvoiceDetailPageProps {
@@ -39,12 +40,14 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
     const tax = invoice.tax;
     const total = invoice.total;
     const pdfMode = query.pdf === "1" || query.pdf === "true";
+    const printMode = query.print === "1" || query.print === "true";
     const includeCoverPage = query.cover === "1" || query.cover === "true";
     const includeTermsPage = query.terms === "1" || query.terms === "true";
 
     if (pdfMode) {
         return (
             <div className="mx-auto max-w-5xl bg-white text-slate-950 print:max-w-none">
+                <AutoPrint enabled={printMode} />
                 {includeCoverPage && (
                     <PrintableCoverPage document={invoice} company={companySettings} label="Factura" />
                 )}

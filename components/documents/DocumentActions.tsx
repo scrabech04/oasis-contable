@@ -22,8 +22,18 @@ export function DocumentActions({ id, docType, includeCoverPage = false, include
         return `/api/${docType}/${id}/pdf?${params.toString()}`;
     }, [cover, docType, id, terms]);
 
+    const printUrl = useMemo(() => {
+        const params = new URLSearchParams({
+            pdf: "1",
+            print: "1",
+            cover: cover ? "1" : "0",
+            terms: terms ? "1" : "0",
+        });
+        return `/${docType}/${id}?${params.toString()}`;
+    }, [cover, docType, id, terms]);
+
     const openForPrint = () => {
-        window.open(pdfUrl, "_blank", "noopener,noreferrer");
+        window.open(printUrl, "_blank", "noopener,noreferrer");
     };
 
     return (
