@@ -26,6 +26,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 
 ### Corregido
 - En `Nueva Compra`, se elimina el campo duplicado `Proyecto Relacionado` dentro de `Detalles del documento`; queda solo `Proyecto (Opcional)`.
+- En `Nueva Compra`, los controles `Moneda` y `Tasa` se mueven a la franja de `Proveedor Seleccionado`, justo antes de los items de compra.
 
 ### Nota
 - Al eliminar un proyecto no se eliminan sus facturas, compras, cotizaciones, suscripciones ni facturas recurrentes; solo se desvinculan del proyecto para conservar la contabilidad.

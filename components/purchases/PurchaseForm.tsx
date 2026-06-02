@@ -596,35 +596,6 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                                         onChange={(e) => setDueDate(e.target.value)}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Moneda</label>
-                                        <select
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all py-2.5 px-3"
-                                            value={purchaseCurrency}
-                                            onChange={(e) => {
-                                                const nextCurrency = e.target.value === "USD" ? "USD" : "DOP";
-                                                setPurchaseCurrency(nextCurrency);
-                                                if (nextCurrency === "DOP") setExchangeRate("1");
-                                            }}
-                                        >
-                                            <option value="DOP">Pesos RD$</option>
-                                            <option value="USD">Dolares US$</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tasa</label>
-                                        <input
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all py-2.5 px-3"
-                                            type="number"
-                                            min="0.01"
-                                            step="0.01"
-                                            value={exchangeRate}
-                                            onChange={(e) => setExchangeRate(e.target.value)}
-                                            disabled={purchaseCurrency === "DOP"}
-                                        />
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -679,14 +650,45 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 {/* Items Table Section */}
                 <div className="md:col-span-12">
                     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                        <div className="flex flex-col gap-1 p-4 bg-orange-600/10 dark:bg-orange-900/20 border-t border-orange-100 dark:border-orange-800">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">Proveedor Seleccionado</span>
-                            <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                                {contactId === 'new'
-                                    ? contactName || 'Nuevo Proveedor'
-                                    : contactId === 'manual'
-                                        ? contactName || 'Emisor manual'
-                                        : contactName || contacts.find(s => s.id.toString() === contactId)?.name || 'Sin seleccionar'}
+                        <div className="flex flex-col gap-4 p-4 bg-orange-600/10 dark:bg-orange-900/20 border-t border-orange-100 dark:border-orange-800 md:flex-row md:items-end md:justify-between">
+                            <div className="min-w-0">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">Proveedor Seleccionado</span>
+                                <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                    {contactId === 'new'
+                                        ? contactName || 'Nuevo Proveedor'
+                                        : contactId === 'manual'
+                                            ? contactName || 'Emisor manual'
+                                            : contactName || contacts.find(s => s.id.toString() === contactId)?.name || 'Sin seleccionar'}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 md:w-[360px]">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Moneda</label>
+                                    <select
+                                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                        value={purchaseCurrency}
+                                        onChange={(e) => {
+                                            const nextCurrency = e.target.value === "USD" ? "USD" : "DOP";
+                                            setPurchaseCurrency(nextCurrency);
+                                            if (nextCurrency === "DOP") setExchangeRate("1");
+                                        }}
+                                    >
+                                        <option value="DOP">Pesos RD$</option>
+                                        <option value="USD">Dolares US$</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Tasa</label>
+                                    <input
+                                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:disabled:bg-slate-800"
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        value={exchangeRate}
+                                        onChange={(e) => setExchangeRate(e.target.value)}
+                                        disabled={purchaseCurrency === "DOP"}
+                                    />
+                                </div>
                             </div>
                         </div>
                         <div className="px-6 py-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
