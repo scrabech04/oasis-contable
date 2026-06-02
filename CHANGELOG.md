@@ -23,6 +23,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Al crear una factura desde un proyecto, se preselecciona el proyecto y el cliente cuando el contacto pertenece al perfil activo.
 - Al crear una compra desde un proyecto, se preselecciona el proyecto y al guardar vuelve al panel del proyecto.
 - Los proyectos propios ahora pueden eliminarse desde el listado y desde el panel del proyecto.
+- En el detalle de proyecto, las transacciones asociadas ahora son clickeables: ventas abren su factura y compras abren su registro.
 
 ### Corregido
 - En `Nueva Compra`, se elimina el campo duplicado `Proyecto Relacionado` dentro de `Detalles del documento`; queda solo `Proyecto (Opcional)`.

@@ -5,6 +5,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { formatCurrency } from "@/lib/format";
 import { Project, Invoice, Purchase, Contact, InvoiceItem, PurchaseItem, Payment } from "@prisma/client";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import { useRouter } from "next/navigation";
 
 interface ProjectDashboardProps {
     project: Project & {
@@ -15,6 +16,7 @@ interface ProjectDashboardProps {
 }
 
 export function ProjectDashboard({ project }: ProjectDashboardProps) {
+    const router = useRouter();
     // Financial Calculations
     const totalInvoiced = project.invoices.reduce((sum: number, inv: any) => sum + inv.total, 0);
     const totalCollected = project.invoices.reduce((sum: number, inv: any) => {
@@ -241,10 +243,21 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                             </TableHeader>
                             <TableBody>
                                 {[
-                                    ...project.invoices.map((inv: any) => ({ ...inv, docType: "Venta" })),
-                                    ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra" }))
-                                ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((doc: any, idx) => (
-                                    <TableRow key={idx} className="hover:bg-slate-50 transition-colors">
+                                    ...project.invoices.map((inv: any) => ({ ...inv, docType: "Venta", detailHref: `/invoices/${inv.id}` })),
+                                    ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra", detailHref: `/purchases/${pur.id}/edit` }))
+                                ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((doc: any) => (
+                                    <TableRow
+                                        key={`${doc.docType}-${doc.id}`}
+                                        className="cursor-pointer hover:bg-slate-50 transition-colors group"
+                                        tabIndex={0}
+                                        onClick={() => router.push(doc.detailHref)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                router.push(doc.detailHref);
+                                            }
+                                        }}
+                                    >
                                         <TableCell className="text-xs text-slate-500">
                                             {new Date(doc.date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
                                         </TableCell>
@@ -254,7 +267,10 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-xs font-medium text-slate-700">
-                                            {doc.number || doc.ncf || "S/N"}
+                                            <span className="inline-flex items-center gap-1 group-hover:text-blue-600">
+                                                {doc.number || doc.ncf || "S/N"}
+                                                <span className="material-icons-outlined text-[14px] opacity-0 transition-opacity group-hover:opacity-100">open_in_new</span>
+                                            </span>
                                         </TableCell>
                                         <TableCell className="text-xs font-mono text-right font-medium">
                                             RD$ {formatCurrency(doc.total)}
