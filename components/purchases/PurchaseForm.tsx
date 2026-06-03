@@ -705,7 +705,76 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                                 Agregar Item
                             </button>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="space-y-3 p-4 md:hidden">
+                            {items.map((item, index) => (
+                                <article key={index} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Item #{index + 1}</p>
+                                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                                                {currencyPrefix} {formatCurrency(itemTotal(item))}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition-colors hover:text-red-500 disabled:opacity-30 dark:border-slate-700"
+                                            onClick={() => removeItem(index)}
+                                            disabled={items.length === 1}
+                                            title="Eliminar item"
+                                        >
+                                            <span className="material-icons-outlined text-[18px]">delete</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-4 space-y-3">
+                                        <label className="block">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Descripcion</span>
+                                            <input
+                                                className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                placeholder="Producto o servicio adquirido"
+                                                value={item.description}
+                                                onChange={(e) => updateItem(index, "description", e.target.value)}
+                                            />
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <label className="block">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Cantidad</span>
+                                                <input
+                                                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                    type="number"
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value) || 0)}
+                                                />
+                                            </label>
+                                            <label className="block">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Impuesto %</span>
+                                                <input
+                                                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                    type="number"
+                                                    value={item.taxRate}
+                                                    onChange={(e) => updateItem(index, "taxRate", parseFloat(e.target.value) || 0)}
+                                                />
+                                            </label>
+                                        </div>
+                                        <label className="block">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Costo unitario</span>
+                                            <div className="mt-1 flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800">
+                                                <span className="text-[10px] font-black text-slate-400">{currencyPrefix}</span>
+                                                <input
+                                                    className="min-w-0 flex-1 border-0 bg-transparent px-2 text-right font-mono text-sm text-slate-800 focus:ring-0 dark:text-slate-100"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={item.price}
+                                                    onChange={(e) => updateItem(index, "price", parseFloat(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                        </label>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+
+                        <div className="hidden overflow-x-auto md:block">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 dark:bg-slate-900/50">
                                     <tr>

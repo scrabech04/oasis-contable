@@ -58,37 +58,123 @@ export default async function ProjectsPage(props: {
             <ListPeriodFilter basePath="/projects" searchParams={searchParams} total={projects.length} itemSingular="proyecto registrado" itemPlural="proyectos registrados" />
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 <Card className="border-slate-200 shadow-none">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 md:p-5">
                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Proyectos Activos</span>
-                        <div className="text-2xl font-bold text-slate-800">{activeProjects}</div>
+                        <div className="text-xl font-bold text-slate-800 md:text-2xl">{activeProjects}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-slate-200 shadow-none">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 md:p-5">
                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Total Facturado</span>
-                        <div className="text-2xl font-bold text-blue-600 font-mono">RD$ {formatCurrency(totalInvoiced)}</div>
+                        <div className="text-base font-bold text-blue-600 font-mono md:text-2xl">RD$ {formatCurrency(totalInvoiced)}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-slate-200 shadow-none">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 md:p-5">
                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Costos Totales</span>
-                        <div className="text-2xl font-bold text-red-500 font-mono">RD$ {formatCurrency(totalCosts)}</div>
+                        <div className="text-base font-bold text-red-500 font-mono md:text-2xl">RD$ {formatCurrency(totalCosts)}</div>
                     </CardContent>
                 </Card>
                 <Card className="border-slate-200 shadow-none">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 md:p-5">
                         <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Margen Promedio</span>
-                        <div className={`text-2xl font-bold font-mono ${avgMargin >= 20 ? 'text-green-600' : 'text-orange-500'}`}>
+                        <div className={`text-xl font-bold font-mono md:text-2xl ${avgMargin >= 20 ? 'text-green-600' : 'text-orange-500'}`}>
                             {avgMargin.toFixed(1)}%
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Projects Table */}
-            <Card className="border-slate-200 shadow-sm overflow-hidden">
+            {/* Projects List */}
+            <div className="space-y-3 md:hidden">
+                {projects.map((project: any) => {
+                    const pi = project.invoices.reduce((s: number, i: any) => s + i.total, 0);
+                    const pc = project.purchases.reduce((s: number, i: any) => s + i.total, 0);
+                    const profit = pi - pc;
+                    const margin = pi > 0 ? (profit / pi) * 100 : 0;
+                    const isOwner = project.profileId === activeProfile.id;
+
+                    return (
+                        <article key={project.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                            {project.code}
+                                        </span>
+                                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${getStatusColor(project.status)}`}>
+                                            {project.status}
+                                        </span>
+                                        {!isOwner && (
+                                            <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase text-violet-600">
+                                                Compartido
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h2 className="mt-2 text-base font-black text-slate-900 dark:text-white">{project.name}</h2>
+                                    <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+                                        {project.contact?.name || "Sin contacto"}
+                                    </p>
+                                    {project.profile?.name && (
+                                        <p className="mt-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500">Dueno: {project.profile.name}</p>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Margen</p>
+                                    <p className={`font-mono text-lg font-black ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                        {margin.toFixed(1)}%
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-slate-400">Facturado</p>
+                                    <p className="mt-1 font-mono text-xs font-bold text-blue-600">RD$ {formatCurrency(pi)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-slate-400">Costos</p>
+                                    <p className="mt-1 font-mono text-xs font-bold text-red-500">RD$ {formatCurrency(pc)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black uppercase text-slate-400">Ganancia</p>
+                                    <p className={`mt-1 font-mono text-xs font-bold ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                        RD$ {formatCurrency(profit)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                                <Link href={`/projects/${project.id}`} className="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm shadow-blue-500/20">
+                                    <span className="material-icons-outlined text-[18px]">dashboard</span>
+                                    Ver
+                                </Link>
+                                {isOwner && (
+                                    <div className="flex items-center gap-1">
+                                        <Link href={`/projects/${project.id}/edit`} className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-300">
+                                            <span className="material-icons-outlined text-[18px]">edit</span>
+                                        </Link>
+                                        <DeleteButton id={project.id} action={deleteProject} variant="ghost_icon" label="Eliminar proyecto" />
+                                    </div>
+                                )}
+                            </div>
+                        </article>
+                    );
+                })}
+                {projects.length === 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+                            <span className="material-icons-outlined">folder_open</span>
+                        </div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">No hay proyectos registrados</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Crea un proyecto para medir ingresos, costos y rentabilidad.</p>
+                    </div>
+                )}
+            </div>
+
+            <Card className="hidden border-slate-200 shadow-sm overflow-hidden md:block">
                 <Table>
                     <TableHeader className="bg-slate-50/50">
                         <TableRow>

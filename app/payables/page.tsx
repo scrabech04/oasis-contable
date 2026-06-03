@@ -1,15 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getPayables, recordPayment } from "@/app/actions";
+import Link from "next/link";
+import { getPayables } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { CreditCard, DollarSign, Calendar, Truck, FileText } from "lucide-react";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PaymentDialog } from "@/components/payments/PaymentDialog";
 
 const months = [
@@ -33,15 +27,22 @@ export default function PayablesPage() {
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
     const [yearFilter, setYearFilter] = useState("");
     const [monthFilter, setMonthFilter] = useState("");
+    const currentYear = new Date().getFullYear();
+
+    function selectedPeriod() {
+        const month = monthFilter ? Number(monthFilter) : undefined;
+        const year = yearFilter ? Number(yearFilter) : month ? currentYear : undefined;
+        return { month, year };
+    }
 
     useEffect(() => {
         loadPayables();
-    }, []);
+    }, [yearFilter, monthFilter]);
 
     async function loadPayables() {
         setLoading(true);
         try {
-            const data = await getPayables();
+            const data = await getPayables(selectedPeriod());
             setPayables(data);
         } catch (error) {
             console.error("Error loading payables:", error);
@@ -56,15 +57,8 @@ export default function PayablesPage() {
         </div>
     );
 
-    const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 8 }, (_, index) => String(currentYear + 1 - index));
-    const filteredPayables = payables.filter((item) => {
-        if (!yearFilter && !monthFilter) return true;
-        const date = new Date(item.date);
-        const selectedYear = yearFilter ? Number(yearFilter) : currentYear;
-        if (date.getFullYear() !== selectedYear) return false;
-        return monthFilter ? date.getMonth() + 1 === Number(monthFilter) : true;
-    });
+    const filteredPayables = payables;
     const totalPending = filteredPayables.reduce((acc, curr) => acc + (curr.total - curr.paidAmount), 0);
 
     return (
@@ -109,7 +103,88 @@ export default function PayablesPage() {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+            <div className="space-y-3 md:hidden">
+                {filteredPayables.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-orange-500 dark:bg-orange-900/30">
+                            <span className="material-icons-round">payments</span>
+                        </div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">No hay cuentas por pagar</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">No encontramos obligaciones pendientes con esos filtros.</p>
+                    </div>
+                ) : (
+                    filteredPayables.map((p) => {
+                        const supplierName = p.contact?.name || p.supplierName || "Proveedor Informal";
+                        const pendingAmount = p.total - p.paidAmount;
+
+                        return (
+                            <article
+                                key={p.id}
+                                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300">
+                                                <span className="material-icons-round text-[20px]">storefront</span>
+                                            </span>
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-black text-slate-900 dark:text-white">{supplierName}</p>
+                                                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                                    {p.number || "Compra"} · {p.ncf || "SIN NCF"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                            <span className="inline-flex items-center gap-1">
+                                                <span className="material-icons-round text-sm">calendar_today</span>
+                                                {new Date(p.date).toLocaleDateString()}
+                                            </span>
+                                            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 dark:bg-slate-800">
+                                                {p.status === "PAID" ? "Saldada" : p.status === "PARTIAL" ? "Parcial" : "Pendiente"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pendiente</p>
+                                        <p className="font-mono text-base font-black text-orange-600 dark:text-orange-300">RD${formatCurrency(pendingAmount)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase text-slate-400">Total</p>
+                                        <p className="mt-1 font-mono text-xs font-bold text-slate-700 dark:text-slate-200">RD${formatCurrency(p.total)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase text-slate-400">Pagado</p>
+                                        <p className="mt-1 font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">RD${formatCurrency(p.paidAmount)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase text-slate-400">Resta</p>
+                                        <p className="mt-1 font-mono text-xs font-bold text-slate-900 dark:text-white">RD${formatCurrency(pendingAmount)}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                                    <Link href={`/purchases/${p.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                                        <span className="material-icons-round text-[18px]">open_in_new</span>
+                                        Ver compra
+                                    </Link>
+                                    <button
+                                        onClick={() => setSelectedPurchase(p)}
+                                        className="inline-flex h-10 items-center justify-center rounded-xl bg-orange-600 px-4 text-xs font-black uppercase tracking-wider text-white shadow-sm shadow-orange-500/20"
+                                    >
+                                        Pagar
+                                    </button>
+                                </div>
+                            </article>
+                        );
+                    })
+                )}
+            </div>
+
+            <div className="hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors md:block">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead>

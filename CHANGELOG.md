@@ -2,6 +2,26 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-03 - Responsive mobile fase 1 y 2
+
+### Mejorado
+- `Cuentas por cobrar` ahora usa tarjetas en mobile con cliente, factura/NCF, vencimiento, total, cobrado, pendiente y accion de cobro sin deslizamiento horizontal.
+- `Cuentas por pagar` ahora usa tarjetas en mobile con proveedor, compra/NCF, fecha, total, pagado, pendiente y accion de pago sin deslizamiento horizontal.
+- `Proyectos` ahora muestra tarjetas compactas en mobile con estado, cliente, facturado, costos, ganancia, margen y acciones principales.
+- Las metricas superiores de `Proyectos` y del detalle de proyecto se compactan en dos columnas en mobile para reducir scroll vertical.
+- `Transacciones Asociadas` dentro del detalle de proyecto ahora usa tarjetas clickeables en mobile para ventas y compras, manteniendo la tabla solo en desktop.
+- El dashboard de proyecto mejora su responsive: encabezado mas compacto, metricas con montos que no rompen el ancho, graficos con menor altura en mobile y tooltips compatibles con modo oscuro.
+- El dashboard de proyecto ahora aplica estilos dark mode consistentes en encabezado, metricas, graficos, tabla desktop y tarjetas de transacciones.
+- Los formularios de `Nueva Compra`, `Nueva Factura` y `Nueva Cotizacion` ahora muestran los items como tarjetas editables en mobile, evitando tablas con deslizamiento horizontal.
+- Las tablas de items se conservan solo para desktop, manteniendo el flujo amplio donde si aporta valor.
+- `Cuentas por cobrar` y `Cuentas por pagar` ahora piden al servidor solo el periodo seleccionado al filtrar por mes/ano, reduciendo datos enviados al cliente.
+
+### Pendiente de prueba
+- Verificar en celular real que las tarjetas no quedan tapadas por el menu inferior y que los botones `Cobrar`, `Pagar`, `Ver factura`, `Ver compra` y `Ver proyecto` abren el flujo correcto.
+- Verificar en celular real el detalle de proyecto en modo claro/oscuro para confirmar que los graficos se leen bien y no ocupan demasiado alto.
+- Verificar en celular real la edicion de items en compra, factura y cotizacion: descripcion, cantidad, precio, impuesto y eliminacion.
+- Verificar que los filtros de cuentas por cobrar/pagar siguen mostrando el conteo y total pendiente correcto al cambiar mes/ano.
+
 ## 2026-06-01 - Moneda en compras y suscripciones
 
 ### Agregado

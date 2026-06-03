@@ -56,55 +56,73 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
     ];
 
     const COLORS = ["#3b82f6", "#ef4444"];
+    const transactions = [
+        ...project.invoices.map((inv: any) => ({ ...inv, docType: "Venta", detailHref: `/invoices/${inv.id}` })),
+        ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra", detailHref: `/purchases/${pur.id}/edit` }))
+    ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const chartTooltipStyle = {
+        borderRadius: "12px",
+        border: "1px solid rgba(148, 163, 184, 0.22)",
+        background: "var(--card)",
+        color: "var(--card-foreground)",
+        boxShadow: "0 14px 30px -20px rgba(15, 23, 42, 0.45)",
+    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case "ACTIVE": return "text-green-600 bg-green-50";
-            case "PROPOSAL": return "text-blue-600 bg-blue-50";
-            case "ON_HOLD": return "text-orange-600 bg-orange-50";
-            case "COMPLETED": return "text-slate-600 bg-slate-100";
-            case "CANCELLED": return "text-red-600 bg-red-50";
-            default: return "text-slate-600 bg-slate-50";
+            case "ACTIVE": return "text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-300";
+            case "PROPOSAL": return "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300";
+            case "ON_HOLD": return "text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300";
+            case "COMPLETED": return "text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-300";
+            case "CANCELLED": return "text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-300";
+            default: return "text-slate-600 bg-slate-50 dark:bg-slate-800 dark:text-slate-300";
         }
     };
 
     return (
         <div className="space-y-6">
             {/* Project Header Summary */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div>
-                    <div className="flex items-center gap-3 mb-1">
+            <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-card p-4 text-card-foreground shadow-sm dark:border-slate-800 md:flex-row md:items-center md:p-6">
+                <div className="min-w-0">
+                    <div className="mb-1 flex flex-wrap items-center gap-2 md:gap-3">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{project.code}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${getStatusColor(project.status)}`}>
                             {project.status}
                         </span>
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-800">{project.name}</h1>
-                    <p className="text-slate-500 text-sm flex items-center gap-2">
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white md:text-2xl">{project.name}</h1>
+                    <p className="mt-1 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                         <span className="material-icons-outlined text-sm">person</span>
                         {project.contact?.name || "Sin contacto"}
                     </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <div className="px-4 py-2 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                         <span className="block text-[10px] font-bold text-slate-400 uppercase">Margen Bruto</span>
                         <span className={`text-lg font-bold font-mono ${margin >= 20 ? 'text-green-600' : margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>
                             {margin.toFixed(1)}%
+                        </span>
+                    </div>
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/60">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase">Desvio Costos</span>
+                        <span className={`text-lg font-bold font-mono ${costDeviation <= 0 ? "text-green-600" : "text-orange-500"}`}>
+                            {costDeviation.toFixed(1)}%
                         </span>
                     </div>
                 </div>
             </div>
 
             {/* Metric Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="shadow-none border-slate-200 hover:border-blue-200 transition-colors">
-                    <CardContent className="p-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-blue-200 dark:border-slate-800 dark:hover:border-blue-900/60">
+                    <CardContent className="p-4 md:p-5">
                         <div className="flex items-center gap-2 mb-3 text-blue-500">
                             <span className="material-icons-outlined text-[18px]">account_balance_wallet</span>
                             <span className="text-[10px] font-bold uppercase tracking-wider">Total Facturado</span>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800 font-mono">RD$ {formatCurrency(totalInvoiced)}</div>
-                        <div className="mt-2 text-[10px] text-slate-500 space-y-1">
+                        <div className="break-words text-[13px] font-bold text-slate-900 font-mono dark:text-white sm:text-base md:text-2xl">RD$ {formatCurrency(totalInvoiced)}</div>
+                        <div className="mt-2 space-y-1 text-[10px] text-slate-500 dark:text-slate-400">
                             <div>Total Cobrado: <span className="font-bold text-blue-600">RD$ {formatCurrency(totalCollected)}</span></div>
                             <div className="flex justify-between">
                                 <span>- En Efectivo:</span>
@@ -118,44 +136,44 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-none border-slate-200 hover:border-red-200 transition-colors">
-                    <CardContent className="p-5">
+                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-red-200 dark:border-slate-800 dark:hover:border-red-900/60">
+                    <CardContent className="p-4 md:p-5">
                         <div className="flex items-center gap-2 mb-3 text-red-500">
                             <span className="material-icons-outlined text-[18px]">shopping_cart</span>
                             <span className="text-[10px] font-bold uppercase tracking-wider">Costos Totales</span>
                         </div>
-                        <div className="text-2xl font-bold text-slate-800 font-mono">RD$ {formatCurrency(totalCosts)}</div>
-                        <div className="mt-2 text-[10px] text-slate-500">
-                            Presupuesto: <span className="font-bold text-slate-700">RD$ {formatCurrency(budgetCost)}</span>
+                        <div className="break-words text-[13px] font-bold text-slate-900 font-mono dark:text-white sm:text-base md:text-2xl">RD$ {formatCurrency(totalCosts)}</div>
+                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                            Presupuesto: <span className="font-bold text-slate-700 dark:text-slate-200">RD$ {formatCurrency(budgetCost)}</span>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-none border-slate-200 hover:border-green-200 transition-colors">
-                    <CardContent className="p-5">
+                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-green-200 dark:border-slate-800 dark:hover:border-green-900/60">
+                    <CardContent className="p-4 md:p-5">
                         <div className="flex items-center gap-2 mb-3 text-green-500">
                             <span className="material-icons-outlined text-[18px]">trending_up</span>
                             <span className="text-[10px] font-bold uppercase tracking-wider">Ganancia Bruta</span>
                         </div>
-                        <div className={`text-2xl font-bold font-mono ${grossProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <div className={`break-words text-[13px] font-bold font-mono sm:text-base md:text-2xl ${grossProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
                             RD$ {formatCurrency(grossProfit)}
                         </div>
-                        <div className="mt-2 text-[10px] text-slate-500">
+                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
                             Sobre lo facturado
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-none border-slate-200 hover:border-indigo-200 transition-colors">
-                    <CardContent className="p-5">
+                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-indigo-200 dark:border-slate-800 dark:hover:border-indigo-900/60">
+                    <CardContent className="p-4 md:p-5">
                         <div className="flex items-center gap-2 mb-3 text-indigo-500">
                             <span className="material-icons-outlined text-[18px]">payments</span>
                             <span className="text-[10px] font-bold uppercase tracking-wider">Flujo de Caja</span>
                         </div>
-                        <div className={`text-2xl font-bold font-mono ${netProfit >= 0 ? "text-indigo-600" : "text-red-600"}`}>
+                        <div className={`break-words text-[13px] font-bold font-mono sm:text-base md:text-2xl ${netProfit >= 0 ? "text-indigo-600" : "text-red-600"}`}>
                             RD$ {formatCurrency(netProfit)}
                         </div>
-                        <div className="mt-2 text-[10px] text-slate-500">
+                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
                             Efectivo - Gastos
                         </div>
                     </CardContent>
@@ -163,25 +181,29 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2 shadow-sm border-slate-200">
-                    <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between py-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+                <Card className="lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-800">
+                    <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between p-4 dark:border-slate-800">
                         <CardTitle className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">
                             <span className="material-icons-outlined">bar_chart</span>
                             Presupuesto vs Real
                         </CardTitle>
+                        <span className={`hidden rounded-full px-2 py-1 text-[10px] font-black uppercase sm:inline-flex ${incomeDeviation >= 0 ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"}`}>
+                            Ingresos {incomeDeviation.toFixed(1)}%
+                        </span>
                     </CardHeader>
-                    <CardContent className="p-6 h-[300px]">
+                    <CardContent className="h-[230px] p-3 sm:p-4 md:h-[300px] md:p-6 [--chart-axis:#64748b] [--chart-grid:#e2e8f0] dark:[--chart-axis:#94a3b8] dark:[--chart-grid:#243244]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" fontSize={12} stroke="#64748b" axisLine={false} tickLine={false} />
-                                <YAxis fontSize={12} stroke="#64748b" axisLine={false} tickLine={false} tickFormatter={(value) => `$${value / 1000}k`} />
+                            <BarChart data={chartData} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                                <XAxis dataKey="name" fontSize={11} stroke="var(--chart-axis)" axisLine={false} tickLine={false} />
+                                <YAxis fontSize={11} stroke="var(--chart-axis)" axisLine={false} tickLine={false} tickFormatter={(value) => `$${value / 1000}k`} width={46} />
                                 <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                    contentStyle={chartTooltipStyle}
+                                    labelStyle={{ color: "var(--card-foreground)", fontWeight: 700 }}
                                     formatter={(value: any) => [`RD$ ${formatCurrency(value)}`, undefined]}
                                 />
-                                <Legend />
+                                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconSize={9} />
                                 <Bar dataKey="Ingresos" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                                 <Bar dataKey="Costos" fill="#ef4444" radius={[4, 4, 0, 0]} />
                             </BarChart>
@@ -189,22 +211,22 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-200">
-                    <CardHeader className="border-b border-slate-100 py-4">
+                <Card className="shadow-sm border-slate-200 dark:border-slate-800">
+                    <CardHeader className="border-b border-slate-100 p-4 dark:border-slate-800">
                         <CardTitle className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">
                             <span className="material-icons-outlined">pie_chart</span>
                             Composición
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6 h-[300px]">
+                    <CardContent className="h-[240px] p-3 sm:p-4 md:h-[300px] md:p-6">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={summaryData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
+                                    innerRadius="48%"
+                                    outerRadius="70%"
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
@@ -212,8 +234,12 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip formatter={(value: any) => `RD$ ${formatCurrency(value)}`} />
-                                <Legend verticalAlign="bottom" height={36} />
+                                <Tooltip
+                                    contentStyle={chartTooltipStyle}
+                                    labelStyle={{ color: "var(--card-foreground)", fontWeight: 700 }}
+                                    formatter={(value: any) => `RD$ ${formatCurrency(value)}`}
+                                />
+                                <Legend verticalAlign="bottom" height={34} wrapperStyle={{ fontSize: 11 }} iconSize={9} />
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -222,16 +248,85 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
 
             {/* Timeline / Transactions Table */}
             <div className="grid grid-cols-1 gap-6">
-                <Card className="shadow-sm border-slate-200">
-                    <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between py-4">
+                <Card className="shadow-sm border-slate-200 dark:border-slate-800">
+                    <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between p-4 dark:border-slate-800">
                         <CardTitle className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">
                             <span className="material-icons-outlined">list_alt</span>
                             Transacciones Asociadas
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
+                        <div className="space-y-3 p-4 md:hidden">
+                            {transactions.map((doc: any) => {
+                                const isSale = doc.docType === "Venta";
+                                const pendingAmount = Math.max(0, doc.total - doc.paidAmount);
+
+                                return (
+                                    <article
+                                        key={`${doc.docType}-${doc.id}`}
+                                        className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-colors active:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:active:bg-slate-800"
+                                        tabIndex={0}
+                                        onClick={() => router.push(doc.detailHref)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                router.push(doc.detailHref);
+                                            }
+                                        }}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isSale ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300" : "bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300"}`}>
+                                                        <span className="material-icons-outlined text-[20px]">{isSale ? "receipt_long" : "shopping_cart"}</span>
+                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                                            {new Date(doc.date).toLocaleDateString("es-DO", { day: "2-digit", month: "short" })}
+                                                        </p>
+                                                        <p className="mt-0.5 truncate text-sm font-black text-slate-900 dark:text-white">
+                                                            {doc.number || doc.ncf || "S/N"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${isSale ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300" : "bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300"}`}>
+                                                    {doc.docType}
+                                                </span>
+                                                <p className="mt-2 font-mono text-sm font-black text-slate-900 dark:text-white">RD$ {formatCurrency(doc.total)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">{isSale ? "Cobrado" : "Pagado"}</p>
+                                                <p className="mt-1 font-mono text-xs font-bold text-emerald-600">RD$ {formatCurrency(doc.paidAmount)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">Pendiente</p>
+                                                <p className="mt-1 font-mono text-xs font-bold text-slate-700 dark:text-slate-200">RD$ {formatCurrency(pendingAmount)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">Estado</p>
+                                                <p className={`mt-1 w-fit rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${doc.status === "PAID" ? "bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-300" : "bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300"}`}>
+                                                    {doc.status}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </article>
+                                );
+                            })}
+                            {transactions.length === 0 && (
+                                <div className="p-8 text-center">
+                                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No hay transacciones asociadas.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="hidden md:block">
                         <Table>
-                            <TableHeader className="bg-slate-50/50">
+                            <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                                 <TableRow>
                                     <TableHead className="text-[10px] uppercase font-bold">Fecha</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold">Tipo</TableHead>
@@ -242,13 +337,10 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {[
-                                    ...project.invoices.map((inv: any) => ({ ...inv, docType: "Venta", detailHref: `/invoices/${inv.id}` })),
-                                    ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra", detailHref: `/purchases/${pur.id}/edit` }))
-                                ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((doc: any) => (
+                                {transactions.map((doc: any) => (
                                     <TableRow
                                         key={`${doc.docType}-${doc.id}`}
-                                        className="cursor-pointer hover:bg-slate-50 transition-colors group"
+                                        className="cursor-pointer hover:bg-slate-50 transition-colors group dark:hover:bg-slate-800/50"
                                         tabIndex={0}
                                         onClick={() => router.push(doc.detailHref)}
                                         onKeyDown={(event) => {
@@ -258,28 +350,28 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                                             }
                                         }}
                                     >
-                                        <TableCell className="text-xs text-slate-500">
+                                        <TableCell className="text-xs text-slate-500 dark:text-slate-400">
                                             {new Date(doc.date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
                                         </TableCell>
                                         <TableCell>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${doc.docType === 'Venta' ? 'text-blue-600 bg-blue-50' : 'text-orange-600 bg-orange-50'}`}>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${doc.docType === 'Venta' ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300' : 'text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300'}`}>
                                                 {doc.docType}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="text-xs font-medium text-slate-700">
+                                        <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-300">
                                             <span className="inline-flex items-center gap-1 group-hover:text-blue-600">
                                                 {doc.number || doc.ncf || "S/N"}
                                                 <span className="material-icons-outlined text-[14px] opacity-0 transition-opacity group-hover:opacity-100">open_in_new</span>
                                             </span>
                                         </TableCell>
-                                        <TableCell className="text-xs font-mono text-right font-medium">
+                                        <TableCell className="text-xs font-mono text-right font-medium text-slate-800 dark:text-slate-200">
                                             RD$ {formatCurrency(doc.total)}
                                         </TableCell>
-                                        <TableCell className="text-xs font-mono text-right text-slate-500">
+                                        <TableCell className="text-xs font-mono text-right text-slate-500 dark:text-slate-400">
                                             RD$ {formatCurrency(doc.paidAmount)}
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${doc.status === 'PAID' ? 'text-green-600 bg-green-50' : 'text-slate-500 bg-slate-50'}`}>
+                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${doc.status === 'PAID' ? 'text-green-600 bg-green-50 dark:bg-green-900/30 dark:text-green-300' : 'text-slate-500 bg-slate-50 dark:bg-slate-800 dark:text-slate-300'}`}>
                                                 {doc.status}
                                             </span>
                                         </TableCell>
@@ -294,6 +386,7 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                                 )}
                             </TableBody>
                         </Table>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

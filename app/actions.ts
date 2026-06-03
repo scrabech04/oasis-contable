@@ -2014,20 +2014,28 @@ async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE") {
   }
 }
 
-export async function getReceivables() {
+export async function getReceivables(options?: PeriodParams) {
   const profileId = await getActiveProfileId();
+  const dueDateRange = getPeriodDateRange(options || {});
   const invoices = await prisma.invoice.findMany({
-    where: { profileId },
+    where: {
+      profileId,
+      ...(Object.keys(dueDateRange).length ? { dueDate: dueDateRange } : {}),
+    },
     include: { contact: true },
     orderBy: { dueDate: "asc" },
   });
   return invoices.filter((invoice) => invoice.total > invoice.paidAmount).map((invoice) => ({ ...invoice, client: invoice.contact }));
 }
 
-export async function getPayables() {
+export async function getPayables(options?: PeriodParams) {
   const profileId = await getActiveProfileId();
+  const dateRange = getPeriodDateRange(options || {});
   const purchases = await prisma.purchase.findMany({
-    where: { profileId },
+    where: {
+      profileId,
+      ...(Object.keys(dateRange).length ? { date: dateRange } : {}),
+    },
     include: { contact: true },
     orderBy: { dueDate: "asc" },
   });

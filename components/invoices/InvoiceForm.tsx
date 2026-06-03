@@ -522,7 +522,109 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                 </button>
                             </div>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="space-y-3 p-4 md:hidden">
+                            {items.map((item, index) => (
+                                <article
+                                    key={index}
+                                    className={clsx(
+                                        "rounded-2xl border p-4 shadow-sm dark:border-slate-800",
+                                        item.itemType === "HEADING"
+                                            ? "border-blue-100 bg-blue-50/50 dark:bg-blue-900/10"
+                                            : "border-slate-200 bg-white dark:bg-slate-900"
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className={clsx(
+                                                "flex h-9 w-9 items-center justify-center rounded-xl",
+                                                {
+                                                    "bg-blue-600 text-white": item.itemType === "HEADING",
+                                                    "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300": item.itemType === "SUBHEADING",
+                                                    "bg-slate-100 text-slate-400 dark:bg-slate-800": item.itemType === "ITEM",
+                                                }
+                                            )}>
+                                                {item.itemType === "HEADING" ? <Heading1 size={16} /> :
+                                                    item.itemType === "SUBHEADING" ? <Heading2 size={16} /> : <Type size={16} />}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Linea #{index + 1}</p>
+                                                <p className="mt-1 font-mono text-sm font-black text-slate-900 dark:text-white">
+                                                    {item.itemType === "ITEM" ? `RD$ ${formatCurrency(item.quantity * item.price * (1 + item.taxRate / 100))}` : "Texto"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition-colors hover:text-red-500 disabled:opacity-30 dark:border-slate-700"
+                                            onClick={() => removeItem(index)}
+                                            disabled={items.length === 1}
+                                            title="Eliminar linea"
+                                        >
+                                            <span className="material-icons-outlined text-[18px]">delete</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-4 space-y-3">
+                                        <label className="block">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                                {item.itemType === "ITEM" ? "Descripcion" : "Titulo"}
+                                            </span>
+                                            <input
+                                                className={clsx(
+                                                    "mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800",
+                                                    item.itemType === "HEADING" ? "text-sm font-black uppercase text-slate-900 dark:text-white" : "text-sm font-medium text-slate-800 dark:text-slate-100"
+                                                )}
+                                                placeholder={item.itemType === "HEADING" ? "Nombre de seccion..." : item.itemType === "SUBHEADING" ? "Sub-seccion..." : "Descripcion del producto..."}
+                                                value={item.description}
+                                                onChange={(e) => updateItem(index, "description", e.target.value)}
+                                            />
+                                        </label>
+                                        {item.itemType === "ITEM" && (
+                                            <>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <label className="block">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Cantidad</span>
+                                                        <input
+                                                            className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                            type="number"
+                                                            value={item.quantity}
+                                                            onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value) || 0)}
+                                                        />
+                                                    </label>
+                                                    <label className="block">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">ITBIS %</span>
+                                                        <select
+                                                            className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                                                            value={item.taxRate.toString()}
+                                                            onChange={(e) => updateItem(index, "taxRate", parseInt(e.target.value))}
+                                                        >
+                                                            <option value="18">18%</option>
+                                                            <option value="16">16%</option>
+                                                            <option value="0">0%</option>
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                                <label className="block">
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio unitario</span>
+                                                    <div className="mt-1 flex h-11 items-center rounded-xl border border-slate-200 bg-white px-3 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800">
+                                                        <span className="text-[10px] font-black text-slate-400">RD$</span>
+                                                        <input
+                                                            className="min-w-0 flex-1 border-0 bg-transparent px-2 text-right font-mono text-sm text-slate-800 focus:ring-0 dark:text-slate-100"
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={item.price}
+                                                            onChange={(e) => updateItem(index, "price", parseFloat(e.target.value) || 0)}
+                                                        />
+                                                    </div>
+                                                </label>
+                                            </>
+                                        )}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+
+                        <div className="hidden overflow-x-auto md:block">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest font-black border-b border-slate-100 dark:border-slate-800">
