@@ -267,32 +267,67 @@ const styles = StyleSheet.create({
         textTransform: "uppercase",
     },
     coverPage: {
-        padding: 48,
+        position: "relative",
+        padding: 0,
         fontFamily: "Helvetica",
-        color: slate900,
-        backgroundColor: "#ffffff",
+        color: "#ffffff",
+        backgroundColor: slate900,
+    },
+    coverBackground: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+    },
+    coverBackdrop: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        backgroundColor: "#000000",
+    },
+    coverContent: {
+        position: "absolute",
+        maxWidth: 390,
     },
     coverBrand: {
         fontSize: 13,
         fontWeight: "bold",
-        color: blue,
-        marginBottom: 130,
+        marginBottom: 46,
+        letterSpacing: 2,
+        textTransform: "uppercase",
     },
     coverTitle: {
-        fontSize: 36,
+        fontSize: 38,
         fontWeight: "bold",
-        color: slate900,
         marginBottom: 18,
     },
     coverClient: {
         fontSize: 20,
-        color: slate700,
+        fontWeight: "bold",
         marginBottom: 8,
     },
     coverMeta: {
         fontSize: 10,
-        color: slate500,
         marginBottom: 5,
+    },
+    coverAccent: {
+        width: 80,
+        height: 4,
+        borderRadius: 4,
+        marginBottom: 28,
+    },
+    coverFooter: {
+        position: "absolute",
+        left: 50,
+        right: 50,
+        bottom: 34,
+        borderTopWidth: 1,
+        borderTopColor: "rgba(255,255,255,0.35)",
+        paddingTop: 12,
     },
     termsPage: {
         padding: 42,
@@ -332,6 +367,51 @@ function moneyPrefix(company: any) {
     return company.currency || "RD$";
 }
 
+function coverTextPosition(company: any) {
+    const value = company.coverTextPosition || "BOTTOM_LEFT";
+    if (value === "TOP_RIGHT") return { top: 64, right: 50, alignItems: "flex-end", textAlign: "right" };
+    if (value === "CENTER") return { top: 300, left: 70, right: 70, maxWidth: 455, alignItems: "center", textAlign: "center" };
+    if (value === "BOTTOM_RIGHT") return { bottom: 92, right: 50, alignItems: "flex-end", textAlign: "right" };
+    if (value === "TOP_LEFT") return { top: 64, left: 50 };
+    return { bottom: 92, left: 50 };
+}
+
+function coverImageFit(company: any) {
+    return company.coverImageFit === "CONTAIN" ? "contain" : "cover";
+}
+
+function CoverPage({ document, company, label, secondaryDateLabel }: { document: any; company: any; label: string; secondaryDateLabel?: string }) {
+    const textColor = company.coverTextColor || "#ffffff";
+    const accentColor = company.coverAccentColor || blue;
+    const overlayOpacity = typeof company.coverOverlayOpacity === "number" ? company.coverOverlayOpacity : 0.35;
+    const backgroundImage = typeof company.coverImageUrl === "string" ? company.coverImageUrl : "";
+
+    return (
+        <Page size="A4" style={styles.coverPage}>
+            {backgroundImage ? (
+                <Image src={backgroundImage} style={[styles.coverBackground, { objectFit: coverImageFit(company) }]} />
+            ) : null}
+            <View style={[styles.coverBackdrop, { opacity: overlayOpacity }]} />
+            <View style={[styles.coverContent, coverTextPosition(company), { color: textColor } as any]}>
+                <View style={[styles.coverAccent, { backgroundColor: accentColor }]} />
+                {company.coverShowLogo !== false ? (
+                    <Text style={[styles.coverBrand, { color: accentColor }]}>{company.name || "oFlow by Oasis"}</Text>
+                ) : null}
+                <Text style={{ fontSize: 9, fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase", color: accentColor, marginBottom: 12 }}>{label}</Text>
+                <Text style={[styles.coverTitle, { color: textColor }]}>{document.title || label}</Text>
+                {company.coverShowClient !== false ? <Text style={[styles.coverClient, { color: textColor }]}>{document.contact?.name || "Sin cliente"}</Text> : null}
+                {company.coverShowProject !== false && document.project?.name ? <Text style={[styles.coverMeta, { color: textColor }]}>Proyecto: {document.project.name}</Text> : null}
+                {company.coverShowDocumentNumber !== false ? <Text style={[styles.coverMeta, { color: textColor }]}>Documento: {document.number || document.id}</Text> : null}
+                {company.coverShowDate !== false && document.date ? <Text style={[styles.coverMeta, { color: textColor }]}>Fecha: {formatDate(document.date)}</Text> : null}
+                {secondaryDateLabel && document.dueDate ? <Text style={[styles.coverMeta, { color: textColor }]}>{secondaryDateLabel}: {formatDate(document.dueDate)}</Text> : null}
+            </View>
+            <View style={styles.coverFooter}>
+                <Text style={{ fontSize: 8, color: textColor }}>{[company.taxId && `RNC: ${company.taxId}`, company.email, company.phone, company.address].filter(Boolean).join(" | ")}</Text>
+            </View>
+        </Page>
+    );
+}
+
 function TermsBlock({ text }: { text: string }) {
     return (
         <View>
@@ -349,16 +429,7 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
     return (
         <Document>
             {options.includeCoverPage && (
-                <Page size="A4" style={styles.coverPage}>
-                    <View style={styles.topBar} />
-                    <Text style={styles.coverBrand}>oFlow by Oasis</Text>
-                    <Text style={styles.coverTitle}>{invoice.title || "FACTURA"}</Text>
-                    <Text style={styles.coverClient}>{invoice.contact?.name || "Sin cliente"}</Text>
-                    {invoice.project?.name && <Text style={styles.coverMeta}>Proyecto: {invoice.project.name}</Text>}
-                    <Text style={styles.coverMeta}>Documento: {invoice.number || invoice.id}</Text>
-                    <Text style={styles.coverMeta}>Fecha: {formatDate(invoice.date)}</Text>
-                    <Text style={styles.coverMeta}>Vencimiento: {formatDate(invoice.dueDate)}</Text>
-                </Page>
+                <CoverPage document={invoice} company={company} label="FACTURA" secondaryDateLabel="Vencimiento" />
             )}
 
             <Page size="A4" style={styles.page}>

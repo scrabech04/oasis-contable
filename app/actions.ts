@@ -24,9 +24,18 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
+function boundedText(formData: FormData, key: string, allowed: string[], fallback: string) {
+  const value = text(formData, key, fallback);
+  return allowed.includes(value) ? value : fallback;
+}
+
 function numberValue(formData: FormData, key: string, fallback = 0) {
   const parsed = Number(formData.get(key));
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function optionalNumber(formData: FormData, key: string) {
@@ -913,6 +922,17 @@ export async function getCompanySettings() {
 
 export async function updateCompanySettings(formData: FormData) {
   const settings = await getScopedCompanySettings();
+  const incomingCoverImage = text(formData, "coverImageDataUrl");
+  const coverImageData =
+    incomingCoverImage && /^data:image\/(png|jpe?g|webp);base64,/i.test(incomingCoverImage) && incomingCoverImage.length < 2_500_000
+      ? incomingCoverImage
+      : undefined;
+  const removeCoverImage = text(formData, "removeCoverImage") === "true";
+  const coverImageUpdate =
+    removeCoverImage ? { coverImageUrl: null } :
+      coverImageData ? { coverImageUrl: coverImageData } :
+        {};
+
   await prisma.companySettings.update({
     where: { id: settings.id },
     data: {
@@ -922,9 +942,23 @@ export async function updateCompanySettings(formData: FormData) {
       phone: optionalText(formData, "phone"),
       address: optionalText(formData, "address"),
       currency: text(formData, "currency", "RD$"),
+      coverImageFit: boundedText(formData, "coverImageFit", ["COVER", "CONTAIN"], "COVER"),
+      coverImagePosition: boundedText(formData, "coverImagePosition", ["CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT"], "CENTER"),
+      coverOverlayOpacity: clampNumber(numberValue(formData, "coverOverlayOpacity", 0.35), 0, 0.85),
+      coverTextPosition: boundedText(formData, "coverTextPosition", ["TOP_LEFT", "TOP_RIGHT", "CENTER", "BOTTOM_LEFT", "BOTTOM_RIGHT"], "BOTTOM_LEFT"),
+      coverTextColor: text(formData, "coverTextColor", "#ffffff").match(/^#[0-9a-fA-F]{6}$/) ? text(formData, "coverTextColor") : "#ffffff",
+      coverAccentColor: text(formData, "coverAccentColor", "#2563eb").match(/^#[0-9a-fA-F]{6}$/) ? text(formData, "coverAccentColor") : "#2563eb",
+      coverShowLogo: checkboxValue(formData, "coverShowLogo"),
+      coverShowClient: checkboxValue(formData, "coverShowClient"),
+      coverShowDocumentNumber: checkboxValue(formData, "coverShowDocumentNumber"),
+      coverShowDate: checkboxValue(formData, "coverShowDate"),
+      coverShowProject: checkboxValue(formData, "coverShowProject"),
+      ...coverImageUpdate,
     },
   });
   revalidatePath("/settings");
+  revalidatePath("/invoices", "layout");
+  revalidatePath("/quotations", "layout");
   return { success: true };
 }
 

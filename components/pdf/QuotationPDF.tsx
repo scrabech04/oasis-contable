@@ -1,6 +1,6 @@
 
 
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { formatCurrency, formatDate } from '@/lib/format';
 
 const styles = StyleSheet.create({
@@ -122,32 +122,67 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     coverPage: {
-        padding: 50,
+        position: 'relative',
+        padding: 0,
         fontFamily: 'Helvetica',
-        color: '#0f172a',
-        backgroundColor: '#f8fafc',
+        color: '#ffffff',
+        backgroundColor: '#0f172a',
+    },
+    coverBackground: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+    },
+    coverBackdrop: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#000000',
+    },
+    coverContent: {
+        position: 'absolute',
+        maxWidth: 390,
     },
     coverBrand: {
         fontSize: 14,
         fontWeight: 'bold',
-        color: '#059669',
-        marginBottom: 120,
+        marginBottom: 46,
+        letterSpacing: 2,
+        textTransform: 'uppercase',
     },
     coverTitle: {
-        fontSize: 36,
+        fontSize: 38,
         fontWeight: 'bold',
-        color: '#0f172a',
         marginBottom: 18,
     },
     coverClient: {
         fontSize: 20,
-        color: '#334155',
+        fontWeight: 'bold',
         marginBottom: 8,
     },
     coverMeta: {
-        fontSize: 11,
-        color: '#64748b',
+        fontSize: 10,
         marginBottom: 5,
+    },
+    coverAccent: {
+        width: 80,
+        height: 4,
+        borderRadius: 4,
+        marginBottom: 28,
+    },
+    coverFooter: {
+        position: 'absolute',
+        left: 50,
+        right: 50,
+        bottom: 34,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.35)',
+        paddingTop: 12,
     },
     termsPage: {
         padding: 40,
@@ -185,21 +220,55 @@ function TermsBlock({ text }: { text: string }) {
     );
 }
 
+function coverTextPosition(company: any) {
+    const value = company.coverTextPosition || "BOTTOM_LEFT";
+    if (value === "TOP_RIGHT") return { top: 64, right: 50, alignItems: "flex-end", textAlign: "right" };
+    if (value === "CENTER") return { top: 300, left: 70, right: 70, maxWidth: 455, alignItems: "center", textAlign: "center" };
+    if (value === "BOTTOM_RIGHT") return { bottom: 92, right: 50, alignItems: "flex-end", textAlign: "right" };
+    if (value === "TOP_LEFT") return { top: 64, left: 50 };
+    return { bottom: 92, left: 50 };
+}
+
+function coverImageFit(company: any) {
+    return company.coverImageFit === "CONTAIN" ? "contain" : "cover";
+}
+
+function CoverPage({ quotation, company }: { quotation: any; company: any }) {
+    const textColor = company.coverTextColor || "#ffffff";
+    const accentColor = company.coverAccentColor || "#059669";
+    const overlayOpacity = typeof company.coverOverlayOpacity === "number" ? company.coverOverlayOpacity : 0.35;
+    const backgroundImage = typeof company.coverImageUrl === "string" ? company.coverImageUrl : "";
+
+    return (
+        <Page size="A4" style={styles.coverPage}>
+            {backgroundImage ? (
+                <Image src={backgroundImage} style={[styles.coverBackground, { objectFit: coverImageFit(company) }]} />
+            ) : null}
+            <View style={[styles.coverBackdrop, { opacity: overlayOpacity }]} />
+            <View style={[styles.coverContent, coverTextPosition(company), { color: textColor } as any]}>
+                <View style={[styles.coverAccent, { backgroundColor: accentColor }]} />
+                {company.coverShowLogo !== false ? (
+                    <Text style={[styles.coverBrand, { color: accentColor }]}>{company.name || "oFlow by Oasis"}</Text>
+                ) : null}
+                <Text style={{ fontSize: 9, fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase", color: accentColor, marginBottom: 12 }}>COTIZACION</Text>
+                <Text style={[styles.coverTitle, { color: textColor }]}>{quotation.title || "COTIZACION"}</Text>
+                {company.coverShowClient !== false ? <Text style={[styles.coverClient, { color: textColor }]}>{quotation.contact?.name || "Sin cliente"}</Text> : null}
+                {company.coverShowProject !== false && quotation.project?.name ? <Text style={[styles.coverMeta, { color: textColor }]}>Proyecto: {quotation.project.name}</Text> : null}
+                {company.coverShowDocumentNumber !== false ? <Text style={[styles.coverMeta, { color: textColor }]}>Documento: {quotation.number}</Text> : null}
+                {company.coverShowDate !== false && quotation.date ? <Text style={[styles.coverMeta, { color: textColor }]}>Fecha: {formatDate(quotation.date)}</Text> : null}
+                {quotation.validUntil ? <Text style={[styles.coverMeta, { color: textColor }]}>Valida hasta: {formatDate(quotation.validUntil)}</Text> : null}
+            </View>
+            <View style={styles.coverFooter}>
+                <Text style={{ fontSize: 8, color: textColor }}>{[company.taxId && `RNC: ${company.taxId}`, company.email, company.phone, company.address].filter(Boolean).join(" | ")}</Text>
+            </View>
+        </Page>
+    );
+}
+
 export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: any, company: any, options?: PdfOptions }) => (
     <Document>
         {options.includeCoverPage && (
-            <Page size="A4" style={styles.coverPage}>
-                <Text style={styles.coverBrand}>{company.name}</Text>
-                <Text style={styles.coverTitle}>{quotation.title || "COTIZACION"}</Text>
-                <Text style={styles.coverClient}>{quotation.contact?.name || "Sin cliente"}</Text>
-                {quotation.project?.name && <Text style={styles.coverMeta}>Proyecto: {quotation.project.name}</Text>}
-                <Text style={styles.coverMeta}>Documento: {quotation.number}</Text>
-                <Text style={styles.coverMeta}>Fecha: {formatDate(quotation.date)}</Text>
-                {quotation.validUntil && <Text style={styles.coverMeta}>Valida hasta: {formatDate(quotation.validUntil)}</Text>}
-                <View style={{ position: 'absolute', left: 50, right: 50, bottom: 45, borderTopWidth: 1, borderTopColor: '#d1fae5', paddingTop: 14 }}>
-                    <Text style={{ fontSize: 9, color: '#64748b' }}>{company.email} | {company.phone} | {company.address}</Text>
-                </View>
-            </Page>
+            <CoverPage quotation={quotation} company={company} />
         )}
         <Page size="A4" style={styles.page}>
             {/* Header / Brand */}

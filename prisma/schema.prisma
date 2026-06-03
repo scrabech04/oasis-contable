@@ -320,6 +320,18 @@ model CompanySettings {
   address   String?  @default("Calle Principal #123, Santo Domingo")
   logo      String?
   currency  String   @default("RD$")
+  coverImageUrl String?
+  coverImageFit String   @default("COVER")
+  coverImagePosition String @default("CENTER")
+  coverOverlayOpacity Float @default(0.35)
+  coverTextPosition String @default("BOTTOM_LEFT")
+  coverTextColor String @default("#ffffff")
+  coverAccentColor String @default("#2563eb")
+  coverShowLogo Boolean @default(true)
+  coverShowClient Boolean @default(true)
+  coverShowDocumentNumber Boolean @default(true)
+  coverShowDate Boolean @default(true)
+  coverShowProject Boolean @default(true)
   profileId Int?     @unique
   profile   AccountProfile? @relation(fields: [profileId], references: [id])
   updatedAt DateTime @updatedAt

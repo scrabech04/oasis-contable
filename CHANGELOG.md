@@ -22,6 +22,22 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Verificar en celular real la edicion de items en compra, factura y cotizacion: descripcion, cantidad, precio, impuesto y eliminacion.
 - Verificar que los filtros de cuentas por cobrar/pagar siguen mostrando el conteo y total pendiente correcto al cambiar mes/ano.
 
+## 2026-06-03 - Plantilla editable de portada PDF
+
+### Agregado
+- En `Configuracion` se agrega un apartado `Plantilla de portada` para facturas y cotizaciones.
+- La portada ahora puede usar una imagen de fondo subida por el usuario, optimizada en el navegador antes de guardarse.
+- Se agregan presets para ajuste de imagen, foco de imagen, posicion de datos, opacidad de overlay, color de texto y color de acento.
+- Se puede mostrar u ocultar marca/logo, cliente, numero de documento, fecha y proyecto en la portada.
+- La vista HTML imprimible y los PDFs estables de facturas/cotizaciones leen la misma plantilla de portada.
+
+### Migracion
+- Se agregan campos de portada a `CompanySettings`: imagen, ajuste, foco, overlay, posicion, colores y switches de visibilidad.
+
+### Pendiente de prueba
+- Aplicar la migracion SQL en Supabase antes del deploy.
+- Probar subir una imagen real de portada y exportar una cotizacion/factura con portada en PDF.
+
 ## 2026-06-01 - Moneda en compras y suscripciones
 
 ### Agregado

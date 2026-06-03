@@ -8,6 +8,7 @@ import Link from "next/link";
 import IdentitiesClient from "./IdentitiesClient";
 import ProfilesClient from "./ProfilesClient";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
+import { CoverTemplateSettings } from "@/components/settings/CoverTemplateSettings";
 
 export default async function SettingsPage() {
     const [settings, identities, profiles, activeProfile] = await Promise.all([
@@ -89,6 +90,7 @@ export default async function SettingsPage() {
                                     </div>
                                 </div>
                             </div>
+                            <CoverTemplateSettings settings={settings} />
                             <div className="flex justify-end pt-4">
                                 <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
                                     <Settings2 className="h-4 w-4" /> Guardar Cambios
