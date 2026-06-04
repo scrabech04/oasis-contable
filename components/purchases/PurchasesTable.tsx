@@ -129,6 +129,9 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                             <span className="material-icons-round text-[20px]">payments</span>
                                         </button>
                                     )}
+                                    <Link href={`/purchases/${purchase.id}`} className="rounded-lg p-2 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-100" title="Ver detalles">
+                                        <span className="material-icons-round text-[20px]">visibility</span>
+                                    </Link>
                                     <Link href={`/purchases/${purchase.id}/edit`} className="rounded-lg p-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30" title="Editar">
                                         <span className="material-icons-round text-[20px]">edit</span>
                                     </Link>
@@ -254,6 +257,9 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                                     <span className="material-icons-round text-[18px] md:text-[20px]">payments</span>
                                                 </button>
                                             )}
+                                            <Link href={`/purchases/${purchase.id}`} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-100 text-slate-400 rounded-lg transition-all" title="Ver detalles">
+                                                <span className="material-icons-round text-[18px] md:text-[20px]">visibility</span>
+                                            </Link>
                                             <Link href={`/purchases/${purchase.id}/edit`} className="p-1.5 md:p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 text-slate-400 rounded-lg transition-all" title="Editar">
                                                 <span className="material-icons-round text-[18px] md:text-[20px]">edit</span>
                                             </Link>
