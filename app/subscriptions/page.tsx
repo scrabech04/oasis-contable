@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CalendarClock, CreditCard, Edit3, ExternalLink, Pause, Plus, Save, Trash2, XCircle } from "lucide-react";
 import { ListPeriodFilter } from "@/components/ListPeriodFilter";
 import { getPeriodParams } from "@/lib/list-period";
+import { NewSubscriptionPanel } from "@/components/subscriptions/NewSubscriptionPanel";
 
 const categoryLabels: Record<string, string> = {
   DOMAIN: "Dominio",
@@ -116,102 +117,104 @@ export default async function SubscriptionsPage(props: {
 
       <ListPeriodFilter basePath="/subscriptions" searchParams={searchParams} total={subscriptions.length} itemSingular="suscripcion registrada" itemPlural="suscripciones registradas" />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <form action={createSubscriptionFromPage} className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Que compraste</label>
-            <input name="name" required placeholder="Dominio oasis.do" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proveedor</label>
-            <input name="provider" required placeholder="GoDaddy, Hostinger..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proyecto</label>
-            <select name="projectId" defaultValue="" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-              <option value="">Sin proyecto</option>
-              {projects.map((project: any) => (
-                <option key={project.id} value={project.id}>{project.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Categoria</label>
-            <select name="category" defaultValue="DOMAIN" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-              <option value="DOMAIN">Dominio</option>
-              <option value="HOSTING">Hosting</option>
-              <option value="SOFTWARE">Software</option>
-              <option value="PLATFORM">Plataforma</option>
-              <option value="OTHER">Otro</option>
-            </select>
-          </div>
-          <div className="lg:col-span-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Monto</label>
-            <input name="amount" type="number" step="0.01" min="0" placeholder="0.00" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Moneda</label>
-            <select name="currency" defaultValue="DOP" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-              <option value="DOP">RD$</option>
-              <option value="USD">US$</option>
-            </select>
-          </div>
-          <div className="lg:col-span-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tasa</label>
-            <input name="exchangeRate" type="number" step="0.01" min="0.01" defaultValue="1" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Ciclo</label>
-            <select name="billingCycle" defaultValue="MONTHLY" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-              <option value="MONTHLY">Mensual</option>
-              <option value="YEARLY">Anual</option>
-              <option value="QUARTERLY">Trimestral</option>
-              <option value="WEEKLY">Semanal</option>
-              <option value="ONE_TIME">Unico</option>
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proximo cobro</label>
-            <input name="nextBillingDate" type="date" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</label>
-            <select name="paymentMethod" defaultValue="CARD" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-              <option value="CARD">Tarjeta</option>
-              <option value="BANK_TRANSFER">Transferencia</option>
-              <option value="PAYPAL">PayPal</option>
-              <option value="CASH">Efectivo</option>
-              <option value="OTHER">Otro</option>
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tarjeta/cuenta</label>
-            <input name="paymentAccount" placeholder="Visa **** 1234" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sitio web</label>
-            <input name="websiteUrl" type="url" placeholder="https://..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Donde cancelar</label>
-            <input name="managementUrl" type="url" placeholder="https://panel..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Aviso</label>
-            <input name="reminderDays" type="number" min="0" defaultValue={7} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="lg:col-span-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Notas</label>
-            <input name="notes" placeholder="Usuario, plan, instrucciones..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          </div>
-          <div className="flex items-end lg:col-span-2">
-            <button type="submit" className={`${primaryActionClass} w-full`}>
-              <Plus className="h-4 w-4" />
-              Agregar
-            </button>
-          </div>
-        </form>
-      </section>
+      <NewSubscriptionPanel>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <form action={createSubscriptionFromPage} className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="lg:col-span-3">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Que compraste</label>
+              <input name="name" required placeholder="Dominio oasis.do" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proveedor</label>
+              <input name="provider" required placeholder="GoDaddy, Hostinger..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proyecto</label>
+              <select name="projectId" defaultValue="" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                <option value="">Sin proyecto</option>
+                {projects.map((project: any) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Categoria</label>
+              <select name="category" defaultValue="DOMAIN" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                <option value="DOMAIN">Dominio</option>
+                <option value="HOSTING">Hosting</option>
+                <option value="SOFTWARE">Software</option>
+                <option value="PLATFORM">Plataforma</option>
+                <option value="OTHER">Otro</option>
+              </select>
+            </div>
+            <div className="lg:col-span-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Monto</label>
+              <input name="amount" type="number" step="0.01" min="0" placeholder="0.00" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Moneda</label>
+              <select name="currency" defaultValue="DOP" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                <option value="DOP">RD$</option>
+                <option value="USD">US$</option>
+              </select>
+            </div>
+            <div className="lg:col-span-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tasa</label>
+              <input name="exchangeRate" type="number" step="0.01" min="0.01" defaultValue="1" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Ciclo</label>
+              <select name="billingCycle" defaultValue="MONTHLY" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                <option value="MONTHLY">Mensual</option>
+                <option value="YEARLY">Anual</option>
+                <option value="QUARTERLY">Trimestral</option>
+                <option value="WEEKLY">Semanal</option>
+                <option value="ONE_TIME">Unico</option>
+              </select>
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proximo cobro</label>
+              <input name="nextBillingDate" type="date" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</label>
+              <select name="paymentMethod" defaultValue="CARD" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+                <option value="CARD">Tarjeta</option>
+                <option value="BANK_TRANSFER">Transferencia</option>
+                <option value="PAYPAL">PayPal</option>
+                <option value="CASH">Efectivo</option>
+                <option value="OTHER">Otro</option>
+              </select>
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tarjeta/cuenta</label>
+              <input name="paymentAccount" placeholder="Visa **** 1234" className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sitio web</label>
+              <input name="websiteUrl" type="url" placeholder="https://..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Donde cancelar</label>
+              <input name="managementUrl" type="url" placeholder="https://panel..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Aviso</label>
+              <input name="reminderDays" type="number" min="0" defaultValue={7} className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="lg:col-span-3">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Notas</label>
+              <input name="notes" placeholder="Usuario, plan, instrucciones..." className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            </div>
+            <div className="flex items-end lg:col-span-2">
+              <button type="submit" className={`${primaryActionClass} w-full`}>
+                <Plus className="h-4 w-4" />
+                Agregar
+              </button>
+            </div>
+          </form>
+        </section>
+      </NewSubscriptionPanel>
 
       <section className="grid grid-cols-1 gap-4">
         {subscriptions.map((subscription) => {

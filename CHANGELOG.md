@@ -2,6 +2,12 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-04 - Suscripciones activas
+
+### Mejorado
+- La pantalla de `Suscripciones activas` ya no muestra el formulario de nueva suscripcion abierto por defecto.
+- Se agrega un boton `Anadir suscripcion` para desplegar el formulario solo cuando el usuario quiera registrar una nueva.
+
 ## 2026-06-03 - Responsive mobile fase 1 y 2
 
 ### Mejorado
