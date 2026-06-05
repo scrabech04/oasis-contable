@@ -2,6 +2,15 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-05 - Importacion IA robusta
+
+### Mejorado
+- La importacion de facturas con IA ahora usa `gemini-2.5-flash` por defecto.
+- Se agregan modelos fallback configurables con `GEMINI_FALLBACK_MODELS` para evitar caidas cuando Google retire o cambie disponibilidad de modelos.
+- Gemini ahora recibe `responseSchema` con salida JSON estructurada para compras y ventas, reduciendo respuestas no parseables.
+- Los errores de importacion IA ahora incluyen los modelos probados y el motivo resumido de fallo.
+- Se agrega `scripts/smoke-gemini-import.mjs` para probar rapidamente modelo principal, fallback y `responseSchema` sin imprimir secretos.
+
 ## 2026-06-04 - Suscripciones activas
 
 ### Mejorado

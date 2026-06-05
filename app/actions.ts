@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
 import {
   ACTIVE_PROFILE_COOKIE,
@@ -414,6 +414,137 @@ function extractJsonArray(raw: string) {
   }
 }
 
+const purchaseInvoiceSchema: ResponseSchema = {
+  type: SchemaType.ARRAY,
+  minItems: 1,
+  items: {
+    type: SchemaType.OBJECT,
+    required: ["type", "supplierName", "supplierTaxId", "ncf", "date", "costType", "taxTreatment", "items", "total"],
+    properties: {
+      type: { type: SchemaType.STRING, description: "FORMAL or INFORMAL" },
+      supplierName: { type: SchemaType.STRING },
+      supplierTaxId: { type: SchemaType.STRING },
+      supplierWebsiteUrl: { type: SchemaType.STRING, nullable: true },
+      ncf: { type: SchemaType.STRING },
+      date: { type: SchemaType.STRING, description: "YYYY-MM-DD" },
+      dueDate: { type: SchemaType.STRING, nullable: true, description: "YYYY-MM-DD or empty" },
+      costType: { type: SchemaType.STRING },
+      category: { type: SchemaType.STRING },
+      subtotal: { type: SchemaType.NUMBER },
+      taxAmount: { type: SchemaType.NUMBER },
+      total: { type: SchemaType.NUMBER },
+      taxTreatment: { type: SchemaType.STRING },
+      notes: { type: SchemaType.STRING },
+      items: {
+        type: SchemaType.ARRAY,
+        minItems: 1,
+        items: {
+          type: SchemaType.OBJECT,
+          required: ["description", "quantity", "baseAmount", "taxAmount"],
+          properties: {
+            description: { type: SchemaType.STRING },
+            quantity: { type: SchemaType.NUMBER },
+            baseAmount: { type: SchemaType.NUMBER },
+            taxAmount: { type: SchemaType.NUMBER },
+          },
+        },
+      },
+    },
+  },
+};
+
+const saleInvoiceSchema: ResponseSchema = {
+  type: SchemaType.ARRAY,
+  minItems: 1,
+  items: {
+    type: SchemaType.OBJECT,
+    required: ["clientName", "clientTaxId", "ncf", "date", "incomeType", "items"],
+    properties: {
+      clientName: { type: SchemaType.STRING },
+      clientTaxId: { type: SchemaType.STRING },
+      ncf: { type: SchemaType.STRING },
+      date: { type: SchemaType.STRING, description: "YYYY-MM-DD" },
+      dueDate: { type: SchemaType.STRING, nullable: true, description: "YYYY-MM-DD or empty" },
+      incomeType: { type: SchemaType.STRING },
+      notes: { type: SchemaType.STRING },
+      items: {
+        type: SchemaType.ARRAY,
+        minItems: 1,
+        items: {
+          type: SchemaType.OBJECT,
+          required: ["description", "quantity", "price", "taxRate"],
+          properties: {
+            description: { type: SchemaType.STRING },
+            quantity: { type: SchemaType.NUMBER },
+            price: { type: SchemaType.NUMBER },
+            taxRate: { type: SchemaType.NUMBER, description: "Tax percentage, e.g. 18 not 0.18" },
+          },
+        },
+      },
+    },
+  },
+};
+
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function configuredGeminiModels() {
+  const primary = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const fallbacks = (process.env.GEMINI_FALLBACK_MODELS || "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash")
+    .split(",");
+  return uniqueValues([primary, ...fallbacks]);
+}
+
+function summarizeGeminiError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "Error desconocido");
+  return message.replace(/\s+/g, " ").slice(0, 500);
+}
+
+async function generateGeminiInvoiceRows({
+  apiKey,
+  prompt,
+  filePart,
+  schema,
+}: {
+  apiKey: string;
+  prompt: string;
+  filePart: Awaited<ReturnType<typeof fileToGenerativePart>>;
+  schema: ResponseSchema;
+}) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const attempts: string[] = [];
+
+  for (const modelName of configuredGeminiModels()) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+          temperature: 0.1,
+        },
+      });
+      const result = await model.generateContent([prompt, filePart]);
+      const responseText = result.response.text();
+      const rows = extractJsonArray(responseText);
+
+      if (rows.length > 0) {
+        return { success: true as const, modelName, rows };
+      }
+
+      attempts.push(`${modelName}: respondio sin JSON de facturas reconocible`);
+    } catch (error) {
+      attempts.push(`${modelName}: ${summarizeGeminiError(error)}`);
+    }
+  }
+
+  return {
+    success: false as const,
+    error: `No fue posible procesar el archivo con IA. Modelos probados: ${attempts.join(" | ")}`,
+  };
+}
+
 function normalizeDateString(value: unknown) {
   const raw = String(value || "").trim();
   if (!raw) return new Date().toISOString().slice(0, 10);
@@ -766,32 +897,25 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
   const profileId = await getActiveProfileId();
   const evidence = mode === "purchase" ? await savePurchaseEvidenceFile(file, profileId) : null;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseMimeType: "application/json",
-    },
-  });
   const prompt =
     mode === "purchase"
       ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. supplierName debe ser SIEMPRE la razon social/nombre del emisor o proveedor que aparece como "Razon social emisor", "Nombre emisor", "Proveedor" o equivalente. supplierTaxId debe ser SIEMPRE el RNC/Cedula del emisor o proveedor que aparece como "RNC Emisor", "RNC proveedor", "Cedula emisor" o equivalente. Si el proveedor es internacional y no tiene RNC dominicano, supplierTaxId debe ser cadena vacia, nunca inventes un RNC. Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. No uses el RNC del comprador como supplierTaxId. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
       : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Si falta un dato usa cadena vacia o 0.`;
 
-  try {
-    const result = await model.generateContent([prompt, await fileToGenerativePart(file)]);
-    const responseText = result.response.text();
-    const rows = extractJsonArray(responseText);
-    if (rows.length === 0) {
-      return {
-        success: false as const,
-        error: `No se detectaron facturas en el archivo. El modelo ${modelName} respondió, pero no devolvió un JSON de facturas reconocible.`,
-        data: null,
-      };
-    }
+  const generated = await generateGeminiInvoiceRows({
+    apiKey,
+    prompt,
+    filePart: await fileToGenerativePart(file),
+    schema: mode === "purchase" ? purchaseInvoiceSchema : saleInvoiceSchema,
+  });
 
-    const data =
+  if (!generated.success) {
+    return { success: false as const, error: generated.error, data: null };
+  }
+
+  console.info(`Gemini invoice import completed with model ${generated.modelName}`);
+  const rows = generated.rows;
+  const data =
       mode === "purchase"
         ? rows.map((row: any) => {
             const supplierName = firstText(row, [
@@ -895,11 +1019,7 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
             };
           });
 
-    return { success: true as const, data };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Error desconocido";
-    return { success: false as const, error: `No fue posible procesar el archivo con IA usando ${modelName}: ${message}`, data: null };
-  }
+  return { success: true as const, data };
 }
 
 export async function setActiveProfile(profileId: number) {
