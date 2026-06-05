@@ -27,6 +27,7 @@ model Contact {
   contactPersons    ContactPerson[]
   
   invoices          Invoice[]
+  proformaInvoices  ProformaInvoice[]
   purchases         Purchase[]
   quotations        Quotation[]
   projects          Project[]
@@ -68,6 +69,7 @@ model Project {
   budgetCost    Float       @default(0)
   
   invoices      Invoice[]
+  proformaInvoices ProformaInvoice[]
   quotations    Quotation[]
   purchases     Purchase[]
   recurringInvoices RecurringInvoice[]
@@ -159,6 +161,8 @@ model Invoice {
   includeCoverPage   Boolean @default(false)
   includeTermsPage   Boolean @default(false)
   payments    Payment[]
+  proformaInvoiceId Int?
+  proformaInvoice   ProformaInvoice? @relation(fields: [proformaInvoiceId], references: [id])
   recurringInvoiceId Int?
   recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id])
   profileId   Int?
@@ -167,6 +171,46 @@ model Invoice {
   updatedAt   DateTime      @updatedAt
 
   @@unique([recurringInvoiceId, date])
+}
+
+model ProformaInvoice {
+  id          Int           @id @default(autoincrement())
+  number      String        @unique
+  date        DateTime      @default(now())
+  dueDate     DateTime?
+  status      String        @default("DRAFT") // DRAFT, SENT, PARTIAL, PAID, CONVERTED, CANCELLED
+  contactId   Int
+  contact     Contact       @relation(fields: [contactId], references: [id])
+  projectId   Int?
+  project     Project?      @relation(fields: [projectId], references: [id])
+  items       ProformaInvoiceItem[]
+  subtotal    Float
+  tax         Float
+  total       Float
+  paidAmount  Float         @default(0)
+  title       String?
+  subtitle    String?
+  notes       String?
+  termsAndConditions String?
+  includeCoverPage   Boolean @default(false)
+  includeTermsPage   Boolean @default(false)
+  payments    Payment[]
+  invoices    Invoice[]
+  profileId   Int?
+  profile     AccountProfile? @relation(fields: [profileId], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model ProformaInvoiceItem {
+  id          Int      @id @default(autoincrement())
+  proformaInvoiceId Int
+  proformaInvoice   ProformaInvoice @relation(fields: [proformaInvoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  price       Float
+  taxRate     Float    @default(0)
+  total       Float
 }
 
 model InvoiceItem {
@@ -252,6 +296,9 @@ model Payment {
   
   purchaseId  Int?
   purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  proformaInvoiceId Int?
+  proformaInvoice   ProformaInvoice? @relation(fields: [proformaInvoiceId], references: [id], onDelete: Cascade)
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -406,6 +453,7 @@ model AccountProfile {
   projectShares      ProjectShare[]
   quotations         Quotation[]
   invoices           Invoice[]
+  proformaInvoices   ProformaInvoice[]
   purchases          Purchase[]
   numberingSequences NumberingSequence[]
   recurringInvoices  RecurringInvoice[]

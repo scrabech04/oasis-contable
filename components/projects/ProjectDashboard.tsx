@@ -17,8 +17,11 @@ interface ProjectDashboardProps {
 
 export function ProjectDashboard({ project }: ProjectDashboardProps) {
     const router = useRouter();
+    const ISR_RATE = 0.27;
     // Financial Calculations
     const totalInvoiced = project.invoices.reduce((sum: number, inv: any) => sum + inv.total, 0);
+    const totalSalesBase = project.invoices.reduce((sum: number, inv: any) => sum + inv.subtotal, 0);
+    const totalSalesItbis = project.invoices.reduce((sum: number, inv: any) => sum + inv.tax, 0);
     const totalCollected = project.invoices.reduce((sum: number, inv: any) => {
         // paidAmount now includes withholdings from the backend fix
         return sum + inv.paidAmount;
@@ -33,6 +36,21 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
 
     const actualCashCollected = totalCollected - totalWithholdings;
     const totalCosts = project.purchases.reduce((sum: number, pur: any) => sum + pur.total, 0);
+    const creditableItbis = project.purchases.reduce((sum: number, pur: any) => {
+        const canUseAsCredit = pur.hasFiscalCredit && pur.report606 !== false && pur.taxTreatment === "LOCAL_CREDIT";
+        return sum + (canUseAsCredit ? pur.tax : 0);
+    }, 0);
+    const deductibleCosts = project.purchases.reduce((sum: number, pur: any) => {
+        if (pur.affectsISR === false) return sum;
+        const taxIsCredit = pur.hasFiscalCredit && pur.report606 !== false && pur.taxTreatment === "LOCAL_CREDIT";
+        return sum + (taxIsCredit ? pur.subtotal : pur.total);
+    }, 0);
+    const netItbisDue = Math.max(0, totalSalesItbis - creditableItbis);
+    const itbisCreditBalance = Math.max(0, creditableItbis - totalSalesItbis);
+    const taxableProfitBeforeISR = totalSalesBase - deductibleCosts;
+    const estimatedISR = Math.max(0, taxableProfitBeforeISR) * ISR_RATE;
+    const estimatedNetProfit = taxableProfitBeforeISR - estimatedISR;
+    const estimatedCashAfterTaxes = totalInvoiced - totalCosts - netItbisDue - estimatedISR;
 
     const grossProfit = totalInvoiced - totalCosts;
     const netProfit = actualCashCollected - totalCosts; // Based on cash flow (collected cash - total costs incurred)
@@ -179,6 +197,91 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Project Fiscal Estimate */}
+            <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-800">
+                <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                            <span className="material-icons-outlined text-[20px] text-blue-600 dark:text-blue-300">request_quote</span>
+                            Estimacion fiscal del proyecto
+                        </CardTitle>
+                        <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                            ISR ref. {(ISR_RATE * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-4 md:p-5">
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">ITBIS cobrado</p>
+                            <p className="mt-2 break-words font-mono text-lg font-black text-slate-950 dark:text-white">RD$ {formatCurrency(totalSalesItbis)}</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Facturas de venta</p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">ITBIS acreditable</p>
+                            <p className="mt-2 break-words font-mono text-lg font-black text-slate-950 dark:text-white">RD$ {formatCurrency(creditableItbis)}</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Compras con credito fiscal</p>
+                        </div>
+                        <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4 dark:border-orange-900/50 dark:bg-orange-950/20">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-orange-700 dark:text-orange-300">ITBIS neto a pagar</p>
+                            <p className="mt-2 break-words font-mono text-lg font-black text-orange-600 dark:text-orange-300">RD$ {formatCurrency(netItbisDue)}</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                {itbisCreditBalance > 0 ? `Credito a favor RD$ ${formatCurrency(itbisCreditBalance)}` : "Despues de creditos"}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">ISR estimado</p>
+                            <p className="mt-2 break-words font-mono text-lg font-black text-violet-600 dark:text-violet-300">RD$ {formatCurrency(estimatedISR)}</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Sobre utilidad positiva</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/70">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Base para ISR</p>
+                            <div className="mt-3 space-y-2 text-sm">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-500 dark:text-slate-400">Ingresos sin ITBIS</span>
+                                    <span className="font-mono font-bold text-slate-900 dark:text-white">RD$ {formatCurrency(totalSalesBase)}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-500 dark:text-slate-400">Costos deducibles</span>
+                                    <span className="font-mono font-bold text-slate-900 dark:text-white">RD$ {formatCurrency(deductibleCosts)}</span>
+                                </div>
+                                <div className="border-t border-slate-100 pt-2 dark:border-slate-800">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="font-black text-slate-700 dark:text-slate-200">Utilidad fiscal</span>
+                                        <span className={`font-mono font-black ${taxableProfitBeforeISR >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-red-600 dark:text-red-300"}`}>
+                                            RD$ {formatCurrency(taxableProfitBeforeISR)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/70">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Ganancia real estimada</p>
+                            <p className={`mt-3 break-words font-mono text-2xl font-black ${estimatedNetProfit >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-red-600 dark:text-red-300"}`}>
+                                RD$ {formatCurrency(estimatedNetProfit)}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                Utilidad fiscal menos ISR estimado.
+                            </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">Caja despues de impuestos</p>
+                            <p className={`mt-3 break-words font-mono text-2xl font-black ${estimatedCashAfterTaxes >= 0 ? "text-blue-200" : "text-red-300"}`}>
+                                RD$ {formatCurrency(estimatedCashAfterTaxes)}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-300">
+                                Total facturado menos compras, ITBIS neto e ISR.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">

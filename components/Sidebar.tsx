@@ -9,6 +9,7 @@ import { ProfileSwitcher } from "./ProfileSwitcher";
 const links = [
   { name: "Resumen", href: "/", icon: "dashboard" },
   { name: "Facturación", href: "/invoices", icon: "receipt_long" },
+  { name: "Prefacturas", href: "/proformas", icon: "request_quote" },
   { name: "Facturac. Recurrente", href: "/invoices/recurring", icon: "update" },
   { name: "Cotizaciones", href: "/quotations", icon: "request_quote" },
   { name: "Por Cobrar", href: "/receivables", icon: "account_balance" },

@@ -12,7 +12,7 @@ import {
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 
-type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number; recurringInvoiceId?: number } | { success: false; error: string };
+type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number; recurringInvoiceId?: number; proformaId?: number } | { success: false; error: string };
 
 function text(formData: FormData, key: string, fallback = "") {
   const value = formData.get(key);
@@ -138,6 +138,13 @@ function statusFor(total: number, paidAmount: number) {
   return "PARTIAL";
 }
 
+function proformaStatusFor(total: number, paidAmount: number, currentStatus?: string) {
+  if (currentStatus === "CONVERTED" || currentStatus === "CANCELLED") return currentStatus;
+  if (paidAmount <= 0) return currentStatus === "SENT" ? "SENT" : "DRAFT";
+  if (paidAmount >= total) return "PAID";
+  return "PARTIAL";
+}
+
 function effectivePaymentAmount(payment: { amount: number; withholdings?: Array<{ amount: number }> }) {
   const withheld = (payment.withholdings || []).reduce((sum, withholding) => sum + (Number(withholding.amount) || 0), 0);
   return (Number(payment.amount) || 0) + withheld;
@@ -159,6 +166,15 @@ async function getNextInvoiceNumber() {
     if (!exists) return number;
     next += 1;
   }
+}
+
+async function getNextProformaNumber(profileId: number) {
+  const last = await prisma.proformaInvoice.findFirst({
+    where: { profileId },
+    orderBy: { id: "desc" },
+    select: { id: true },
+  });
+  return `PRO-${String((last?.id || 0) + 1).padStart(4, "0")}`;
 }
 
 async function resolveContact(formData: FormData, profileId: number, fallbackType = "CLIENT") {
@@ -1313,7 +1329,14 @@ export async function getProject(id: number) {
         { sharedWith: { some: { profileId } } },
       ],
     },
-    include: { contact: true, profile: true, sharedWith: { include: { profile: true } }, invoices: { include: { contact: true } }, purchases: true, quotations: true },
+    include: {
+      contact: true,
+      profile: true,
+      sharedWith: { include: { profile: true } },
+      invoices: { include: { contact: true, payments: { include: { withholdings: true } } } },
+      purchases: true,
+      quotations: true,
+    },
   });
 }
 
@@ -1656,6 +1679,188 @@ export async function duplicateInvoice(id: number) {
   });
   revalidatePath("/invoices");
   return { success: true, id: created.id, newId: created.id };
+}
+
+export async function getProformas(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
+  const profileId = await getActiveProfileId();
+  const search = options?.search;
+  const period = getPeriodDateRange(options || {});
+  const orderBy =
+    options?.sortBy === "client"
+      ? { contact: { name: options.sortOrder || "asc" } }
+      : { [options?.sortBy === "total" ? "total" : "date"]: options?.sortOrder || "desc" };
+  return prisma.proformaInvoice.findMany({
+    where: {
+      profileId,
+      ...(period.gte ? { date: period } : {}),
+      ...(search
+        ? {
+            OR: [
+              { number: { contains: search } },
+              { contact: { name: { contains: search } } },
+            ],
+          }
+        : {}),
+    },
+    include: { contact: true, project: true, items: true, payments: { include: { attachments: true, withholdings: true } }, invoices: true },
+    orderBy: orderBy as any,
+  });
+}
+
+export async function getProforma(id: number) {
+  const profileId = await getActiveProfileId();
+  return prisma.proformaInvoice.findFirst({
+    where: { id, profileId },
+    include: {
+      contact: true,
+      project: true,
+      items: true,
+      invoices: true,
+      payments: { include: { attachments: true, withholdings: true }, orderBy: { date: "desc" } },
+    },
+  });
+}
+
+export async function createProforma(formData: FormData): Promise<ActionResult> {
+  try {
+    const profileId = await getActiveProfileId();
+    const items = parseItems(formData);
+    const total = totals(items);
+    const contactId = await resolveContact(formData, profileId, "CLIENT");
+    const projectId = await resolveProject(formData, profileId, contactId);
+    const number = await getNextProformaNumber(profileId);
+    const proforma = await prisma.proformaInvoice.create({
+      data: {
+        number,
+        date: dateValue(formData, "date"),
+        dueDate: optionalDate(formData, "dueDate"),
+        status: text(formData, "status", "DRAFT"),
+        contactId,
+        projectId,
+        subtotal: total.subtotal,
+        tax: total.tax,
+        total: total.total,
+        title: optionalText(formData, "title"),
+        subtitle: optionalText(formData, "subtitle"),
+        notes: optionalText(formData, "notes"),
+        termsAndConditions: optionalText(formData, "termsAndConditions"),
+        includeCoverPage: checkboxValue(formData, "includeCoverPage"),
+        includeTermsPage: checkboxValue(formData, "includeTermsPage"),
+        profileId,
+        items: { create: invoiceItemsData(items) },
+      },
+    });
+    revalidatePath("/proformas");
+    return { success: true, id: proforma.id, proformaId: proforma.id };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No fue posible guardar la prefactura.";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateProforma(id: number, formData: FormData): Promise<ActionResult> {
+  try {
+    const profileId = await getActiveProfileId();
+    const existing = await prisma.proformaInvoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true, status: true } });
+    if (!existing) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
+    if (existing.status === "CONVERTED") return { success: false, error: "No se puede editar una prefactura ya convertida a factura fiscal." };
+    const items = parseItems(formData);
+    const total = totals(items);
+    const contactId = await resolveContact(formData, profileId, "CLIENT");
+    const projectId = await resolveProject(formData, profileId, contactId);
+    const requestedStatus = text(formData, "status", existing.status);
+    await prisma.proformaInvoice.update({
+      where: { id },
+      data: {
+        date: dateValue(formData, "date"),
+        dueDate: optionalDate(formData, "dueDate"),
+        status: proformaStatusFor(total.total, existing.paidAmount || 0, requestedStatus),
+        contactId,
+        projectId,
+        subtotal: total.subtotal,
+        tax: total.tax,
+        total: total.total,
+        title: optionalText(formData, "title"),
+        subtitle: optionalText(formData, "subtitle"),
+        notes: optionalText(formData, "notes"),
+        termsAndConditions: optionalText(formData, "termsAndConditions"),
+        includeCoverPage: checkboxValue(formData, "includeCoverPage"),
+        includeTermsPage: checkboxValue(formData, "includeTermsPage"),
+        items: { deleteMany: {}, create: invoiceItemsData(items) },
+      },
+    });
+    revalidatePath("/proformas");
+    revalidatePath(`/proformas/${id}`);
+    return { success: true, id, proformaId: id };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No fue posible actualizar la prefactura.";
+    return { success: false, error: message };
+  }
+}
+
+export async function deleteProforma(id: number) {
+  const profileId = await getActiveProfileId();
+  const existing = await prisma.proformaInvoice.findFirst({ where: { id, profileId }, select: { status: true } });
+  if (!existing) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
+  if (existing.status === "CONVERTED") return { success: false, error: "No se puede eliminar una prefactura convertida." };
+  await prisma.proformaInvoice.delete({ where: { id } });
+  revalidatePath("/proformas");
+  return { success: true };
+}
+
+export async function convertProformaToInvoice(id: number, formData?: FormData): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const proforma = await prisma.proformaInvoice.findFirst({
+    where: { id, profileId },
+    include: { items: true, payments: { include: { withholdings: true, attachments: true } } },
+  });
+  if (!proforma) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
+  if (proforma.status === "CONVERTED") return { success: false, error: "Esta prefactura ya fue convertida." };
+  if ((proforma.paidAmount || 0) < proforma.total) return { success: false, error: "La prefactura debe estar pagada completa antes de emitir la factura fiscal." };
+  const ncf = formData ? optionalText(formData, "ncf") : null;
+  const number = await getNextInvoiceNumber();
+  const invoice = await prisma.$transaction(async (tx) => {
+    const created = await tx.invoice.create({
+      data: {
+        number,
+        ncf,
+        date: formData ? dateValue(formData, "date") : new Date(),
+        dueDate: formData ? dateValue(formData, "dueDate") : new Date(),
+        status: "PAID",
+        contactId: proforma.contactId,
+        projectId: proforma.projectId,
+        subtotal: proforma.subtotal,
+        tax: proforma.tax,
+        total: proforma.total,
+        paidAmount: proforma.paidAmount,
+        incomeType: formData ? text(formData, "incomeType", "01") : "01",
+        title: proforma.title,
+        subtitle: proforma.subtitle,
+        notes: proforma.notes,
+        termsAndConditions: proforma.termsAndConditions,
+        includeCoverPage: proforma.includeCoverPage,
+        includeTermsPage: proforma.includeTermsPage,
+        proformaInvoiceId: proforma.id,
+        profileId,
+        items: { create: invoiceItemsData(proforma.items) },
+      },
+    });
+    await tx.payment.updateMany({
+      where: { proformaInvoiceId: proforma.id },
+      data: { invoiceId: created.id },
+    });
+    await tx.proformaInvoice.update({ where: { id: proforma.id }, data: { status: "CONVERTED" } });
+    if (ncf) {
+      await tx.numberingSequence.updateMany({
+        where: { profileId, prefix: ncf.slice(0, 3), nextNumber: Number(ncf.slice(3)) },
+        data: { nextNumber: { increment: 1 } },
+      });
+    }
+    return created;
+  });
+  revalidatePath("/proformas");
+  revalidatePath("/invoices");
+  return { success: true, id: invoice.id, invoiceId: invoice.id };
 }
 
 export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
@@ -2077,12 +2282,14 @@ export async function convertQuotationToProject(id: number) {
   return { success: true, id: project.id, projectId: project.id };
 }
 
-export async function recordPayment(targetId: number, targetType: "INVOICE" | "PURCHASE", formData: FormData) {
+export async function recordPayment(targetId: number, targetType: "INVOICE" | "PURCHASE" | "PROFORMA", formData: FormData) {
   const profileId = await getActiveProfileId();
   const target =
     targetType === "INVOICE"
       ? await prisma.invoice.findFirst({ where: { id: targetId, profileId }, select: { id: true } })
-      : await prisma.purchase.findFirst({ where: { id: targetId, profileId }, select: { id: true } });
+      : targetType === "PURCHASE"
+        ? await prisma.purchase.findFirst({ where: { id: targetId, profileId }, select: { id: true } })
+        : await prisma.proformaInvoice.findFirst({ where: { id: targetId, profileId }, select: { id: true } });
   if (!target) return { success: false, error: "Documento no encontrado para el perfil activo." };
 
   const amount = numberValue(formData, "amount");
@@ -2097,6 +2304,7 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
       notes: optionalText(formData, "notes"),
       invoiceId: targetType === "INVOICE" ? targetId : null,
       purchaseId: targetType === "PURCHASE" ? targetId : null,
+      proformaInvoiceId: targetType === "PROFORMA" ? targetId : null,
       withholdings: {
         create: withholdings.map((w: any) => ({ type: w.type, amount: Number(w.amount) || 0 })),
       },
@@ -2104,7 +2312,7 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
     },
   });
   await recomputePaid(targetId, targetType);
-  revalidatePath(targetType === "INVOICE" ? "/invoices" : "/purchases");
+  revalidatePath(targetType === "INVOICE" ? "/invoices" : targetType === "PURCHASE" ? "/purchases" : "/proformas");
   return { success: true, id: payment.id };
 }
 
@@ -2113,7 +2321,7 @@ export async function updatePayment(id: number, formData: FormData) {
   const existing = await prisma.payment.findFirst({
     where: {
       id,
-      OR: [{ invoice: { profileId } }, { purchase: { profileId } }],
+      OR: [{ invoice: { profileId } }, { purchase: { profileId } }, { proformaInvoice: { profileId } }],
     },
   });
   if (!existing) return { success: false, error: "Pago no encontrado para el perfil activo." };
@@ -2131,6 +2339,7 @@ export async function updatePayment(id: number, formData: FormData) {
   });
   if (existing?.invoiceId) await recomputePaid(existing.invoiceId, "INVOICE");
   if (existing?.purchaseId) await recomputePaid(existing.purchaseId, "PURCHASE");
+  if (existing?.proformaInvoiceId) await recomputePaid(existing.proformaInvoiceId, "PROFORMA");
   revalidatePath("/");
   return { success: true };
 }
@@ -2140,20 +2349,21 @@ export async function deletePayment(id: number) {
   const existing = await prisma.payment.findFirst({
     where: {
       id,
-      OR: [{ invoice: { profileId } }, { purchase: { profileId } }],
+      OR: [{ invoice: { profileId } }, { purchase: { profileId } }, { proformaInvoice: { profileId } }],
     },
   });
   if (!existing) return { success: false, error: "Pago no encontrado para el perfil activo." };
   await prisma.payment.delete({ where: { id } });
   if (existing?.invoiceId) await recomputePaid(existing.invoiceId, "INVOICE");
   if (existing?.purchaseId) await recomputePaid(existing.purchaseId, "PURCHASE");
+  if (existing?.proformaInvoiceId) await recomputePaid(existing.proformaInvoiceId, "PROFORMA");
   revalidatePath("/");
   return { success: true };
 }
 
-async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE") {
+async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE" | "PROFORMA") {
   const profileId = await getActiveProfileId();
-  const where = type === "INVOICE" ? { invoiceId: id } : { purchaseId: id };
+  const where = type === "INVOICE" ? { invoiceId: id } : type === "PURCHASE" ? { purchaseId: id } : { proformaInvoiceId: id };
   const payments = await prisma.payment.findMany({
     where,
     include: { withholdings: true },
@@ -2162,9 +2372,12 @@ async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE") {
   if (type === "INVOICE") {
     const invoice = await prisma.invoice.findFirst({ where: { id, profileId } });
     if (invoice) await prisma.invoice.update({ where: { id }, data: { paidAmount, status: statusFor(invoice.total, paidAmount) } });
-  } else {
+  } else if (type === "PURCHASE") {
     const purchase = await prisma.purchase.findFirst({ where: { id, profileId } });
     if (purchase) await prisma.purchase.update({ where: { id }, data: { paidAmount, status: statusFor(purchase.total, paidAmount) } });
+  } else {
+    const proforma = await prisma.proformaInvoice.findFirst({ where: { id, profileId } });
+    if (proforma) await prisma.proformaInvoice.update({ where: { id }, data: { paidAmount, status: proformaStatusFor(proforma.total, paidAmount, proforma.status) } });
   }
 }
 

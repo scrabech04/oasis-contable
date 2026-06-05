@@ -29,7 +29,7 @@ interface PaymentDialogProps {
     isOpen: boolean;
     onClose: () => void;
     targetId: number;
-    targetType: 'INVOICE' | 'PURCHASE';
+    targetType: 'INVOICE' | 'PURCHASE' | 'PROFORMA';
     total: number;
     subtotal: number;
     tax: number;
@@ -149,7 +149,7 @@ export function PaymentDialog({
         formData.append("amount", amount);
         formData.append("method", method);
         formData.append("date", date);
-        formData.append("withholdings", JSON.stringify(withholdings));
+        formData.append("withholdings", JSON.stringify(targetType === "PROFORMA" ? [] : withholdings));
         if (proofFile) {
             formData.append("attachment", proofFile);
         }
@@ -178,7 +178,7 @@ export function PaymentDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <CreditCard className="h-5 w-5 text-blue-600" />
-                        {initialPaymentData ? 'Editar Pago' : (targetType === 'INVOICE' ? 'Registrar Cobro' : 'Registrar Pago')}
+                        {initialPaymentData ? 'Editar Pago' : (targetType === 'INVOICE' ? 'Registrar Cobro' : targetType === 'PROFORMA' ? 'Registrar Anticipo' : 'Registrar Pago')}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -196,13 +196,13 @@ export function PaymentDialog({
                             <div className="flex items-center justify-between gap-3 text-sm">
                                 <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
                                     <User className="h-4 w-4" />
-                                    <span>{targetType === 'INVOICE' ? 'Cliente' : 'Proveedor'}</span>
+                                    <span>{targetType === 'PURCHASE' ? 'Proveedor' : 'Cliente'}</span>
                                 </div>
                                 <span className="min-w-0 truncate text-right font-semibold" title={entityName}>{entityName}</span>
                             </div>
                             <div className="pt-2 border-t flex items-center justify-between">
                                 <span className="text-sm font-bold text-slate-700">Saldo Pendiente (Actual)</span>
-                                <span className={`text-lg font-bold ${targetType === 'INVOICE' ? 'text-blue-600' : 'text-orange-600'}`}>
+                                <span className={`text-lg font-bold ${targetType === 'PURCHASE' ? 'text-orange-600' : 'text-blue-600'}`}>
                                     RD$ {formatCurrency(pending)}
                                 </span>
                             </div>
@@ -296,7 +296,7 @@ export function PaymentDialog({
                         )}
                     </div>
 
-                    {/* Retenciones Section */}
+                    {targetType !== "PROFORMA" && (
                     <div className="space-y-3">
                         <div className="flex items-center justify-between border-b pb-2">
                             <h4 className="text-xs font-bold uppercase text-slate-500">Retenciones</h4>
@@ -373,6 +373,7 @@ export function PaymentDialog({
                             <p className="text-[10px] text-muted-foreground italic text-center py-2">No hay retenciones aplicadas</p>
                         )}
                     </div>
+                    )}
                 </div>
 
                 <DialogFooter className="mt-4 gap-2 sm:gap-0">

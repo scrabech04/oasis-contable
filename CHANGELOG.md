@@ -2,6 +2,34 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-05 - Estimacion fiscal por proyecto
+
+### Agregado
+- En el detalle de cada proyecto se agrega una tarjeta de estimacion fiscal basada en ventas y compras asociadas.
+- El calculo muestra ITBIS cobrado en facturas, ITBIS acreditable de compras con credito fiscal, ITBIS neto estimado a pagar, ISR estimado y ganancia real estimada.
+- Tambien se muestra una lectura de caja despues de impuestos, restando compras, ITBIS neto e ISR estimado.
+
+### Pendiente de prueba
+- Verificar proyectos con compras locales con credito fiscal, gastos internacionales sin ITBIS y compras sin credito fiscal.
+- Confirmar con el contador si la tasa ISR por defecto de 27% debe quedar configurable por perfil.
+
+## 2026-06-05 - Prefacturas / facturas proforma
+
+### Agregado
+- Nuevo modulo `/proformas` para crear prefacturas sin NCF/e-NCF y fuera del flujo fiscal.
+- Las prefacturas tienen estados propios: borrador, enviada, pago parcial, pagada, convertida y cancelada.
+- Se pueden registrar anticipos sobre una prefactura sin mezclarla con facturas fiscales ni reportes 607/IT-1.
+- Una prefactura pagada completa puede convertirse en factura fiscal, copiando cliente, proyecto, items, terminos, notas y pagos recibidos.
+- Navegacion agregada en sidebar y menu mobile.
+
+### Migracion
+- Se agregan `ProformaInvoice`, `ProformaInvoiceItem`, `Invoice.proformaInvoiceId` y `Payment.proformaInvoiceId`.
+
+### Pendiente de prueba
+- Aplicar la migracion SQL en Supabase antes del deploy.
+- Crear prefactura, registrar anticipo parcial, completar pago y convertir a factura fiscal.
+- Confirmar que las prefacturas no aparecen en reportes 607/IT-1 hasta convertirse.
+
 ## 2026-06-05 - Importacion IA robusta
 
 ### Mejorado

@@ -37,6 +37,7 @@ const primaryLinks = [
 
 const moreLinks = [
   { name: "Recurrentes", href: "/invoices/recurring", icon: FileClock },
+  { name: "Prefacturas", href: "/proformas", icon: FileText },
   { name: "Por Cobrar", href: "/receivables", icon: Building2 },
   { name: "Por Pagar", href: "/payables", icon: WalletCards },
   { name: "Suscripciones", href: "/subscriptions", icon: Repeat },
