@@ -469,6 +469,27 @@ const purchaseInvoiceSchema: ResponseSchema = {
   },
 };
 
+const purchaseSupplierFallbackSchema: ResponseSchema = {
+  type: SchemaType.ARRAY,
+  minItems: 1,
+  maxItems: 1,
+  items: {
+    type: SchemaType.OBJECT,
+    required: ["supplierName", "supplierTaxId"],
+    properties: {
+      supplierName: {
+        type: SchemaType.STRING,
+        description: "Issuer/vendor/store name from the receipt header. Prefer business/store name plus legal group if both are visible.",
+      },
+      supplierTaxId: {
+        type: SchemaType.STRING,
+        description: "Tax id/RNC of the issuer/vendor/store from the receipt header. Never use customer/buyer tax id.",
+      },
+      supplierWebsiteUrl: { type: SchemaType.STRING, nullable: true },
+    },
+  },
+};
+
 const saleInvoiceSchema: ResponseSchema = {
   type: SchemaType.ARRAY,
   minItems: 1,
@@ -976,6 +997,54 @@ function supplierTaxIdFromImportedRow(row: any) {
   return candidate;
 }
 
+function isMissingSupplierName(value: string) {
+  const cleaned = cleanSupplierName(value);
+  return !cleaned || /proveedor sin identificar/i.test(cleaned);
+}
+
+function isMissingSupplierTaxId(value: string) {
+  const cleaned = cleanTaxId(value);
+  return !cleaned || /^(n\/a|na|null|none|sin rnc|no aplica)$/i.test(cleaned);
+}
+
+async function extractPurchaseSupplierFallback(
+  apiKey: string,
+  filePart: Awaited<ReturnType<typeof fileToGenerativePart>>
+) {
+  const prompt = `Analiza SOLO el encabezado superior del comprobante/factura/recibo y extrae los datos del EMISOR, PROVEEDOR o VENDEDOR.
+
+Devuelve exclusivamente un array JSON con un objeto:
+[{ "supplierName": "...", "supplierTaxId": "...", "supplierWebsiteUrl": "" }]
+
+Reglas:
+- supplierName es el negocio que emite la factura. Puede aparecer como tienda, mercado, comercio, proveedor, vendedor, emisor, merchant o seller.
+- Si aparecen nombre comercial y razon social, combina ambos en supplierName. Ejemplo: "SIRENA MARKET COLINA C / GRUPO RAMOS S.A".
+- supplierTaxId es el RNC/Tax ID/VAT/RUC del emisor/proveedor. En tickets dominicanos suele aparecer como "RNC:" en el encabezado.
+- No uses cedula/RNC del comprador, cliente o consumidor.
+- Si no hay RNC del emisor, supplierTaxId debe ser cadena vacia.
+- No extraigas productos, totales ni datos de pago.`;
+
+  const generated = await generateGeminiInvoiceRows({
+    apiKey,
+    prompt,
+    filePart,
+    schema: purchaseSupplierFallbackSchema,
+  });
+
+  if (!generated.success) {
+    console.warn(`Gemini supplier fallback failed: ${generated.error}`);
+    return null;
+  }
+
+  const row = generated.rows[0] || {};
+  const supplierName = supplierNameFromImportedRow(row) || cleanSupplierName(firstText(row, ["supplierName", "name", "nombre"]));
+  const supplierTaxId = supplierTaxIdFromImportedRow(row) || cleanTaxId(firstText(row, ["supplierTaxId", "taxId", "rnc"]));
+  const supplierWebsiteUrl = firstText(row, ["supplierWebsiteUrl", "websiteUrl", "website", "url"]);
+
+  if (!supplierName && !supplierTaxId) return null;
+  return { supplierName, supplierTaxId, supplierWebsiteUrl };
+}
+
 function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
   const sourceItems = normalizeImportedItems(row.items, fallbackDescription);
   const itemsSubtotal = sourceItems.reduce((sum, item) => sum + item.baseAmount, 0);
@@ -1164,10 +1233,11 @@ Regla critica de proveedor:
 Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
       : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Si falta un dato usa cadena vacia o 0.`;
 
+  const filePart = await fileToGenerativePart(file);
   const generated = await generateGeminiInvoiceRows({
     apiKey,
     prompt,
-    filePart: await fileToGenerativePart(file),
+    filePart,
     schema: mode === "purchase" ? purchaseInvoiceSchema : saleInvoiceSchema,
   });
 
@@ -1177,6 +1247,15 @@ Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devue
 
   console.info(`Gemini invoice import completed with model ${generated.modelName}`);
   const rows = generated.rows;
+  const purchaseSupplierFallback =
+    mode === "purchase" &&
+    rows.length === 1 &&
+    (
+      isMissingSupplierName(supplierNameFromImportedRow(rows[0]) || firstText(rows[0], ["supplierName", "vendorName", "providerName"])) ||
+      isMissingSupplierTaxId(supplierTaxIdFromImportedRow(rows[0]) || firstText(rows[0], ["supplierTaxId", "vendorTaxId", "providerTaxId", "rnc"]))
+    )
+      ? await extractPurchaseSupplierFallback(apiKey, filePart)
+      : null;
   const data =
       mode === "purchase"
         ? rows.map((row: any) => {
@@ -1227,8 +1306,8 @@ Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devue
               firstText(looseValue(row, "supplier") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
               firstText(looseValue(row, "proveedor") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
               firstText(looseValue(row, "emisor") || {}, ["taxId", "rnc", "cedula", "cédula"]);
-            const normalizedSupplierName = supplierNameFromImportedRow(row) || supplierName;
-            const normalizedSupplierTaxId = supplierTaxIdFromImportedRow(row) || supplierTaxId;
+            const normalizedSupplierName = supplierNameFromImportedRow(row) || purchaseSupplierFallback?.supplierName || supplierName;
+            const normalizedSupplierTaxId = supplierTaxIdFromImportedRow(row) || purchaseSupplierFallback?.supplierTaxId || supplierTaxId;
             const normalized = normalizePurchaseSingleItem(row, normalizedSupplierName);
             const supplierWebsiteUrl = firstText(row, [
               "supplierWebsiteUrl",
@@ -1243,7 +1322,8 @@ Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devue
             ]) ||
               firstText(looseValue(row, "supplier") || {}, ["website", "websiteUrl", "url", "site"]) ||
               firstText(looseValue(row, "proveedor") || {}, ["website", "websiteUrl", "url", "site"]) ||
-              firstText(looseValue(row, "emisor") || {}, ["website", "websiteUrl", "url", "site"]);
+              firstText(looseValue(row, "emisor") || {}, ["website", "websiteUrl", "url", "site"]) ||
+              purchaseSupplierFallback?.supplierWebsiteUrl;
             return {
               type: row.type === "INFORMAL" ? "INFORMAL" : "FORMAL",
               taxTreatment: String(row.taxTreatment || (row.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT")),

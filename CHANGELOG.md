@@ -9,6 +9,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Se agregan rescates desde texto libre cuando Gemini coloca el proveedor o RNC dentro de notas, descripcion o estructuras anidadas.
 - Se filtra el RNC del comprador para evitar guardarlo como RNC del proveedor.
 - El prompt y `responseSchema` ahora especifican con mas fuerza que `supplierName` y `supplierTaxId` pertenecen al emisor/vendedor, no al comprador.
+- Si una compra individual llega sin proveedor o RNC, se ejecuta un segundo pase de IA enfocado solo en el encabezado del comprobante para extraer emisor/RNC.
 
 ### Pendiente de prueba
 - Importar una factura local con RNC emisor y confirmar que proveedor/RNC llegan al formulario.
