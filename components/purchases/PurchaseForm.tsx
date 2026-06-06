@@ -29,6 +29,7 @@ import {
 interface Contact {
     id: number;
     name: string;
+    taxId?: string | null;
 }
 
 interface PurchaseFormProps {
@@ -111,6 +112,26 @@ function importedSupplierTaxId(imported: any) {
         firstImportedText(imported?.proveedor || {}, ["taxId", "rnc", "cedula", "ruc", "vatNumber"]);
 }
 
+function normalizeSupplierLookup(value: string) {
+    return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .toLowerCase();
+}
+
+function findImportedSupplierContact(contacts: Contact[], supplierName: string, supplierTaxId: string) {
+    const taxIdLookup = normalizeSupplierLookup(supplierTaxId);
+    if (taxIdLookup) {
+        const byTaxId = contacts.find((contact) => normalizeSupplierLookup(contact.taxId || "") === taxIdLookup);
+        if (byTaxId) return byTaxId;
+    }
+
+    const nameLookup = normalizeSupplierLookup(supplierName);
+    if (!nameLookup) return null;
+    return contacts.find((contact) => normalizeSupplierLookup(contact.name) === nameLookup) || null;
+}
+
 export function PurchaseForm({ contacts, projects = [], initialData, defaultProjectId = "", successRedirect }: PurchaseFormProps) {
     const router = useRouter();
     const [items, setItems] = useState([
@@ -137,6 +158,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     const [purchaseType, setPurchaseType] = useState("FORMAL");
     const [importAttachment, setImportAttachment] = useState<any | null>(null);
     const [isAiImport, setIsAiImport] = useState(false);
+    const [aiSupplierName, setAiSupplierName] = useState("");
+    const [aiSupplierTaxId, setAiSupplierTaxId] = useState("");
 
     const applyTaxTreatment = (value: string) => {
         setTaxTreatment(value);
@@ -231,13 +254,19 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 return;
             }
 
+            const extractedSupplierName = importedSupplierName(imported);
+            const extractedSupplierTaxId = importedSupplierTaxId(imported);
+            const matchingSupplier = findImportedSupplierContact(contacts, extractedSupplierName, extractedSupplierTaxId);
+
             setPurchaseType(imported.type === "INFORMAL" ? "INFORMAL" : "FORMAL");
-            setContactId("manual");
+            setContactId(matchingSupplier ? matchingSupplier.id.toString() : "manual");
             setIsAiImport(true);
-            setContactName(importedSupplierName(imported));
-            setContactTaxId(importedSupplierTaxId(imported));
+            setAiSupplierName(extractedSupplierName);
+            setAiSupplierTaxId(extractedSupplierTaxId);
+            setContactName(extractedSupplierName || matchingSupplier?.name || "");
+            setContactTaxId(extractedSupplierTaxId || matchingSupplier?.taxId || "");
             setSupplierWebsiteUrl(imported.supplierWebsiteUrl || imported.websiteUrl || imported.website || "");
-            setSaveAsContact(false);
+            setSaveAsContact(!!matchingSupplier);
             setNcf(imported.ncf || "");
             setDate(imported.date || new Date().toISOString().split("T")[0]);
             setDueDate(imported.dueDate || imported.date || new Date().toISOString().split("T")[0]);
@@ -273,7 +302,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
         } finally {
             sessionStorage.removeItem("ai_imported_purchase");
         }
-    }, []);
+    }, [contacts]);
 
     useEffect(() => {
         if (initialData) {
@@ -315,11 +344,17 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     }, [defaultProjectId, initialData]);
 
     useEffect(() => {
-        if (isAiImport && !initialData && contactId !== "manual") {
+        if (isAiImport && !initialData && !contactId && (aiSupplierName || aiSupplierTaxId)) {
             setContactId("manual");
             setSaveAsContact(false);
         }
-    }, [contactId, initialData, isAiImport]);
+    }, [aiSupplierName, aiSupplierTaxId, contactId, initialData, isAiImport]);
+
+    useEffect(() => {
+        if (!isAiImport || initialData) return;
+        if (!contactName && aiSupplierName) setContactName(aiSupplierName);
+        if (!contactTaxId && aiSupplierTaxId) setContactTaxId(aiSupplierTaxId);
+    }, [aiSupplierName, aiSupplierTaxId, contactName, contactTaxId, initialData, isAiImport]);
 
     const addItem = () => {
         setItems([...items, { description: "", quantity: 1, price: 0, taxRate: 18 }]);
@@ -353,12 +388,14 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
         e.preventDefault();
         setSubmitting(true);
 
+        const effectiveContactName = contactName.trim() || aiSupplierName.trim();
+        const effectiveContactTaxId = contactTaxId.trim() || aiSupplierTaxId.trim();
         const formData = new FormData();
         formData.append("type", purchaseType);
         formData.append("contactId", contactId);
-        if (showSupplierFields) {
-            formData.append("contactName", contactName);
-            formData.append("contactTaxId", isForeignPurchase ? contactTaxId.trim() : contactTaxId);
+        if (showSupplierFields || isAiImport || effectiveContactName || effectiveContactTaxId) {
+            formData.append("contactName", effectiveContactName);
+            formData.append("contactTaxId", isForeignPurchase ? effectiveContactTaxId.trim() : effectiveContactTaxId);
         }
         formData.append("supplierWebsiteUrl", supplierWebsiteUrl);
         formData.append("contactWebsiteUrl", supplierWebsiteUrl);
