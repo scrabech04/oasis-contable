@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CreditCard, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText } from "lucide-react";
 import { getPurchase } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { PurchaseAttachmentManager } from "@/components/purchases/PurchaseAttachmentManager";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 interface PurchaseDetailPageProps {
@@ -68,6 +69,12 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
   const isForeign = purchase.origin === "FOREIGN" || ["FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"].includes(purchase.taxTreatment);
   const pendingAmount = Math.max((Number(purchase.total) || 0) - (Number(purchase.paidAmount) || 0), 0);
   const sourceCurrency = purchase.currency === "USD" ? "US$" : "RD$";
+  const attachmentSummaries = purchase.attachments.map((attachment) => ({
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileSize: attachment.fileSize,
+    isInline: attachment.storagePath.startsWith("data:"),
+  }));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
@@ -183,22 +190,7 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
                 {purchase.notes || "Sin notas registradas."}
               </p>
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Adjuntos</p>
-              <div className="mt-2 space-y-2">
-                {purchase.attachments.map((attachment) => (
-                  <Link key={attachment.id} href={`/api/purchases/attachments/${attachment.id}`} target="_blank" className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800">
-                    <span className="min-w-0 truncate">{attachment.fileName}</span>
-                    <ExternalLink className="h-4 w-4 shrink-0 text-slate-400" />
-                  </Link>
-                ))}
-                {purchase.attachments.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-sm text-slate-400 dark:border-slate-800">
-                    No hay archivos adjuntos.
-                  </p>
-                )}
-              </div>
-            </div>
+            <PurchaseAttachmentManager purchaseId={purchase.id} attachments={attachmentSummaries} />
           </div>
         </div>
       </section>

@@ -2,6 +2,17 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-05 - Adjuntos persistentes de compras importadas
+
+### Mejorado
+- Los adjuntos nuevos de compras importadas con IA ya no aceptan rutas temporales del servidor; solo se guardan como evidencia persistente inline en la base.
+- El endpoint de adjuntos de compras ahora detecta soportes antiguos guardados en `/workspace/.next/standalone/uploads` y muestra un mensaje claro para resubir el archivo.
+- En el detalle de una compra se agrega opcion para subir o reemplazar el soporte PDF/imagen, util para reparar adjuntos antiguos que quedaron en almacenamiento temporal.
+
+### Pendiente de prueba
+- Resubir soporte en una compra antigua con error de adjunto y confirmar que abre desde el boton `Soporte`.
+- Importar una compra nueva con IA desde PDF/foto, guardarla y abrir el adjunto desde el detalle.
+
 ## 2026-06-05 - Estimacion fiscal por proyecto
 
 ### Agregado

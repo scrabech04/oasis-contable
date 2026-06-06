@@ -51,6 +51,16 @@ export async function GET(
     });
   }
 
+  if (attachment.storagePath.startsWith("/workspace/.next/standalone/uploads/")) {
+    return NextResponse.json(
+      {
+        error:
+          "Este soporte fue guardado en almacenamiento temporal de un despliegue anterior. Vuelve a subir el PDF o la foto desde el detalle de la compra para dejarlo persistente.",
+      },
+      { status: 410 }
+    );
+  }
+
   try {
     const file = await readFile(attachment.storagePath);
     return new NextResponse(file, {

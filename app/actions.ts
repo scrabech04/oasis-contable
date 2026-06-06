@@ -840,6 +840,30 @@ async function savePurchaseEvidenceFile(file: File, _profileId: number) {
   };
 }
 
+async function purchaseAttachmentFromFile(file: File) {
+  if (!(file instanceof File) || file.size <= 0) return null;
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("El soporte supera el limite de 10 MB. Usa un PDF o imagen mas ligera.");
+  }
+
+  const mimeType = file.type || "application/octet-stream";
+  const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+  if (!allowed.includes(mimeType)) {
+    throw new Error("Solo se permiten soportes en PDF, JPG, PNG o WEBP.");
+  }
+
+  const originalName = safeFileName(file.name || "soporte");
+  const bytes = Buffer.from(await file.arrayBuffer());
+
+  return {
+    fileName: file.name || originalName,
+    mimeType,
+    fileSize: file.size,
+    storagePath: `data:${mimeType};base64,${bytes.toString("base64")}`,
+    type: "ORIGINAL_INVOICE",
+  };
+}
+
 function attachmentFromFormData(formData: FormData) {
   const storagePath = optionalText(formData, "attachmentStoragePath");
   const fileName = optionalText(formData, "attachmentFileName");
@@ -847,6 +871,7 @@ function attachmentFromFormData(formData: FormData) {
   const fileSize = numberValue(formData, "attachmentFileSize", 0);
 
   if (!storagePath || !fileName || !mimeType || fileSize <= 0) return null;
+  if (!storagePath.startsWith("data:")) return null;
 
   return {
     fileName,
@@ -1879,6 +1904,45 @@ export async function getPurchase(id: number) {
     where: { id, profileId },
     include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: true } } },
   });
+}
+
+export async function replacePurchaseAttachment(purchaseId: number, formData: FormData): Promise<ActionResult> {
+  try {
+    const profileId = await getActiveProfileId();
+    const purchase = await prisma.purchase.findFirst({
+      where: { id: purchaseId, profileId },
+      select: { id: true },
+    });
+    if (!purchase) return { success: false, error: "Compra no encontrada para el perfil activo." };
+
+    const file = formData.get("attachment");
+    if (!(file instanceof File) || file.size <= 0) {
+      return { success: false, error: "Selecciona un PDF o imagen para adjuntar." };
+    }
+
+    const attachment = await purchaseAttachmentFromFile(file);
+    if (!attachment) return { success: false, error: "No fue posible preparar el soporte." };
+
+    await prisma.$transaction([
+      prisma.purchaseAttachment.deleteMany({
+        where: { purchaseId, type: "ORIGINAL_INVOICE" },
+      }),
+      prisma.purchaseAttachment.create({
+        data: {
+          purchaseId,
+          ...attachment,
+        },
+      }),
+    ]);
+
+    revalidatePath("/purchases");
+    revalidatePath(`/purchases/${purchaseId}`);
+    revalidatePath(`/purchases/${purchaseId}/edit`);
+    return { success: true, id: purchaseId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "No fue posible guardar el soporte.";
+    return { success: false, error: message };
+  }
 }
 
 export async function createPurchase(formData: FormData): Promise<ActionResult> {
