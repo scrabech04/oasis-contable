@@ -438,8 +438,8 @@ const purchaseInvoiceSchema: ResponseSchema = {
     required: ["type", "supplierName", "supplierTaxId", "ncf", "date", "costType", "taxTreatment", "items", "total"],
     properties: {
       type: { type: SchemaType.STRING, description: "FORMAL or INFORMAL" },
-      supplierName: { type: SchemaType.STRING },
-      supplierTaxId: { type: SchemaType.STRING },
+      supplierName: { type: SchemaType.STRING, description: "Issuer/vendor/seller legal name. Use the value next to Razon social emisor, Nombre emisor, Proveedor, Vendedor, Seller, Merchant or Vendor. Never use buyer/client name." },
+      supplierTaxId: { type: SchemaType.STRING, description: "Issuer/vendor tax id. Use RNC Emisor, RNC proveedor, Cedula emisor, Tax ID, VAT or RUC. Never use buyer/client tax id." },
       supplierWebsiteUrl: { type: SchemaType.STRING, nullable: true },
       ncf: { type: SchemaType.STRING },
       date: { type: SchemaType.STRING, description: "YYYY-MM-DD" },
@@ -764,6 +764,218 @@ function firstText(row: any, keys: string[]) {
   return "";
 }
 
+function collectTextValues(value: unknown, depth = 0): string[] {
+  if (depth > 2 || value == null) return [];
+  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (typeof value !== "object") return [];
+  if (Array.isArray(value)) return value.flatMap((item) => collectTextValues(item, depth + 1));
+  return Object.values(value).flatMap((item) => collectTextValues(item, depth + 1));
+}
+
+function cleanSupplierName(value: string) {
+  let cleaned = String(value || "")
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCharCode(Number(code)))
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const labeled = textAfterLabel(cleaned, [
+    "Razon social emisor",
+    "RazÃ³n social emisor",
+    "Nombre emisor",
+    "Proveedor",
+    "Vendedor",
+    "Emisor",
+  ]);
+  if (labeled) cleaned = labeled;
+
+  cleaned = cleaned
+    .replace(/^(rnc|cedula|c[eÃ©]dula|tax id|id fiscal)\s*(emisor|proveedor)?\s*:?\s*/i, "")
+    .replace(/^\d{9,11}\s+/, "")
+    .trim();
+
+  if (!cleaned) return "";
+  if (/^(proveedor|emisor|vendedor|merchant|seller)\s*(sin identificar|desconocido|no identificado|n\/a)?$/i.test(cleaned)) return "";
+  if (/^(compra importada|factura|invoice|receipt|recibo)$/i.test(cleaned)) return "";
+  if (/^[\d\s.,:/#-]+$/.test(cleaned)) return "";
+  return cleaned;
+}
+
+function cleanTaxId(value: string) {
+  const raw = String(value || "").trim();
+  const labeled = textAfterLabel(raw, [
+    "RNC Emisor",
+    "Rnc Emisor",
+    "RNC proveedor",
+    "RNC Proveedor",
+    "Cedula emisor",
+    "CÃ©dula emisor",
+    "ID tributario emisor",
+    "Tax ID",
+  ]);
+  const source = labeled || raw;
+  const match = source.match(/[A-Z]{0,3}\d[\d\s-]{7,18}[A-Z0-9]?/i);
+  return (match?.[0] || source).replace(/\s+/g, "").trim();
+}
+
+function textBag(row: any) {
+  return collectTextValues(row).join(" ");
+}
+
+function supplierNameFromImportedRow(row: any) {
+  const direct = firstText(row, [
+    "supplierName",
+    "supplier_name",
+    "vendorName",
+    "vendor_name",
+    "providerName",
+    "provider_name",
+    "issuerName",
+    "issuer_name",
+    "sellerName",
+    "seller_name",
+    "merchantName",
+    "merchant_name",
+    "companyName",
+    "company_name",
+    "businessName",
+    "business_name",
+    "razonSocialEmisor",
+    "razon_social_emisor",
+    "razÃ³n social emisor",
+    "razon social emisor",
+    "nombreORazonSocialEmisor",
+    "nombre_o_razon_social_emisor",
+    "nombre o razon social emisor",
+    "nombre o razÃ³n social emisor",
+    "razonSocial",
+    "razon_social",
+    "razÃ³n social",
+    "razon social",
+    "nombreEmisor",
+    "nombre_emisor",
+    "nombre emisor",
+    "nombreProveedor",
+    "nombre_proveedor",
+    "nombre proveedor",
+    "razonSocialProveedor",
+    "razon_social_proveedor",
+    "razon social proveedor",
+    "nombreComercial",
+    "nombre_comercial",
+    "emisor",
+    "proveedor",
+    "vendedor",
+    "vendor",
+    "provider",
+    "seller",
+    "merchant",
+    "issuer",
+    "nombre",
+    "contactName",
+  ]);
+
+  const nested =
+    firstText(looseValue(row, "supplier") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName", "companyName"]) ||
+    firstText(looseValue(row, "proveedor") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName", "companyName"]) ||
+    firstText(looseValue(row, "emisor") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName", "companyName"]) ||
+    firstText(looseValue(row, "issuer") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName", "companyName"]) ||
+    firstText(looseValue(row, "seller") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName", "companyName"]) ||
+    firstText(looseValue(row, "merchant") || {}, ["name", "nombre", "razonSocial", "razon social", "businessName", "companyName"]);
+
+  const labeled = textAfterLabel(textBag(row), [
+    "Razon social emisor",
+    "RazÃ³n social emisor",
+    "Nombre o razon social emisor",
+    "Nombre emisor",
+    "Proveedor",
+    "Vendedor",
+    "Emisor",
+    "Merchant",
+    "Seller",
+    "Vendor",
+  ]);
+
+  return cleanSupplierName(direct) || cleanSupplierName(nested) || cleanSupplierName(labeled);
+}
+
+function supplierTaxIdFromImportedRow(row: any) {
+  const direct = firstText(row, [
+    "supplierTaxId",
+    "supplier_tax_id",
+    "vendorTaxId",
+    "vendor_tax_id",
+    "providerTaxId",
+    "provider_tax_id",
+    "issuerTaxId",
+    "issuer_tax_id",
+    "sellerTaxId",
+    "seller_tax_id",
+    "merchantTaxId",
+    "merchant_tax_id",
+    "rncEmisor",
+    "rnc_emisor",
+    "rnc emisor",
+    "rncemisor",
+    "rncProveedor",
+    "rnc_proveedor",
+    "rnc proveedor",
+    "cedulaEmisor",
+    "cedula_emisor",
+    "cedula emisor",
+    "cÃ©dula emisor",
+    "idTributarioEmisor",
+    "id_tributario_emisor",
+    "id tributario emisor",
+    "taxId",
+    "tax_id",
+    "taxNumber",
+    "tax_number",
+    "vatNumber",
+    "vat_number",
+    "rnc",
+    "cedula",
+    "cÃ©dula",
+    "ruc",
+  ]);
+
+  const nested =
+    firstText(looseValue(row, "supplier") || {}, ["taxId", "tax_id", "rnc", "cedula", "cÃ©dula", "ruc", "vatNumber"]) ||
+    firstText(looseValue(row, "proveedor") || {}, ["taxId", "tax_id", "rnc", "cedula", "cÃ©dula", "ruc", "vatNumber"]) ||
+    firstText(looseValue(row, "emisor") || {}, ["taxId", "tax_id", "rnc", "cedula", "cÃ©dula", "ruc", "vatNumber"]) ||
+    firstText(looseValue(row, "issuer") || {}, ["taxId", "tax_id", "rnc", "cedula", "cÃ©dula", "ruc", "vatNumber"]) ||
+    firstText(looseValue(row, "seller") || {}, ["taxId", "tax_id", "rnc", "cedula", "cÃ©dula", "ruc", "vatNumber"]) ||
+    firstText(looseValue(row, "merchant") || {}, ["taxId", "tax_id", "rnc", "cedula", "cÃ©dula", "ruc", "vatNumber"]);
+
+  const labeled = textAfterLabel(textBag(row), [
+    "RNC Emisor",
+    "RNC proveedor",
+    "Cedula emisor",
+    "CÃ©dula emisor",
+    "ID tributario emisor",
+    "Tax ID",
+    "VAT",
+    "RUC",
+  ]);
+
+  const candidate = cleanTaxId(direct) || cleanTaxId(nested) || cleanTaxId(labeled);
+  const buyerTaxId = cleanTaxId(firstText(row, [
+    "buyerTaxId",
+    "buyer_tax_id",
+    "clientTaxId",
+    "client_tax_id",
+    "customerTaxId",
+    "customer_tax_id",
+    "rncComprador",
+    "rnc_comprador",
+    "rnc comprador",
+  ]));
+
+  if (candidate && buyerTaxId && normalizeProfileTaxId(candidate) === normalizeProfileTaxId(buyerTaxId)) return "";
+  return candidate;
+}
+
 function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
   const sourceItems = normalizeImportedItems(row.items, fallbackDescription);
   const itemsSubtotal = sourceItems.reduce((sum, item) => sum + item.baseAmount, 0);
@@ -940,7 +1152,16 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
 
   const prompt =
     mode === "purchase"
-      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura. supplierName debe ser SIEMPRE la razon social/nombre del emisor o proveedor que aparece como "Razon social emisor", "Nombre emisor", "Proveedor" o equivalente. supplierTaxId debe ser SIEMPRE el RNC/Cedula del emisor o proveedor que aparece como "RNC Emisor", "RNC proveedor", "Cedula emisor" o equivalente. Si el proveedor es internacional y no tiene RNC dominicano, supplierTaxId debe ser cadena vacia, nunca inventes un RNC. Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. No uses el RNC del comprador como supplierTaxId. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
+      ? `Extrae todas las facturas de compra o gastos del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON, con un objeto por cada factura o comprobante, no por cada producto. No desgloses los productos de la factura.
+
+Regla critica de proveedor:
+- supplierName debe ser SIEMPRE el nombre legal/comercial del EMISOR/VENDEDOR/PROVEEDOR, nunca el comprador/cliente.
+- Busca supplierName en etiquetas como "Razon social emisor", "Nombre emisor", "Emisor", "Proveedor", "Vendedor", "Seller", "Merchant", "Vendor", "Company" o el nombre grande del negocio que emite la factura.
+- supplierTaxId debe ser SIEMPRE el RNC/Cedula/Tax ID/VAT/RUC del EMISOR/VENDEDOR/PROVEEDOR.
+- Busca supplierTaxId en "RNC Emisor", "RNC proveedor", "Cedula emisor", "Tax ID", "VAT", "RUC". No uses "RNC comprador", "Cliente", "Customer" ni datos del comprador.
+- Si el proveedor es internacional y no tiene RNC dominicano, supplierTaxId debe ser cadena vacia, nunca inventes un RNC.
+
+Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
       : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Si falta un dato usa cadena vacia o 0.`;
 
   const generated = await generateGeminiInvoiceRows({
@@ -1006,7 +1227,9 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
               firstText(looseValue(row, "supplier") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
               firstText(looseValue(row, "proveedor") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
               firstText(looseValue(row, "emisor") || {}, ["taxId", "rnc", "cedula", "cédula"]);
-            const normalized = normalizePurchaseSingleItem(row, supplierName);
+            const normalizedSupplierName = supplierNameFromImportedRow(row) || supplierName;
+            const normalizedSupplierTaxId = supplierTaxIdFromImportedRow(row) || supplierTaxId;
+            const normalized = normalizePurchaseSingleItem(row, normalizedSupplierName);
             const supplierWebsiteUrl = firstText(row, [
               "supplierWebsiteUrl",
               "websiteUrl",
@@ -1024,8 +1247,8 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
             return {
               type: row.type === "INFORMAL" ? "INFORMAL" : "FORMAL",
               taxTreatment: String(row.taxTreatment || (row.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT")),
-              supplierName,
-              supplierTaxId,
+              supplierName: normalizedSupplierName,
+              supplierTaxId: normalizedSupplierTaxId,
               supplierWebsiteUrl,
               ncf: firstText(row, ["ncf", "encf", "eNCF", "e-ncf", "comprobante", "numero comprobante"]).toUpperCase(),
               date: normalizeDateString(firstText(row, ["date", "fecha", "fechaEmision", "fecha emision", "fecha de emision"])),

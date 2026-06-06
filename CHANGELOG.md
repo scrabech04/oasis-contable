@@ -2,6 +2,18 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-06 - Proveedor en importacion IA
+
+### Mejorado
+- La importacion de compras con IA ahora reconoce mas variantes para proveedor/emisor: issuer, seller, merchant, vendor, vendedor, emisor y razon social emisor.
+- Se agregan rescates desde texto libre cuando Gemini coloca el proveedor o RNC dentro de notas, descripcion o estructuras anidadas.
+- Se filtra el RNC del comprador para evitar guardarlo como RNC del proveedor.
+- El prompt y `responseSchema` ahora especifican con mas fuerza que `supplierName` y `supplierTaxId` pertenecen al emisor/vendedor, no al comprador.
+
+### Pendiente de prueba
+- Importar una factura local con RNC emisor y confirmar que proveedor/RNC llegan al formulario.
+- Importar una factura internacional y confirmar que trae proveedor pero deja RNC vacio si no existe.
+
 ## 2026-06-05 - Adjuntos persistentes de compras importadas
 
 ### Mejorado
