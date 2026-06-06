@@ -25,6 +25,7 @@ type DragState = {
 
 const defaultCrop: CropRect = { x: 8, y: 8, width: 84, height: 84 };
 const minCropSize = 14;
+const detectionCanvasMaxSize = 720;
 
 function isImageFile(file: File) {
     return file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
@@ -76,6 +77,123 @@ function cropFromDrag(mode: DragState["mode"], start: CropRect, dx: number, dy: 
     }
 
     return normalizeCrop(next);
+}
+
+function average(values: number[]) {
+    if (values.length === 0) return 0;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function smoothCounts(values: number[], radius = 4) {
+    return values.map((_, index) => {
+        const start = Math.max(0, index - radius);
+        const end = Math.min(values.length, index + radius + 1);
+        return average(values.slice(start, end));
+    });
+}
+
+function findEdge(counts: number[], threshold: number, fromEnd = false) {
+    const runLength = Math.max(4, Math.round(counts.length * 0.01));
+    const indexes = fromEnd
+        ? Array.from({ length: counts.length }, (_, index) => counts.length - 1 - index)
+        : Array.from({ length: counts.length }, (_, index) => index);
+
+    for (const index of indexes) {
+        const run = fromEnd
+            ? counts.slice(Math.max(0, index - runLength + 1), index + 1)
+            : counts.slice(index, Math.min(counts.length, index + runLength));
+        if (run.length >= runLength && run.every((value) => value >= threshold)) {
+            return index;
+        }
+    }
+    return null;
+}
+
+function isLikelyPaperPixel(r: number, g: number, b: number, borderBrightness: number) {
+    const brightness = (r + g + b) / 3;
+    const spread = Math.max(r, g, b) - Math.min(r, g, b);
+    const brighterThanBorder = brightness - borderBrightness;
+
+    return (
+        (brightness > 178 && spread < 92) ||
+        brightness > 214 ||
+        (brightness > 145 && spread < 82 && brighterThanBorder > 24)
+    );
+}
+
+async function detectDocumentCrop(imageUrl: string): Promise<CropRect | null> {
+    const image = await fileToImage(imageUrl);
+    const scale = Math.min(1, detectionCanvasMaxSize / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    context.drawImage(image, 0, 0, width, height);
+    const { data } = context.getImageData(0, 0, width, height);
+    const borderSamples: number[] = [];
+    const sampleStep = Math.max(1, Math.round(Math.min(width, height) / 120));
+
+    for (let x = 0; x < width; x += sampleStep) {
+        for (const y of [0, height - 1]) {
+            const index = (y * width + x) * 4;
+            borderSamples.push((data[index] + data[index + 1] + data[index + 2]) / 3);
+        }
+    }
+    for (let y = 0; y < height; y += sampleStep) {
+        for (const x of [0, width - 1]) {
+            const index = (y * width + x) * 4;
+            borderSamples.push((data[index] + data[index + 1] + data[index + 2]) / 3);
+        }
+    }
+
+    const borderBrightness = average(borderSamples);
+    const rowCounts = new Array(height).fill(0);
+    const colCounts = new Array(width).fill(0);
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const index = (y * width + x) * 4;
+            if (isLikelyPaperPixel(data[index], data[index + 1], data[index + 2], borderBrightness)) {
+                rowCounts[y] += 1;
+                colCounts[x] += 1;
+            }
+        }
+    }
+
+    const smoothedRows = smoothCounts(rowCounts);
+    const smoothedCols = smoothCounts(colCounts);
+    const rowThreshold = width * 0.16;
+    const colThreshold = height * 0.16;
+    const top = findEdge(smoothedRows, rowThreshold, false);
+    const bottom = findEdge(smoothedRows, rowThreshold, true);
+    const left = findEdge(smoothedCols, colThreshold, false);
+    const right = findEdge(smoothedCols, colThreshold, true);
+
+    if (top == null || bottom == null || left == null || right == null) return null;
+    if (right - left < width * 0.18 || bottom - top < height * 0.18) return null;
+
+    const paddingX = width * 0.018;
+    const paddingY = height * 0.018;
+    const x1 = clamp(left - paddingX, 0, width);
+    const y1 = clamp(top - paddingY, 0, height);
+    const x2 = clamp(right + paddingX, 0, width);
+    const y2 = clamp(bottom + paddingY, 0, height);
+
+    const detected = normalizeCrop({
+        x: (x1 / width) * 100,
+        y: (y1 / height) * 100,
+        width: ((x2 - x1) / width) * 100,
+        height: ((y2 - y1) / height) * 100,
+    });
+
+    const area = detected.width * detected.height;
+    if (area > 9700 || area < 450) return null;
+    return detected;
 }
 
 async function fileToImage(url: string) {
@@ -164,6 +282,8 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
     const [pendingImageUrl, setPendingImageUrl] = useState("");
     const [crop, setCrop] = useState<CropRect>(defaultCrop);
     const [dragState, setDragState] = useState<DragState | null>(null);
+    const [isDetectingCrop, setIsDetectingCrop] = useState(false);
+    const [cropDetectionMessage, setCropDetectionMessage] = useState("");
     const cropSurfaceRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -200,6 +320,28 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         setPendingImageUrl("");
         setCrop(defaultCrop);
         setDragState(null);
+        setIsDetectingCrop(false);
+        setCropDetectionMessage("");
+    };
+
+    const detectCropFromUrl = async (imageUrl: string) => {
+        setIsDetectingCrop(true);
+        setCropDetectionMessage("Buscando bordes de la factura...");
+        try {
+            const detectedCrop = await detectDocumentCrop(imageUrl);
+            if (detectedCrop) {
+                setCrop(detectedCrop);
+                setCropDetectionMessage("Bordes detectados. Ajusta el recuadro si hace falta.");
+            } else {
+                setCrop(defaultCrop);
+                setCropDetectionMessage("No pude detectar bordes claros. Ajusta el recuadro manualmente.");
+            }
+        } catch {
+            setCrop(defaultCrop);
+            setCropDetectionMessage("No pude detectar bordes claros. Ajusta el recuadro manualmente.");
+        } finally {
+            setIsDetectingCrop(false);
+        }
     };
 
     const uploadFileToAi = async (file: File | undefined) => {
@@ -241,9 +383,11 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         setError(null);
         if (isImageFile(file)) {
             clearPendingCrop();
+            const imageUrl = URL.createObjectURL(file);
             setPendingImageFile(file);
-            setPendingImageUrl(URL.createObjectURL(file));
+            setPendingImageUrl(imageUrl);
             setCrop(defaultCrop);
+            await detectCropFromUrl(imageUrl);
             return;
         }
 
@@ -279,6 +423,11 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         });
     };
 
+    const redetectCrop = async () => {
+        if (!pendingImageUrl) return;
+        await detectCropFromUrl(pendingImageUrl);
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         e.currentTarget.value = "";
@@ -306,6 +455,11 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                             <p className="mx-auto max-w-md text-sm text-muted-foreground">
                                 Mueve el recuadro y ajusta las esquinas para enviar solo la factura a la IA.
                             </p>
+                            {cropDetectionMessage && (
+                                <p className="mx-auto max-w-md text-xs font-medium text-blue-700">
+                                    {cropDetectionMessage}
+                                </p>
+                            )}
                         </div>
 
                         <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-slate-950 p-3 shadow-sm">
@@ -347,6 +501,15 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                         </div>
 
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
+                            <button
+                                type="button"
+                                onClick={redetectCrop}
+                                disabled={isDetectingCrop}
+                                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                            >
+                                {isDetectingCrop ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crop className="h-4 w-4" />}
+                                Detectar bordes
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setCrop(defaultCrop)}
