@@ -5,6 +5,8 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 ## 2026-06-06 - Proveedor en importacion IA
 
 ### Mejorado
+- En `Compras > Importar con IA`, las imagenes ahora abren una vista previa de recorte manual antes de enviarse a Gemini; PDFs siguen procesandose directo.
+- El recorte permite mover/redimensionar el area de la factura, reiniciar, usar la imagen original o procesar solo el recorte limpio.
 - Se unifican las pantallas de nueva compra, nueva factura, nueva cotizacion y nueva prefactura: se eliminan contenedores externos duplicados, se normalizan headers, botones, grids y cards.
 - Las rutas de edicion de compra, factura y prefactura ya no envuelven el formulario en una card adicional, evitando el efecto de cajas anidadas.
 - La importacion de compras con IA ahora reconoce mas variantes para proveedor/emisor: issuer, seller, merchant, vendor, vendedor, emisor y razon social emisor.
