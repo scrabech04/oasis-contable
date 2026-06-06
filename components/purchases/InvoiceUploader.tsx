@@ -16,14 +16,27 @@ type CropRect = {
     height: number;
 };
 
+type CropPoint = {
+    x: number;
+    y: number;
+};
+
+type CropQuad = {
+    tl: CropPoint;
+    tr: CropPoint;
+    br: CropPoint;
+    bl: CropPoint;
+};
+
 type DragState = {
-    mode: "move" | "nw" | "ne" | "sw" | "se";
+    mode: "move" | keyof CropQuad;
     startX: number;
     startY: number;
-    startCrop: CropRect;
+    startQuad: CropQuad;
 };
 
 const defaultCrop: CropRect = { x: 8, y: 8, width: 84, height: 84 };
+const defaultQuad: CropQuad = rectToQuad(defaultCrop);
 const minCropSize = 14;
 const detectionCanvasMaxSize = 720;
 
@@ -46,37 +59,59 @@ function normalizeCrop(crop: CropRect) {
     };
 }
 
-function cropFromDrag(mode: DragState["mode"], start: CropRect, dx: number, dy: number) {
+function rectToQuad(rect: CropRect): CropQuad {
+    const normalized = normalizeCrop(rect);
+    return {
+        tl: { x: normalized.x, y: normalized.y },
+        tr: { x: normalized.x + normalized.width, y: normalized.y },
+        br: { x: normalized.x + normalized.width, y: normalized.y + normalized.height },
+        bl: { x: normalized.x, y: normalized.y + normalized.height },
+    };
+}
+
+function quadToBoundingRect(quad: CropQuad): CropRect {
+    const xs = [quad.tl.x, quad.tr.x, quad.br.x, quad.bl.x];
+    const ys = [quad.tl.y, quad.tr.y, quad.br.y, quad.bl.y];
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    const width = Math.max(...xs) - x;
+    const height = Math.max(...ys) - y;
+    return normalizeCrop({ x, y, width, height });
+}
+
+function normalizeQuad(quad: CropQuad): CropQuad {
+    return {
+        tl: { x: clamp(quad.tl.x, 0, 100), y: clamp(quad.tl.y, 0, 100) },
+        tr: { x: clamp(quad.tr.x, 0, 100), y: clamp(quad.tr.y, 0, 100) },
+        br: { x: clamp(quad.br.x, 0, 100), y: clamp(quad.br.y, 0, 100) },
+        bl: { x: clamp(quad.bl.x, 0, 100), y: clamp(quad.bl.y, 0, 100) },
+    };
+}
+
+function moveQuad(quad: CropQuad, dx: number, dy: number): CropQuad {
+    const rect = quadToBoundingRect(quad);
+    const clampedDx = clamp(dx, -rect.x, 100 - rect.x - rect.width);
+    const clampedDy = clamp(dy, -rect.y, 100 - rect.y - rect.height);
+    return {
+        tl: { x: quad.tl.x + clampedDx, y: quad.tl.y + clampedDy },
+        tr: { x: quad.tr.x + clampedDx, y: quad.tr.y + clampedDy },
+        br: { x: quad.br.x + clampedDx, y: quad.br.y + clampedDy },
+        bl: { x: quad.bl.x + clampedDx, y: quad.bl.y + clampedDy },
+    };
+}
+
+function quadFromDrag(mode: DragState["mode"], start: CropQuad, dx: number, dy: number) {
     if (mode === "move") {
-        return normalizeCrop({ ...start, x: start.x + dx, y: start.y + dy });
+        return normalizeQuad(moveQuad(start, dx, dy));
     }
 
-    let next = { ...start };
-    if (mode.includes("w")) {
-        next.x = start.x + dx;
-        next.width = start.width - dx;
-    }
-    if (mode.includes("e")) {
-        next.width = start.width + dx;
-    }
-    if (mode.includes("n")) {
-        next.y = start.y + dy;
-        next.height = start.height - dy;
-    }
-    if (mode.includes("s")) {
-        next.height = start.height + dy;
-    }
-
-    if (next.width < minCropSize) {
-        if (mode.includes("w")) next.x = start.x + start.width - minCropSize;
-        next.width = minCropSize;
-    }
-    if (next.height < minCropSize) {
-        if (mode.includes("n")) next.y = start.y + start.height - minCropSize;
-        next.height = minCropSize;
-    }
-
-    return normalizeCrop(next);
+    return normalizeQuad({
+        ...start,
+        [mode]: {
+            x: start[mode].x + dx,
+            y: start[mode].y + dy,
+        },
+    });
 }
 
 function average(values: number[]) {
@@ -275,12 +310,119 @@ async function cropImageToUploadJpeg(file: File, imageUrl: string, crop: CropRec
     );
 }
 
+function pointDistance(a: CropPoint, b: CropPoint) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function pointInPixels(point: CropPoint, image: HTMLImageElement): CropPoint {
+    return {
+        x: (point.x / 100) * image.naturalWidth,
+        y: (point.y / 100) * image.naturalHeight,
+    };
+}
+
+function interpolateSourcePoint(quad: CropQuad, u: number, v: number) {
+    const top = {
+        x: quad.tl.x + (quad.tr.x - quad.tl.x) * u,
+        y: quad.tl.y + (quad.tr.y - quad.tl.y) * u,
+    };
+    const bottom = {
+        x: quad.bl.x + (quad.br.x - quad.bl.x) * u,
+        y: quad.bl.y + (quad.br.y - quad.bl.y) * u,
+    };
+    return {
+        x: top.x + (bottom.x - top.x) * v,
+        y: top.y + (bottom.y - top.y) * v,
+    };
+}
+
+function samplePixel(data: Uint8ClampedArray, width: number, height: number, x: number, y: number) {
+    const clampedX = clamp(x, 0, width - 1);
+    const clampedY = clamp(y, 0, height - 1);
+    const x0 = Math.floor(clampedX);
+    const y0 = Math.floor(clampedY);
+    const x1 = Math.min(width - 1, x0 + 1);
+    const y1 = Math.min(height - 1, y0 + 1);
+    const tx = clampedX - x0;
+    const ty = clampedY - y0;
+
+    const i00 = (y0 * width + x0) * 4;
+    const i10 = (y0 * width + x1) * 4;
+    const i01 = (y1 * width + x0) * 4;
+    const i11 = (y1 * width + x1) * 4;
+    const result = [0, 0, 0, 255];
+
+    for (let channel = 0; channel < 4; channel += 1) {
+        const top = data[i00 + channel] * (1 - tx) + data[i10 + channel] * tx;
+        const bottom = data[i01 + channel] * (1 - tx) + data[i11 + channel] * tx;
+        result[channel] = Math.round(top * (1 - ty) + bottom * ty);
+    }
+
+    return result;
+}
+
+async function straightenQuadToUploadJpeg(file: File, imageUrl: string, quadPercent: CropQuad) {
+    const image = await fileToImage(imageUrl);
+    const quad = {
+        tl: pointInPixels(quadPercent.tl, image),
+        tr: pointInPixels(quadPercent.tr, image),
+        br: pointInPixels(quadPercent.br, image),
+        bl: pointInPixels(quadPercent.bl, image),
+    };
+
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = image.naturalWidth;
+    sourceCanvas.height = image.naturalHeight;
+    const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+    if (!sourceContext) return cropImageToUploadJpeg(file, imageUrl, quadToBoundingRect(quadPercent));
+
+    sourceContext.drawImage(image, 0, 0);
+    const source = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+    const rawWidth = Math.max(pointDistance(quad.tl, quad.tr), pointDistance(quad.bl, quad.br));
+    const rawHeight = Math.max(pointDistance(quad.tl, quad.bl), pointDistance(quad.tr, quad.br));
+    const maxSize = 1800;
+    const scale = Math.min(1, maxSize / Math.max(rawWidth, rawHeight));
+    const outputWidth = Math.max(1, Math.round(rawWidth * scale));
+    const outputHeight = Math.max(1, Math.round(rawHeight * scale));
+
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = outputWidth;
+    outputCanvas.height = outputHeight;
+    const outputContext = outputCanvas.getContext("2d");
+    if (!outputContext) return cropImageToUploadJpeg(file, imageUrl, quadToBoundingRect(quadPercent));
+
+    const output = outputContext.createImageData(outputWidth, outputHeight);
+    for (let y = 0; y < outputHeight; y += 1) {
+        const v = outputHeight <= 1 ? 0 : y / (outputHeight - 1);
+        for (let x = 0; x < outputWidth; x += 1) {
+            const u = outputWidth <= 1 ? 0 : x / (outputWidth - 1);
+            const sourcePoint = interpolateSourcePoint(quad, u, v);
+            const pixel = samplePixel(source.data, source.width, source.height, sourcePoint.x, sourcePoint.y);
+            const index = (y * outputWidth + x) * 4;
+            output.data[index] = pixel[0];
+            output.data[index + 1] = pixel[1];
+            output.data[index + 2] = pixel[2];
+            output.data[index + 3] = pixel[3];
+        }
+    }
+
+    outputContext.putImageData(output, 0, 0);
+    const blob = await new Promise<Blob | null>((resolve) => outputCanvas.toBlob(resolve, "image/jpeg", 0.92));
+    if (!blob) return cropImageToUploadJpeg(file, imageUrl, quadToBoundingRect(quadPercent));
+
+    return new File(
+        [blob],
+        `${file.name.replace(/\.[^.]+$/, "") || "factura"}-enderezada.jpg`,
+        { type: "image/jpeg", lastModified: Date.now() }
+    );
+}
+
 export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
     const [pendingImageUrl, setPendingImageUrl] = useState("");
-    const [crop, setCrop] = useState<CropRect>(defaultCrop);
+    const [quad, setQuad] = useState<CropQuad>(defaultQuad);
     const [dragState, setDragState] = useState<DragState | null>(null);
     const [isDetectingCrop, setIsDetectingCrop] = useState(false);
     const [cropDetectionMessage, setCropDetectionMessage] = useState("");
@@ -302,7 +444,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
             const rect = surface.getBoundingClientRect();
             const dx = ((event.clientX - dragState.startX) / rect.width) * 100;
             const dy = ((event.clientY - dragState.startY) / rect.height) * 100;
-            setCrop(cropFromDrag(dragState.mode, dragState.startCrop, dx, dy));
+            setQuad(quadFromDrag(dragState.mode, dragState.startQuad, dx, dy));
         };
 
         const handlePointerUp = () => setDragState(null);
@@ -318,7 +460,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
         setPendingImageFile(null);
         setPendingImageUrl("");
-        setCrop(defaultCrop);
+        setQuad(defaultQuad);
         setDragState(null);
         setIsDetectingCrop(false);
         setCropDetectionMessage("");
@@ -330,14 +472,14 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         try {
             const detectedCrop = await detectDocumentCrop(imageUrl);
             if (detectedCrop) {
-                setCrop(detectedCrop);
+                setQuad(rectToQuad(detectedCrop));
                 setCropDetectionMessage("Bordes detectados. Ajusta el recuadro si hace falta.");
             } else {
-                setCrop(defaultCrop);
+                setQuad(defaultQuad);
                 setCropDetectionMessage("No pude detectar bordes claros. Ajusta el recuadro manualmente.");
             }
         } catch {
-            setCrop(defaultCrop);
+            setQuad(defaultQuad);
             setCropDetectionMessage("No pude detectar bordes claros. Ajusta el recuadro manualmente.");
         } finally {
             setIsDetectingCrop(false);
@@ -386,7 +528,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
             const imageUrl = URL.createObjectURL(file);
             setPendingImageFile(file);
             setPendingImageUrl(imageUrl);
-            setCrop(defaultCrop);
+            setQuad(defaultQuad);
             await detectCropFromUrl(imageUrl);
             return;
         }
@@ -398,7 +540,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         if (!pendingImageFile || !pendingImageUrl) return;
 
         try {
-            const croppedFile = await cropImageToUploadJpeg(pendingImageFile, pendingImageUrl, crop);
+            const croppedFile = await straightenQuadToUploadJpeg(pendingImageFile, pendingImageUrl, quad);
             clearPendingCrop();
             await uploadFileToAi(croppedFile);
         } catch {
@@ -419,7 +561,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
             mode,
             startX: event.clientX,
             startY: event.clientY,
-            startCrop: crop,
+            startQuad: quad,
         });
     };
 
@@ -453,7 +595,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                             </div>
                             <h3 className="text-lg font-semibold">Ajustar area de la factura</h3>
                             <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                                Mueve el recuadro y ajusta las esquinas para enviar solo la factura a la IA.
+                                Mueve la hoja y ajusta sus esquinas para enderezarla antes de enviarla a la IA.
                             </p>
                             {cropDetectionMessage && (
                                 <p className="mx-auto max-w-md text-xs font-medium text-blue-700">
@@ -466,33 +608,37 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                             <div ref={cropSurfaceRef} className="relative mx-auto touch-none overflow-hidden rounded-xl">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={pendingImageUrl} alt="Factura para recortar" className="block max-h-[58vh] w-full select-none object-contain" draggable={false} />
-                                <div className="pointer-events-none absolute inset-0 bg-black/45" />
                                 <div
-                                    className="absolute cursor-move rounded-xl border-2 border-blue-400 bg-blue-500/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"
-                                    style={{
-                                        left: `${crop.x}%`,
-                                        top: `${crop.y}%`,
-                                        width: `${crop.width}%`,
-                                        height: `${crop.height}%`,
-                                    }}
+                                    className="absolute inset-0 cursor-move"
                                     onPointerDown={(event) => startDrag("move", event)}
                                 >
-                                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-                                        {Array.from({ length: 9 }).map((_, index) => (
-                                            <div key={index} className="border border-white/20" />
-                                        ))}
-                                    </div>
-                                    {(["nw", "ne", "sw", "se"] as const).map((handle) => (
+                                    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                        <defs>
+                                            <mask id="invoice-crop-mask">
+                                                <rect x="0" y="0" width="100" height="100" fill="white" />
+                                                <polygon points={`${quad.tl.x},${quad.tl.y} ${quad.tr.x},${quad.tr.y} ${quad.br.x},${quad.br.y} ${quad.bl.x},${quad.bl.y}`} fill="black" />
+                                            </mask>
+                                        </defs>
+                                        <rect x="0" y="0" width="100" height="100" fill="black" opacity="0.55" mask="url(#invoice-crop-mask)" />
+                                        <polygon
+                                            points={`${quad.tl.x},${quad.tl.y} ${quad.tr.x},${quad.tr.y} ${quad.br.x},${quad.br.y} ${quad.bl.x},${quad.bl.y}`}
+                                            fill="rgba(37, 99, 235, 0.12)"
+                                            stroke="rgb(96, 165, 250)"
+                                            strokeWidth="0.55"
+                                            vectorEffect="non-scaling-stroke"
+                                        />
+                                        <line x1={quad.tl.x + (quad.tr.x - quad.tl.x) / 3} y1={quad.tl.y + (quad.tr.y - quad.tl.y) / 3} x2={quad.bl.x + (quad.br.x - quad.bl.x) / 3} y2={quad.bl.y + (quad.br.y - quad.bl.y) / 3} stroke="rgba(255,255,255,0.35)" strokeWidth="0.25" vectorEffect="non-scaling-stroke" />
+                                        <line x1={quad.tl.x + ((quad.tr.x - quad.tl.x) * 2) / 3} y1={quad.tl.y + ((quad.tr.y - quad.tl.y) * 2) / 3} x2={quad.bl.x + ((quad.br.x - quad.bl.x) * 2) / 3} y2={quad.bl.y + ((quad.br.y - quad.bl.y) * 2) / 3} stroke="rgba(255,255,255,0.35)" strokeWidth="0.25" vectorEffect="non-scaling-stroke" />
+                                        <line x1={quad.tl.x + (quad.bl.x - quad.tl.x) / 3} y1={quad.tl.y + (quad.bl.y - quad.tl.y) / 3} x2={quad.tr.x + (quad.br.x - quad.tr.x) / 3} y2={quad.tr.y + (quad.br.y - quad.tr.y) / 3} stroke="rgba(255,255,255,0.35)" strokeWidth="0.25" vectorEffect="non-scaling-stroke" />
+                                        <line x1={quad.tl.x + ((quad.bl.x - quad.tl.x) * 2) / 3} y1={quad.tl.y + ((quad.bl.y - quad.tl.y) * 2) / 3} x2={quad.tr.x + ((quad.br.x - quad.tr.x) * 2) / 3} y2={quad.tr.y + ((quad.br.y - quad.tr.y) * 2) / 3} stroke="rgba(255,255,255,0.35)" strokeWidth="0.25" vectorEffect="non-scaling-stroke" />
+                                    </svg>
+                                    {(["tl", "tr", "br", "bl"] as const).map((handle) => (
                                         <button
                                             key={handle}
                                             type="button"
                                             aria-label={`Ajustar esquina ${handle}`}
-                                            className={`absolute h-7 w-7 rounded-full border-2 border-white bg-blue-600 shadow-lg ${
-                                                handle === "nw" ? "-left-3.5 -top-3.5 cursor-nwse-resize" :
-                                                handle === "ne" ? "-right-3.5 -top-3.5 cursor-nesw-resize" :
-                                                handle === "sw" ? "-bottom-3.5 -left-3.5 cursor-nesw-resize" :
-                                                "-bottom-3.5 -right-3.5 cursor-nwse-resize"
-                                            }`}
+                                            className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-blue-600 shadow-lg"
+                                            style={{ left: `${quad[handle].x}%`, top: `${quad[handle].y}%` }}
                                             onPointerDown={(event) => startDrag(handle, event)}
                                         />
                                     ))}
@@ -512,7 +658,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setCrop(defaultCrop)}
+                                onClick={() => setQuad(defaultQuad)}
                                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                             >
                                 <RotateCcw className="h-4 w-4" />
@@ -540,7 +686,7 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 hover:bg-blue-700"
                             >
                                 <Check className="h-4 w-4" />
-                                Procesar recorte
+                                Procesar enderezada
                             </button>
                         </div>
 
