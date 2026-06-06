@@ -58,6 +58,59 @@ function importedItemDescription(imported: any, item: any) {
         "Compra importada con IA";
 }
 
+function firstImportedText(source: any, keys: string[]) {
+    for (const key of keys) {
+        const value = source?.[key];
+        if (typeof value === "string" && value.trim()) return value.trim();
+        if (value && typeof value !== "object") return String(value).trim();
+    }
+    return "";
+}
+
+function importedSupplierName(imported: any) {
+    return firstImportedText(imported, [
+        "supplierName",
+        "providerName",
+        "vendorName",
+        "issuerName",
+        "sellerName",
+        "merchantName",
+        "razonSocialEmisor",
+        "razon_social_emisor",
+        "nombreEmisor",
+        "nombre_emisor",
+        "emisor",
+        "proveedor",
+        "vendedor",
+    ]) ||
+        firstImportedText(imported?.supplier || {}, ["name", "nombre", "razonSocial", "businessName"]) ||
+        firstImportedText(imported?.emisor || {}, ["name", "nombre", "razonSocial", "businessName"]) ||
+        firstImportedText(imported?.proveedor || {}, ["name", "nombre", "razonSocial", "businessName"]);
+}
+
+function importedSupplierTaxId(imported: any) {
+    return firstImportedText(imported, [
+        "supplierTaxId",
+        "providerTaxId",
+        "vendorTaxId",
+        "issuerTaxId",
+        "sellerTaxId",
+        "merchantTaxId",
+        "rncEmisor",
+        "rnc_emisor",
+        "rncProveedor",
+        "rnc_proveedor",
+        "taxId",
+        "rnc",
+        "cedula",
+        "ruc",
+        "vatNumber",
+    ]) ||
+        firstImportedText(imported?.supplier || {}, ["taxId", "rnc", "cedula", "ruc", "vatNumber"]) ||
+        firstImportedText(imported?.emisor || {}, ["taxId", "rnc", "cedula", "ruc", "vatNumber"]) ||
+        firstImportedText(imported?.proveedor || {}, ["taxId", "rnc", "cedula", "ruc", "vatNumber"]);
+}
+
 export function PurchaseForm({ contacts, projects = [], initialData, defaultProjectId = "", successRedirect }: PurchaseFormProps) {
     const router = useRouter();
     const [items, setItems] = useState([
@@ -83,6 +136,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     const [targetProfileId, setTargetProfileId] = useState<number | null>(null);
     const [purchaseType, setPurchaseType] = useState("FORMAL");
     const [importAttachment, setImportAttachment] = useState<any | null>(null);
+    const [isAiImport, setIsAiImport] = useState(false);
 
     const applyTaxTreatment = (value: string) => {
         setTaxTreatment(value);
@@ -179,8 +233,9 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
 
             setPurchaseType(imported.type === "INFORMAL" ? "INFORMAL" : "FORMAL");
             setContactId("manual");
-            setContactName(imported.supplierName || "Proveedor sin identificar");
-            setContactTaxId(imported.supplierTaxId || "");
+            setIsAiImport(true);
+            setContactName(importedSupplierName(imported));
+            setContactTaxId(importedSupplierTaxId(imported));
             setSupplierWebsiteUrl(imported.supplierWebsiteUrl || imported.websiteUrl || imported.website || "");
             setSaveAsContact(false);
             setNcf(imported.ncf || "");
@@ -222,6 +277,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
 
     useEffect(() => {
         if (initialData) {
+            setIsAiImport(false);
             if (initialData.contactId) {
                 setContactId(initialData.contactId.toString());
                 setSaveAsContact(true);
@@ -258,6 +314,13 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
         }
     }, [defaultProjectId, initialData]);
 
+    useEffect(() => {
+        if (isAiImport && !initialData && contactId !== "manual") {
+            setContactId("manual");
+            setSaveAsContact(false);
+        }
+    }, [contactId, initialData, isAiImport]);
+
     const addItem = () => {
         setItems([...items, { description: "", quantity: 1, price: 0, taxRate: 18 }]);
     };
@@ -284,7 +347,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     const taxDop = tax * exchangeRateValue;
     const totalDop = total * exchangeRateValue;
     const isManualSupplier = contactId === "manual";
-    const showSupplierFields = contactId === "new" || isManualSupplier || isFromQR || (!contactId && (!!contactName || !!contactTaxId));
+    const showSupplierFields = contactId === "new" || isManualSupplier || isFromQR || isAiImport || (!contactId && (!!contactName || !!contactTaxId));
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -656,8 +719,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                                 <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
                                     {contactId === 'new'
                                         ? contactName || 'Nuevo Proveedor'
-                                        : contactId === 'manual'
-                                            ? contactName || 'Emisor manual'
+                                        : contactId === 'manual' || isAiImport
+                                            ? contactName || 'Completar proveedor'
                                             : contactName || contacts.find(s => s.id.toString() === contactId)?.name || 'Sin seleccionar'}
                                 </div>
                             </div>

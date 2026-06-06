@@ -10,6 +10,8 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Se filtra el RNC del comprador para evitar guardarlo como RNC del proveedor.
 - El prompt y `responseSchema` ahora especifican con mas fuerza que `supplierName` y `supplierTaxId` pertenecen al emisor/vendedor, no al comprador.
 - Si una compra individual llega sin proveedor o RNC, se ejecuta un segundo pase de IA enfocado solo en el encabezado del comprobante para extraer emisor/RNC.
+- Se agrega un tercer fallback de OCR de encabezado: transcribe las primeras lineas del comprobante y parsea nombre/RNC del emisor localmente.
+- El formulario de nueva compra ahora fuerza modo `emisor manual` para importaciones IA y muestra los campos de proveedor aunque el dato llegue incompleto.
 
 ### Pendiente de prueba
 - Importar una factura local con RNC emisor y confirmar que proveedor/RNC llegan al formulario.

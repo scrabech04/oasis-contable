@@ -490,6 +490,17 @@ const purchaseSupplierFallbackSchema: ResponseSchema = {
   },
 };
 
+const purchaseHeaderFallbackSchema: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  required: ["headerText"],
+  properties: {
+    headerText: {
+      type: SchemaType.STRING,
+      description: "Exact transcription of the top/header lines of the receipt, preserving line breaks when possible.",
+    },
+  },
+};
+
 const saleInvoiceSchema: ResponseSchema = {
   type: SchemaType.ARRAY,
   minItems: 1,
@@ -844,6 +855,38 @@ function textBag(row: any) {
   return collectTextValues(row).join(" ");
 }
 
+function headerSupplierFromText(headerText: string) {
+  const decoded = textFromHtml(headerText || "");
+  const rawLines = String(headerText || decoded)
+    .replace(/\r/g, "\n")
+    .split(/\n| {2,}/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const text = rawLines.join(" ");
+  const rncMatch = text.match(/\bRNC\s*[:#-]?\s*([0-9][0-9\s-]{7,15})/i);
+  const supplierTaxId = cleanTaxId(rncMatch?.[1] || textAfterLabel(text, ["RNC", "RNC Emisor", "RNC proveedor"]));
+  const rncLineIndex = rawLines.findIndex((line) => /\bRNC\b/i.test(line));
+  const headerLines = (rncLineIndex > 0 ? rawLines.slice(0, rncLineIndex) : rawLines.slice(0, 8))
+    .map(cleanSupplierName)
+    .filter((line) => {
+      if (!line) return false;
+      if (/\b(av|ave|avenida|calle|c\/|tel|telefono|telÃ©fono|phone|fecha|hora|cedula|c[eÃ©]dula|cliente|comprador)\b/i.test(line)) return false;
+      if (/\b(ncf|e-ncf|encf|factura|credito fiscal|cr[eÃ©]dito fiscal|itbis|total|pagar|masterca|visa)\b/i.test(line)) return false;
+      if (/^[0-9\s().,+-]+$/.test(line)) return false;
+      return true;
+    });
+
+  const supplierName = uniqueValues(headerLines)
+    .slice(0, 3)
+    .join(" / ");
+
+  return {
+    supplierName: cleanSupplierName(supplierName),
+    supplierTaxId,
+  };
+}
+
 function supplierNameFromImportedRow(row: any) {
   const direct = firstText(row, [
     "supplierName",
@@ -1043,6 +1086,46 @@ Reglas:
 
   if (!supplierName && !supplierTaxId) return null;
   return { supplierName, supplierTaxId, supplierWebsiteUrl };
+}
+
+async function extractPurchaseHeaderFallback(
+  apiKey: string,
+  filePart: Awaited<ReturnType<typeof fileToGenerativePart>>
+) {
+  const prompt = `Transcribe exactamente las lineas superiores/encabezado del comprobante antes de la descripcion de productos.
+
+Incluye nombre del negocio, razon social, direccion, telefono, RNC/Tax ID y cualquier linea visible antes de los items.
+No resumas ni inventes. Devuelve exclusivamente JSON:
+{ "headerText": "linea 1\\nlinea 2\\n..." }`;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const attempts: string[] = [];
+
+  for (const modelName of configuredGeminiModels()) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: purchaseHeaderFallbackSchema,
+          temperature: 0.05,
+        },
+      });
+      const result = await model.generateContent([prompt, filePart]);
+      const parsed = JSON.parse(result.response.text());
+      const headerText = typeof parsed?.headerText === "string" ? parsed.headerText : "";
+      const parsedSupplier = headerSupplierFromText(headerText);
+      if (parsedSupplier.supplierName || parsedSupplier.supplierTaxId) {
+        return parsedSupplier;
+      }
+      attempts.push(`${modelName}: header sin proveedor/RNC reconocible`);
+    } catch (error) {
+      attempts.push(`${modelName}: ${summarizeGeminiError(error)}`);
+    }
+  }
+
+  console.warn(`Gemini header fallback failed: ${attempts.join(" | ")}`);
+  return null;
 }
 
 function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
@@ -1247,15 +1330,32 @@ Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devue
 
   console.info(`Gemini invoice import completed with model ${generated.modelName}`);
   const rows = generated.rows;
-  const purchaseSupplierFallback =
+  const needsPurchaseSupplierFallback =
     mode === "purchase" &&
     rows.length === 1 &&
     (
       isMissingSupplierName(supplierNameFromImportedRow(rows[0]) || firstText(rows[0], ["supplierName", "vendorName", "providerName"])) ||
       isMissingSupplierTaxId(supplierTaxIdFromImportedRow(rows[0]) || firstText(rows[0], ["supplierTaxId", "vendorTaxId", "providerTaxId", "rnc"]))
+    );
+  const firstPurchaseSupplierFallback = needsPurchaseSupplierFallback
+    ? await extractPurchaseSupplierFallback(apiKey, filePart)
+    : null;
+  const purchaseHeaderFallback =
+    needsPurchaseSupplierFallback &&
+    (
+      !firstPurchaseSupplierFallback ||
+      isMissingSupplierName(firstPurchaseSupplierFallback.supplierName) ||
+      isMissingSupplierTaxId(firstPurchaseSupplierFallback.supplierTaxId)
     )
-      ? await extractPurchaseSupplierFallback(apiKey, filePart)
+      ? await extractPurchaseHeaderFallback(apiKey, filePart)
       : null;
+  const purchaseSupplierFallback = firstPurchaseSupplierFallback || purchaseHeaderFallback
+    ? {
+        supplierName: firstPurchaseSupplierFallback?.supplierName || purchaseHeaderFallback?.supplierName || "",
+        supplierTaxId: firstPurchaseSupplierFallback?.supplierTaxId || purchaseHeaderFallback?.supplierTaxId || "",
+        supplierWebsiteUrl: firstPurchaseSupplierFallback?.supplierWebsiteUrl || "",
+      }
+    : null;
   const data =
       mode === "purchase"
         ? rows.map((row: any) => {
