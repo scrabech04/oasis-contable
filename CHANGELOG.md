@@ -14,8 +14,8 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Si una compra individual llega sin proveedor o RNC, se ejecuta un segundo pase de IA enfocado solo en el encabezado del comprobante para extraer emisor/RNC.
 - Se agrega un tercer fallback de OCR de encabezado: transcribe las primeras lineas del comprobante y parsea nombre/RNC del emisor localmente.
 - El formulario de nueva compra ahora fuerza modo `emisor manual` para importaciones IA y muestra los campos de proveedor aunque el dato llegue incompleto.
-- Para diagnostico temporal, las compras importadas con IA ahora escriben en `Notas` el proveedor/RNC detectado por la IA principal, el fallback de encabezado, el OCR de encabezado y el valor final enviado al formulario.
 - El formulario de compra ahora conserva en estado interno el proveedor/RNC detectado por IA y lo usa para rellenar los campos de emisor o enlazar un proveedor existente si coincide por RNC/nombre.
+- Se retira el diagnostico temporal de proveedor en las notas de compras importadas con IA ahora que el flujo ya fue validado.
 
 ### Pendiente de prueba
 - Importar una factura local con RNC emisor y confirmar que proveedor/RNC llegan al formulario.
