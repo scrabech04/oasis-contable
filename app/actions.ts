@@ -1050,6 +1050,57 @@ function isMissingSupplierTaxId(value: string) {
   return !cleaned || /^(n\/a|na|null|none|sin rnc|no aplica)$/i.test(cleaned);
 }
 
+function debugText(value: unknown) {
+  const cleaned = String(value || "").replace(/\s+/g, " ").trim();
+  return cleaned || "NO DETECTADO";
+}
+
+function buildAiSupplierDiagnosticNote({
+  originalNotes,
+  row,
+  rowSupplierName,
+  rowSupplierTaxId,
+  focusedFallback,
+  headerFallback,
+  normalizedSupplierName,
+  normalizedSupplierTaxId,
+}: {
+  originalNotes: unknown;
+  row: any;
+  rowSupplierName: string;
+  rowSupplierTaxId: string;
+  focusedFallback: { supplierName?: string; supplierTaxId?: string; supplierWebsiteUrl?: string } | null;
+  headerFallback: { supplierName?: string; supplierTaxId?: string } | null;
+  normalizedSupplierName: string;
+  normalizedSupplierTaxId: string;
+}) {
+  const base = typeof originalNotes === "string" ? originalNotes.trim() : "";
+  const rowKeys = row && typeof row === "object" ? Object.keys(row).join(", ") : "";
+  const textPreview = uniqueValues(
+    collectTextValues(row)
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+  )
+    .slice(0, 8)
+    .join(" | ");
+
+  const diagnostic = [
+    "Diagnostico IA proveedor:",
+    `- IA principal proveedor: ${debugText(rowSupplierName)}`,
+    `- IA principal RNC/Tax ID: ${debugText(rowSupplierTaxId)}`,
+    `- IA enfocada encabezado proveedor: ${debugText(focusedFallback?.supplierName)}`,
+    `- IA enfocada encabezado RNC/Tax ID: ${debugText(focusedFallback?.supplierTaxId)}`,
+    `- OCR encabezado proveedor: ${debugText(headerFallback?.supplierName)}`,
+    `- OCR encabezado RNC/Tax ID: ${debugText(headerFallback?.supplierTaxId)}`,
+    `- Proveedor final formulario: ${debugText(normalizedSupplierName)}`,
+    `- RNC/Tax ID final formulario: ${debugText(normalizedSupplierTaxId)}`,
+    `- Campos recibidos: ${debugText(rowKeys)}`,
+    `- Textos recibidos: ${debugText(textPreview)}`,
+  ].join("\n");
+
+  return base ? `${base}\n\n${diagnostic}` : diagnostic;
+}
+
 async function extractPurchaseSupplierFallback(
   apiKey: string,
   filePart: Awaited<ReturnType<typeof fileToGenerativePart>>
@@ -1438,7 +1489,16 @@ Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devue
               costType: firstText(row, ["costType", "tipoGasto", "tipo gasto"]) || "02",
               category: firstText(row, ["category", "categoria", "categoría"]) || "Otros",
               total: normalized.total,
-              notes: row.notes ? String(row.notes) : "",
+              notes: buildAiSupplierDiagnosticNote({
+                originalNotes: row.notes,
+                row,
+                rowSupplierName: supplierName,
+                rowSupplierTaxId: supplierTaxId,
+                focusedFallback: firstPurchaseSupplierFallback,
+                headerFallback: purchaseHeaderFallback,
+                normalizedSupplierName,
+                normalizedSupplierTaxId,
+              }),
               items: normalized.items,
               attachment: evidence,
             };
