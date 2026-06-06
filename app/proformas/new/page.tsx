@@ -7,5 +7,9 @@ export default async function NewProformaPage() {
     getProjects(),
   ]);
 
-  return <ProformaForm contacts={contacts} projects={projects} />;
+  return (
+    <div className="animate-in fade-in duration-500">
+      <ProformaForm contacts={contacts} projects={projects} />
+    </div>
+  );
 }

@@ -13,13 +13,8 @@ export default async function NewPurchasePage(props: {
     ]);
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Nueva Compra a Proveedor</h1>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <PurchaseForm contacts={contacts} projects={projects} defaultProjectId={defaultProjectId} successRedirect={successRedirect} />
-            </div>
+        <div className="animate-in fade-in duration-500">
+            <PurchaseForm contacts={contacts} projects={projects} defaultProjectId={defaultProjectId} successRedirect={successRedirect} />
         </div>
     );
 }

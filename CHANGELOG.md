@@ -5,6 +5,8 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 ## 2026-06-06 - Proveedor en importacion IA
 
 ### Mejorado
+- Se unifican las pantallas de nueva compra, nueva factura, nueva cotizacion y nueva prefactura: se eliminan contenedores externos duplicados, se normalizan headers, botones, grids y cards.
+- Las rutas de edicion de compra, factura y prefactura ya no envuelven el formulario en una card adicional, evitando el efecto de cajas anidadas.
 - La importacion de compras con IA ahora reconoce mas variantes para proveedor/emisor: issuer, seller, merchant, vendor, vendedor, emisor y razon social emisor.
 - Se agregan rescates desde texto libre cuando Gemini coloca el proveedor o RNC dentro de notas, descripcion o estructuras anidadas.
 - Se filtra el RNC del comprador para evitar guardarlo como RNC del proveedor.

@@ -5,7 +5,6 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createProforma, updateProforma } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
-import { primaryActionClass } from "@/lib/ui-styles";
 import { Plus, Save, Trash2 } from "lucide-react";
 
 type ProformaFormProps = {
@@ -84,76 +83,120 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
   };
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-col gap-4 border-b border-slate-200 pb-6 dark:border-slate-800 md:flex-row md:items-center md:justify-between">
+    <form onSubmit={submit} className="px-4 py-8 space-y-8 animate-in fade-in duration-500">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <p className="text-xs font-black uppercase tracking-wider text-blue-600">Documento no fiscal</p>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-white">{initialData ? `Editar ${initialData.number}` : "Nueva prefactura"}</h1>
-          <p className="mt-1 text-sm text-slate-500">No emite NCF ni entra al 607 hasta convertirse en factura fiscal.</p>
+          <nav className="flex items-center text-sm text-slate-500 dark:text-slate-400 mb-2">
+            <span>Ventas</span>
+            <span className="material-icons-outlined text-sm mx-2">chevron_right</span>
+            <span className="font-medium text-blue-600">{initialData ? "Editar Prefactura" : "Nueva Prefactura"}</span>
+          </nav>
+          <div className="flex flex-wrap items-center gap-4">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+              <span className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-600">
+                <span className="material-icons-outlined">request_quote</span>
+              </span>
+              {initialData ? `Editar ${initialData.number}` : "Nueva Prefactura"}
+            </h1>
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border bg-slate-100 text-slate-500 border-slate-200 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300">
+              No fiscal
+            </span>
+          </div>
         </div>
-        <button type="submit" disabled={isSubmitting} className={primaryActionClass}>
-          <Save className="h-4 w-4" />
-          {isSubmitting ? "Guardando..." : "Guardar prefactura"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <Save className="h-4 w-4" />
+            {isSubmitting ? "Guardando..." : "Guardar Prefactura"}
+          </button>
+        </div>
       </header>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div>}
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Cliente</label>
-          <select value={contactId} onChange={(event) => setContactId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-            {contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
-            <option value="new">Crear cliente manual</option>
-          </select>
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+              <span className="material-icons-outlined text-sm">person</span>
+            </div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Contacto / Cliente</h2>
+          </div>
+          <div className="relative">
+            <label className="absolute left-3 -top-2 px-1 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase text-slate-400 z-10">Seleccionar Contacto</label>
+            <select value={contactId} onChange={(event) => setContactId(event.target.value)} className="mt-1 h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800">
+              {contacts.map((contact) => <option key={contact.id} value={contact.id}>{contact.name}</option>)}
+              <option value="new">+ Nuevo Contacto</option>
+            </select>
+          </div>
           {contactId === "new" && (
             <div className="mt-3 space-y-3">
-              <input value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Nombre del cliente" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-              <input name="contactTaxId" placeholder="RNC/Cedula" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+              <input value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Nombre del cliente" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900" />
+              <input name="contactTaxId" placeholder="RNC/Cedula" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900" />
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Proyecto</label>
-          <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-            <option value="">Sin proyecto</option>
-            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-          </select>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Fecha
-              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal dark:border-slate-800 dark:bg-slate-950" />
-            </label>
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Vence
-              <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal dark:border-slate-800 dark:bg-slate-950" />
-            </label>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:col-span-2">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+              <span className="material-icons-outlined text-sm">description</span>
+            </div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Detalles de Prefactura</h2>
           </div>
-          <label className="mt-3 block text-xs font-bold uppercase tracking-wider text-slate-500">
-            Estado
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal dark:border-slate-800 dark:bg-slate-950">
-              <option value="DRAFT">Borrador</option>
-              <option value="SENT">Enviada</option>
-              <option value="CANCELLED">Cancelada</option>
-            </select>
-          </label>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="relative">
+              <label className="absolute left-3 -top-2 px-1 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase text-slate-400 z-10">Fecha Emision</label>
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800" />
+            </div>
+            <div className="relative">
+              <label className="absolute left-3 -top-2 px-1 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase text-slate-400 z-10">Vencimiento</label>
+              <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800" />
+            </div>
+            <div className="relative">
+              <label className="absolute left-3 -top-2 px-1 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase text-slate-400 z-10">Proyecto</label>
+              <select value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800">
+                <option value="">Sin proyecto</option>
+                {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+              </select>
+            </div>
+            <div className="relative">
+              <label className="absolute left-3 -top-2 px-1 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase text-slate-400 z-10">Estado Actual</label>
+              <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800">
+                <option value="DRAFT">Borrador</option>
+                <option value="SENT">Enviada</option>
+                <option value="CANCELLED">Cancelada</option>
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titulo opcional" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          <input value={subtitle} onChange={(event) => setSubtitle(event.target.value)} placeholder="Subtitulo opcional" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titulo opcional" className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800" />
+          <input value={subtitle} onChange={(event) => setSubtitle(event.target.value)} placeholder="Subtitulo opcional" className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium dark:border-slate-700 dark:bg-slate-800" />
         </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Items</h2>
+        <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50/50 p-6 dark:border-slate-800 dark:bg-slate-800/30 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+              <span className="material-icons-outlined text-sm">view_quilt</span>
+            </div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Lineas de Detalle</h2>
+          </div>
           <button type="button" onClick={() => setItems([...items, { ...defaultItem }])} className="inline-flex h-10 items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 text-sm font-bold text-blue-700 hover:bg-blue-100">
             <Plus className="h-4 w-4" />
             Agregar item
@@ -161,11 +204,11 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
         </div>
         <div className="space-y-3 p-5">
           {items.map((item, index) => (
-            <div key={index} className="grid grid-cols-1 gap-3 rounded-xl border border-slate-100 p-3 dark:border-slate-800 md:grid-cols-[1fr_90px_130px_110px_44px]">
-              <input value={item.description} onChange={(event) => setItem(index, "description", event.target.value)} placeholder="Descripcion" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-              <input value={item.quantity} onChange={(event) => setItem(index, "quantity", event.target.value)} type="number" min="0" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-              <input value={item.price} onChange={(event) => setItem(index, "price", event.target.value)} type="number" min="0" step="0.01" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-              <input value={item.taxRate} onChange={(event) => setItem(index, "taxRate", event.target.value)} type="number" min="0" step="0.01" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+            <div key={index} className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 p-3 dark:border-slate-800 md:grid-cols-[1fr_90px_130px_110px_44px]">
+              <input value={item.description} onChange={(event) => setItem(index, "description", event.target.value)} placeholder="Descripcion" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm dark:border-slate-700 dark:bg-slate-800" />
+              <input value={item.quantity} onChange={(event) => setItem(index, "quantity", event.target.value)} type="number" min="0" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm dark:border-slate-700 dark:bg-slate-800" />
+              <input value={item.price} onChange={(event) => setItem(index, "price", event.target.value)} type="number" min="0" step="0.01" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm dark:border-slate-700 dark:bg-slate-800" />
+              <input value={item.taxRate} onChange={(event) => setItem(index, "taxRate", event.target.value)} type="number" min="0" step="0.01" className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm dark:border-slate-700 dark:bg-slate-800" />
               <button type="button" onClick={() => setItems(items.filter((_, i) => i !== index))} className="flex h-11 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-600">
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -175,9 +218,9 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas internas o visibles" className="min-h-28 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
-          <textarea value={termsAndConditions} onChange={(event) => setTermsAndConditions(event.target.value)} placeholder="Terminos y condiciones" className="mt-3 min-h-28 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-950" />
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Notas internas o visibles" className="min-h-28 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800" />
+          <textarea value={termsAndConditions} onChange={(event) => setTermsAndConditions(event.target.value)} placeholder="Terminos y condiciones" className="mt-3 min-h-28 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-800" />
         </div>
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm dark:border-blue-900/40 dark:bg-blue-900/20">
           <p className="text-xs font-black uppercase tracking-wider text-blue-600">Totales proforma</p>

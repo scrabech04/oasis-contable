@@ -13,5 +13,9 @@ export default async function EditProformaPage({ params }: { params: Promise<{ i
   ]);
   if (!proforma) notFound();
 
-  return <ProformaForm contacts={contacts} projects={projects} initialData={proforma} />;
+  return (
+    <div className="animate-in fade-in duration-500">
+      <ProformaForm contacts={contacts} projects={projects} initialData={proforma} />
+    </div>
+  );
 }

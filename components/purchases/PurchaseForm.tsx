@@ -445,7 +445,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     };
 
     return (
-        <form onSubmit={handleSubmit} className="max-w-6xl mx-auto px-4 py-8 space-y-8 font-sans">
+        <form onSubmit={handleSubmit} className="px-4 py-8 space-y-8 animate-in fade-in duration-500">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
                     <nav className="flex items-center text-sm text-slate-500 dark:text-slate-400 mb-2">
@@ -455,23 +455,25 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                             {initialData ? "Editar Compra" : "Nueva Compra"}
                         </span>
                     </nav>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+                        <span className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-600">
+                            <span className="material-icons-outlined">shopping_cart</span>
+                        </span>
                         {initialData ? "Editar Factura de Compra" : "Nueva Compra a Proveedor"}
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Registra una nueva factura de compra de tus proveedores</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
                         onClick={() => router.back()}
-                        className="px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors rounded-lg"
+                        className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         <span className="material-icons-outlined text-[18px]">save</span>
                         {submitting ? "Guardando..." : initialData ? "Actualizar Compra" : "Registrar Compra"}
@@ -479,10 +481,10 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 </div>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Supplier Section */}
-                <div className="md:col-span-4">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 h-full shadow-sm">
+                <div className="lg:col-span-1">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm h-full">
                         <div className="flex items-center gap-3 mb-6">
                             <div className="h-8 w-8 rounded-lg bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600">
                                 <User className="w-4 h-4" />
@@ -589,8 +591,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 </div>
 
                 {/* Purchase Details Section */}
-                <div className="md:col-span-8">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 h-full shadow-sm">
+                <div className="lg:col-span-2">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm h-full">
                         <div className="flex items-center gap-2 mb-6 text-slate-400 dark:text-slate-500">
                             <span className="material-icons-outlined text-[20px]">description</span>
                             <h2 className="text-xs font-bold uppercase tracking-wider">Detalles del documento</h2>
@@ -702,8 +704,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 </div>
 
                 {/* Project Section */}
-                <div className="md:col-span-12">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="lg:col-span-3">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                         <div className="flex items-center gap-2 mb-6 text-slate-400 dark:text-slate-500">
                             <span className="material-icons-outlined text-[20px]">folder</span>
                             <h2 className="text-xs font-bold uppercase tracking-wider">Proyecto (Opcional)</h2>
@@ -748,8 +750,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 </div>
 
                 {/* Items Table Section */}
-                <div className="md:col-span-12">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                <div className="lg:col-span-3">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
                         <div className="flex flex-col gap-4 p-4 bg-orange-600/10 dark:bg-orange-900/20 border-t border-orange-100 dark:border-orange-800 md:flex-row md:items-end md:justify-between">
                             <div className="min-w-0">
                                 <span className="text-[10px] font-black uppercase tracking-wider text-orange-600">Proveedor Seleccionado</span>
@@ -955,14 +957,14 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 </div>
 
                 {/* Footer Section: Notes and Totals */}
-                <div className="md:col-span-8">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 h-full shadow-sm">
+                <div className="lg:col-span-2">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm h-full">
                         <div className="flex items-center gap-2 mb-6 text-slate-400 dark:text-slate-500">
                             <span className="material-icons-outlined text-[20px]">chat_bubble_outline</span>
                             <h2 className="text-xs font-bold uppercase tracking-wider">Notas</h2>
                         </div>
                         <textarea
-                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all placeholder:text-slate-400 resize-none p-3"
+                            className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-blue-600 focus:border-blue-600 transition-all placeholder:text-slate-400 resize-none p-3"
                             placeholder="Información adicional sobre esta compra..."
                             rows={4}
                             value={notes}
@@ -971,8 +973,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                     </div>
                 </div>
 
-                <div className="md:col-span-4">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 h-full shadow-sm">
+                <div className="lg:col-span-1">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm h-full">
                         <div className="flex items-center gap-2 mb-6 text-slate-400 dark:text-slate-500">
                             <span className="material-icons-outlined text-[20px]">calculate</span>
                             <h2 className="text-xs font-bold uppercase tracking-wider">Totales de Compra</h2>
@@ -1014,14 +1016,14 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                     <button
                         type="button"
                         onClick={() => router.back()}
-                        className="px-5 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors rounded-lg"
+                        className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all rounded-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         <span className="material-icons-outlined text-[18px]">save</span>
                         {submitting ? "Guardando..." : initialData ? "Actualizar Compra" : "Registrar Compra"}

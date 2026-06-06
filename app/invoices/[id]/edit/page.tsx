@@ -25,13 +25,8 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Editar Factura #{invoice.id}</h1>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <InvoiceForm contacts={contacts} projects={projects} initialData={invoice} />
-            </div>
+        <div className="animate-in fade-in duration-500">
+            <InvoiceForm contacts={contacts} projects={projects} initialData={invoice} />
         </div>
     );
 }
