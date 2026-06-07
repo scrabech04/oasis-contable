@@ -2,6 +2,17 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-06 - Propina legal 10% en importacion IA
+
+### Mejorado
+- La importacion de compras con IA ahora reconoce la propina legal/cargo por servicio del 10% en facturas de restaurantes, bares y establecimientos de comida.
+- Ese 10% se guarda como una linea separada `Propina legal 10%` con impuesto 0, para que el total de la compra cuadre sin inflar el ITBIS acreditable.
+- Si Gemini devuelve el 10% como porcentaje en vez de monto, el sistema lo convierte al monto real usando subtotal, ITBIS y total.
+
+### Pendiente de prueba
+- Importar una factura de restaurante con subtotal + ITBIS + propina legal y confirmar que se crean dos lineas: consumo con ITBIS y propina legal sin ITBIS.
+- Validar que una factura sin propina legal se siga importando como un solo item resumen.
+
 ## 2026-06-06 - Unificacion de paginas madre
 
 ### Mejorado

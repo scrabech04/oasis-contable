@@ -448,6 +448,7 @@ const purchaseInvoiceSchema: ResponseSchema = {
       category: { type: SchemaType.STRING },
       subtotal: { type: SchemaType.NUMBER },
       taxAmount: { type: SchemaType.NUMBER },
+      serviceChargeAmount: { type: SchemaType.NUMBER, description: "Legal 10% service charge/tip for restaurants, if present. Not ITBIS." },
       total: { type: SchemaType.NUMBER },
       taxTreatment: { type: SchemaType.STRING },
       notes: { type: SchemaType.STRING },
@@ -805,6 +806,14 @@ function firstMoney(row: any, keys: string[]) {
   return 0;
 }
 
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function moneyCloseTo(value: number, expected: number) {
+  return Math.abs(value - expected) <= Math.max(1, Math.abs(expected) * 0.015);
+}
+
 function normalizeJsonKey(value: string) {
   return value
     .normalize("NFD")
@@ -829,6 +838,70 @@ function firstText(row: any, keys: string[]) {
     if (value && typeof value !== "object") return String(value).trim();
   }
   return "";
+}
+
+function textLooksLikeLegalTip(text: string) {
+  return /propina|10\s*%.*ley|ley.*10\s*%|servicio\s+legal|cargo\s+(?:de|por)\s+servicio|service\s+charge|gratuity|legal\s+tip/i.test(text);
+}
+
+function serviceChargeFromItems(row: any) {
+  if (!Array.isArray(row?.items)) return 0;
+
+  for (const item of row.items) {
+    const description = firstText(item, ["description", "descripcion", "concept", "concepto", "name", "nombre"]);
+    if (!textLooksLikeLegalTip(description)) continue;
+
+    const amount = firstMoney(item, ["baseAmount", "amount", "total", "lineTotal", "price", "subtotal", "monto"]);
+    if (amount > 0) return amount;
+  }
+
+  return 0;
+}
+
+function serviceChargeFromText(row: any) {
+  const sources = [
+    firstText(row, ["notes", "nota", "observaciones", "rawText", "texto", "description", "descripcion"]),
+    ...((Array.isArray(row?.items) ? row.items : []).map((item: any) =>
+      firstText(item, ["description", "descripcion", "concept", "concepto", "notes", "nota"])
+    )),
+  ].filter(Boolean);
+
+  for (const source of sources) {
+    if (!textLooksLikeLegalTip(source)) continue;
+    const amount = moneyAfterLabel(source, [
+      "Propina Legal",
+      "Propina de Ley",
+      "10% Ley",
+      "10 % Ley",
+      "Servicio Legal",
+      "Cargo Servicio",
+      "Cargo por Servicio",
+      "Service Charge",
+      "Legal Tip",
+      "Gratuity",
+    ]);
+    if (amount > 0) return amount;
+  }
+
+  return 0;
+}
+
+function explicitServiceChargeAmount(row: any) {
+  return firstMoney(row, [
+    "serviceChargeAmount",
+    "serviceCharge",
+    "legalTipAmount",
+    "legalTip",
+    "propinaLegalAmount",
+    "propinaLegal",
+    "propinaDeLey",
+    "propinaLey",
+    "tipAmount",
+    "gratuityAmount",
+    "cargoServicio",
+    "cargoPorServicio",
+    "servicioLegal",
+  ]) || serviceChargeFromItems(row) || serviceChargeFromText(row);
 }
 
 function collectTextValues(value: unknown, depth = 0): string[] {
@@ -1172,25 +1245,57 @@ function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
   let total = firstMoney(row, ["total", "amount", "montoTotal", "totalAmount", "grandTotal"]);
   let subtotal = firstMoney(row, ["subtotal", "subTotal", "baseAmount", "base", "montoGravado", "taxableAmount"]);
   let taxAmount = firstMoney(row, ["taxAmount", "itbis", "totalItbis", "totalITBIS", "tax", "impuesto"]);
+  let serviceChargeAmount = explicitServiceChargeAmount(row);
 
   if (subtotal <= 0 && itemsSubtotal > 0) subtotal = itemsSubtotal;
   if (taxAmount <= 0 && itemsTax > 0) taxAmount = itemsTax;
   if (total <= 0 && itemsTotal > 0) total = itemsTotal;
 
+  if (serviceChargeAmount > 0 && serviceChargeAmount <= 20 && subtotal > 0) {
+    const expectedServiceCharge = roundMoney(subtotal * (serviceChargeAmount / 100));
+    const remainder = total > 0 ? total - subtotal - taxAmount : 0;
+    if (remainder > 0 && moneyCloseTo(remainder, expectedServiceCharge)) {
+      serviceChargeAmount = roundMoney(remainder);
+    } else if (total > 0 && taxAmount <= 0) {
+      const surcharge = total - subtotal;
+      if (surcharge > expectedServiceCharge && moneyCloseTo(surcharge, expectedServiceCharge + subtotal * 0.18)) {
+        serviceChargeAmount = expectedServiceCharge;
+        taxAmount = roundMoney(Math.max(0, surcharge - serviceChargeAmount));
+      }
+    }
+  }
+
+  if (total > 0 && subtotal > 0 && taxAmount <= 0 && serviceChargeAmount <= 0) {
+    const surcharge = total - subtotal;
+    if (surcharge > 0 && moneyCloseTo(surcharge, subtotal * 0.1)) {
+      serviceChargeAmount = roundMoney(surcharge);
+    } else if (surcharge > 0 && moneyCloseTo(surcharge, subtotal * 0.28)) {
+      serviceChargeAmount = roundMoney(subtotal * 0.1);
+      taxAmount = roundMoney(Math.max(0, surcharge - serviceChargeAmount));
+    }
+  }
+
+  if (total > 0 && subtotal > 0 && taxAmount > 0 && serviceChargeAmount <= 0) {
+    const remainder = total - subtotal - taxAmount;
+    if (remainder > 0 && moneyCloseTo(remainder, subtotal * 0.1)) {
+      serviceChargeAmount = roundMoney(remainder);
+    }
+  }
+
   if (total > 0 && subtotal > 0 && taxAmount <= 0) {
-    taxAmount = Math.max(0, total - subtotal);
+    taxAmount = Math.max(0, total - subtotal - serviceChargeAmount);
   }
 
   if (total > 0 && taxAmount > 0 && subtotal <= 0) {
-    subtotal = Math.max(0, total - taxAmount);
+    subtotal = Math.max(0, total - taxAmount - serviceChargeAmount);
   }
 
   if (total <= 0 && subtotal > 0) {
-    total = subtotal + taxAmount;
+    total = subtotal + taxAmount + serviceChargeAmount;
   }
 
   if (subtotal <= 0 && total > 0) {
-    subtotal = Math.max(0, total - taxAmount);
+    subtotal = Math.max(0, total - taxAmount - serviceChargeAmount);
   }
 
   const taxRate = subtotal > 0 ? (taxAmount / subtotal) * 100 : 0;
@@ -1204,16 +1309,29 @@ function normalizePurchaseSingleItem(row: any, fallbackDescription: string) {
     "descripcion",
   ]) || firstText(row.items?.[0] || {}, ["description", "descripcion", "concept", "concepto"]) || "Compra importada con IA";
 
+  const items = [{
+    description: itemDescription,
+    quantity: 1,
+    baseAmount: subtotal,
+    taxAmount,
+    price: subtotal,
+    taxRate,
+  }];
+
+  if (serviceChargeAmount > 0) {
+    items.push({
+      description: "Propina legal 10%",
+      quantity: 1,
+      baseAmount: serviceChargeAmount,
+      taxAmount: 0,
+      price: serviceChargeAmount,
+      taxRate: 0,
+    });
+  }
+
   return {
     total,
-    items: [{
-      description: itemDescription,
-      quantity: 1,
-      baseAmount: subtotal,
-      taxAmount,
-      price: subtotal,
-      taxRate,
-    }],
+    items,
   };
 }
 
@@ -1348,7 +1466,7 @@ Regla critica de proveedor:
 - Busca supplierTaxId en "RNC Emisor", "RNC proveedor", "Cedula emisor", "Tax ID", "VAT", "RUC". No uses "RNC comprador", "Cliente", "Customer" ni datos del comprador.
 - Si el proveedor es internacional y no tiene RNC dominicano, supplierTaxId debe ser cadena vacia, nunca inventes un RNC.
 
-Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.
+Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. Si aparece "Propina legal", "10% ley", "10% servicio", "servicio legal", "cargo por servicio" o equivalente de restaurantes/bares/comida, coloca ese monto en serviceChargeAmount; no lo sumes a taxAmount porque no es ITBIS. El total debe ser el monto total final de la factura, incluyendo subtotal, ITBIS y serviceChargeAmount si existe. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, serviceChargeAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total menos serviceChargeAmount si existe. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.
 Regla critica de fecha: en comprobantes dominicanos, fechas como 11/01/26, 11-01-2026 o 03/05/2026 son DIA/MES/ANO, nunca MES/DIA/ANO. Convierte siempre a YYYY-MM-DD preservando ese orden. Ejemplo: 11/01/26 => 2026-01-11; 03/05/2026 => 2026-05-03.`
       : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Regla critica de fecha: en comprobantes dominicanos, fechas como 11/01/26, 11-01-2026 o 03/05/2026 son DIA/MES/ANO, nunca MES/DIA/ANO. Convierte siempre a YYYY-MM-DD preservando ese orden. Si falta un dato usa cadena vacia o 0.`;
 
