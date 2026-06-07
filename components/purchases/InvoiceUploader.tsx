@@ -38,7 +38,7 @@ type DragState = {
 const defaultCrop: CropRect = { x: 8, y: 8, width: 84, height: 84 };
 const defaultQuad: CropQuad = rectToQuad(defaultCrop);
 const minCropSize = 14;
-const detectionCanvasMaxSize = 720;
+const detectionCanvasMaxSize = 900;
 
 function isImageFile(file: File) {
     return file.type.startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name);
@@ -119,44 +119,213 @@ function average(values: number[]) {
     return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function smoothCounts(values: number[], radius = 4) {
-    return values.map((_, index) => {
-        const start = Math.max(0, index - radius);
-        const end = Math.min(values.length, index + radius + 1);
-        return average(values.slice(start, end));
-    });
+function standardDeviation(values: number[]) {
+    if (values.length === 0) return 0;
+    const avg = average(values);
+    return Math.sqrt(average(values.map((value) => (value - avg) ** 2)));
 }
 
-function findEdge(counts: number[], threshold: number, fromEnd = false) {
-    const runLength = Math.max(4, Math.round(counts.length * 0.01));
-    const indexes = fromEnd
-        ? Array.from({ length: counts.length }, (_, index) => counts.length - 1 - index)
-        : Array.from({ length: counts.length }, (_, index) => index);
-
-    for (const index of indexes) {
-        const run = fromEnd
-            ? counts.slice(Math.max(0, index - runLength + 1), index + 1)
-            : counts.slice(index, Math.min(counts.length, index + runLength));
-        if (run.length >= runLength && run.every((value) => value >= threshold)) {
-            return index;
-        }
-    }
-    return null;
+function rgbToSaturation(r: number, g: number, b: number) {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return max === 0 ? 0 : (max - min) / max;
 }
 
-function isLikelyPaperPixel(r: number, g: number, b: number, borderBrightness: number) {
+function isLikelyPaperPixel(r: number, g: number, b: number, borderBrightness: number, borderDeviation: number) {
     const brightness = (r + g + b) / 3;
     const spread = Math.max(r, g, b) - Math.min(r, g, b);
+    const saturation = rgbToSaturation(r, g, b);
     const brighterThanBorder = brightness - borderBrightness;
 
     return (
-        (brightness > 178 && spread < 92) ||
-        brightness > 214 ||
-        (brightness > 145 && spread < 82 && brighterThanBorder > 24)
+        (brightness > 188 && saturation < 0.35) ||
+        (brightness > 218 && saturation < 0.55) ||
+        (brightness > 138 && spread < 72 && brighterThanBorder > Math.max(18, borderDeviation * 0.35))
     );
 }
 
-async function detectDocumentCrop(imageUrl: string): Promise<CropRect | null> {
+function dilateMask(mask: Uint8Array, width: number, height: number, radius = 1) {
+    const output = new Uint8Array(mask.length);
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            let active = false;
+            for (let dy = -radius; dy <= radius && !active; dy += 1) {
+                for (let dx = -radius; dx <= radius; dx += 1) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny * width + nx]) {
+                        active = true;
+                        break;
+                    }
+                }
+            }
+            output[y * width + x] = active ? 1 : 0;
+        }
+    }
+    return output;
+}
+
+function erodeMask(mask: Uint8Array, width: number, height: number, radius = 1) {
+    const output = new Uint8Array(mask.length);
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            let active = true;
+            for (let dy = -radius; dy <= radius && active; dy += 1) {
+                for (let dx = -radius; dx <= radius; dx += 1) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx < 0 || nx >= width || ny < 0 || ny >= height || !mask[ny * width + nx]) {
+                        active = false;
+                        break;
+                    }
+                }
+            }
+            output[y * width + x] = active ? 1 : 0;
+        }
+    }
+    return output;
+}
+
+function closeMask(mask: Uint8Array, width: number, height: number) {
+    return erodeMask(dilateMask(mask, width, height, 2), width, height, 1);
+}
+
+type Component = {
+    pixels: number[];
+    area: number;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+};
+
+function connectedComponents(mask: Uint8Array, width: number, height: number) {
+    const visited = new Uint8Array(mask.length);
+    const components: Component[] = [];
+    const queue: number[] = [];
+
+    for (let start = 0; start < mask.length; start += 1) {
+        if (!mask[start] || visited[start]) continue;
+
+        visited[start] = 1;
+        queue.length = 0;
+        queue.push(start);
+        const pixels: number[] = [];
+        let minX = width;
+        let minY = height;
+        let maxX = 0;
+        let maxY = 0;
+
+        for (let cursor = 0; cursor < queue.length; cursor += 1) {
+            const index = queue[cursor];
+            pixels.push(index);
+            const x = index % width;
+            const y = Math.floor(index / width);
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+
+            const neighbors = [index - 1, index + 1, index - width, index + width];
+            for (const next of neighbors) {
+                if (next < 0 || next >= mask.length || visited[next] || !mask[next]) continue;
+                const nx = next % width;
+                if ((next === index - 1 && nx > x) || (next === index + 1 && nx < x)) continue;
+                visited[next] = 1;
+                queue.push(next);
+            }
+        }
+
+        components.push({ pixels, area: pixels.length, minX, minY, maxX, maxY });
+    }
+
+    return components;
+}
+
+function componentToQuad(component: Component, width: number, height: number): CropQuad {
+    let tl = component.pixels[0];
+    let tr = component.pixels[0];
+    let br = component.pixels[0];
+    let bl = component.pixels[0];
+    let tlScore = Infinity;
+    let trScore = -Infinity;
+    let brScore = -Infinity;
+    let blScore = -Infinity;
+
+    for (const index of component.pixels) {
+        const x = index % width;
+        const y = Math.floor(index / width);
+        const sum = x + y;
+        const diff = x - y;
+        if (sum < tlScore) {
+            tlScore = sum;
+            tl = index;
+        }
+        if (diff > trScore) {
+            trScore = diff;
+            tr = index;
+        }
+        if (sum > brScore) {
+            brScore = sum;
+            br = index;
+        }
+        if (-diff > blScore) {
+            blScore = -diff;
+            bl = index;
+        }
+    }
+
+    const toPoint = (index: number) => ({
+        x: ((index % width) / width) * 100,
+        y: (Math.floor(index / width) / height) * 100,
+    });
+
+    return normalizeQuad({
+        tl: toPoint(tl),
+        tr: toPoint(tr),
+        br: toPoint(br),
+        bl: toPoint(bl),
+    });
+}
+
+function quadArea(quad: CropQuad) {
+    const points = [quad.tl, quad.tr, quad.br, quad.bl];
+    let area = 0;
+    for (let index = 0; index < points.length; index += 1) {
+        const current = points[index];
+        const next = points[(index + 1) % points.length];
+        area += current.x * next.y - next.x * current.y;
+    }
+    return Math.abs(area) / 2;
+}
+
+function scoreComponent(component: Component, width: number, height: number) {
+    const imageArea = width * height;
+    const bboxWidth = component.maxX - component.minX + 1;
+    const bboxHeight = component.maxY - component.minY + 1;
+    const bboxArea = bboxWidth * bboxHeight;
+    const areaRatio = component.area / imageArea;
+    const bboxRatio = bboxArea / imageArea;
+    const fillRatio = component.area / Math.max(1, bboxArea);
+    const aspect = bboxWidth / Math.max(1, bboxHeight);
+    const touchesBorder =
+        (component.minX <= 2 ? 1 : 0) +
+        (component.minY <= 2 ? 1 : 0) +
+        (component.maxX >= width - 3 ? 1 : 0) +
+        (component.maxY >= height - 3 ? 1 : 0);
+
+    if (areaRatio < 0.025 || bboxRatio < 0.04) return 0;
+    if (bboxWidth < width * 0.18 || bboxHeight < height * 0.18) return 0;
+    if (aspect < 0.22 || aspect > 3.2) return 0;
+    if (fillRatio < 0.18) return 0;
+    if (bboxRatio > 0.92 && touchesBorder >= 2) return 0;
+
+    const borderPenalty = touchesBorder === 0 ? 1 : touchesBorder === 1 ? 0.78 : 0.38;
+    const sizePreference = bboxRatio > 0.86 ? 0.45 : bboxRatio > 0.76 ? 0.72 : 1;
+    return component.area * fillRatio * borderPenalty * sizePreference;
+}
+
+async function detectDocumentQuad(imageUrl: string): Promise<CropQuad | null> {
     const image = await fileToImage(imageUrl);
     const scale = Math.min(1, detectionCanvasMaxSize / Math.max(image.naturalWidth, image.naturalHeight));
     const width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -187,48 +356,34 @@ async function detectDocumentCrop(imageUrl: string): Promise<CropRect | null> {
     }
 
     const borderBrightness = average(borderSamples);
-    const rowCounts = new Array(height).fill(0);
-    const colCounts = new Array(width).fill(0);
+    const borderDeviation = standardDeviation(borderSamples);
+    let paperMask = new Uint8Array(width * height);
 
     for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
             const index = (y * width + x) * 4;
-            if (isLikelyPaperPixel(data[index], data[index + 1], data[index + 2], borderBrightness)) {
-                rowCounts[y] += 1;
-                colCounts[x] += 1;
+            if (isLikelyPaperPixel(data[index], data[index + 1], data[index + 2], borderBrightness, borderDeviation)) {
+                paperMask[y * width + x] = 1;
             }
         }
     }
 
-    const smoothedRows = smoothCounts(rowCounts);
-    const smoothedCols = smoothCounts(colCounts);
-    const rowThreshold = width * 0.16;
-    const colThreshold = height * 0.16;
-    const top = findEdge(smoothedRows, rowThreshold, false);
-    const bottom = findEdge(smoothedRows, rowThreshold, true);
-    const left = findEdge(smoothedCols, colThreshold, false);
-    const right = findEdge(smoothedCols, colThreshold, true);
+    paperMask = closeMask(paperMask, width, height);
+    const components = connectedComponents(paperMask, width, height)
+        .map((component) => ({ component, score: scoreComponent(component, width, height) }))
+        .filter((candidate) => candidate.score > 0)
+        .sort((a, b) => b.score - a.score);
 
-    if (top == null || bottom == null || left == null || right == null) return null;
-    if (right - left < width * 0.18 || bottom - top < height * 0.18) return null;
+    const best = components[0]?.component;
+    if (!best) return null;
 
-    const paddingX = width * 0.018;
-    const paddingY = height * 0.018;
-    const x1 = clamp(left - paddingX, 0, width);
-    const y1 = clamp(top - paddingY, 0, height);
-    const x2 = clamp(right + paddingX, 0, width);
-    const y2 = clamp(bottom + paddingY, 0, height);
+    const quad = componentToQuad(best, width, height);
+    const bounds = quadToBoundingRect(quad);
+    const area = quadArea(quad);
+    if (area < 450 || area > 9000) return null;
+    if (bounds.width > 96 && bounds.height > 96) return null;
 
-    const detected = normalizeCrop({
-        x: (x1 / width) * 100,
-        y: (y1 / height) * 100,
-        width: ((x2 - x1) / width) * 100,
-        height: ((y2 - y1) / height) * 100,
-    });
-
-    const area = detected.width * detected.height;
-    if (area > 9700 || area < 450) return null;
-    return detected;
+    return quad;
 }
 
 async function fileToImage(url: string) {
@@ -470,10 +625,10 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
         setIsDetectingCrop(true);
         setCropDetectionMessage("Buscando bordes de la factura...");
         try {
-            const detectedCrop = await detectDocumentCrop(imageUrl);
-            if (detectedCrop) {
-                setQuad(rectToQuad(detectedCrop));
-                setCropDetectionMessage("Bordes detectados. Ajusta el recuadro si hace falta.");
+            const detectedQuad = await detectDocumentQuad(imageUrl);
+            if (detectedQuad) {
+                setQuad(detectedQuad);
+                setCropDetectionMessage("Documento detectado. Ajusta las esquinas si hace falta.");
             } else {
                 setQuad(defaultQuad);
                 setCropDetectionMessage("No pude detectar bordes claros. Ajusta el recuadro manualmente.");

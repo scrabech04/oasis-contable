@@ -16,6 +16,17 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Confirmar que registrar cobros/pagos desde cuentas por cobrar/pagar refresca la lista correctamente.
 - Probar busqueda y ordenamiento nuevo en cotizaciones.
 
+## 2026-06-06 - Deteccion automatica de bordes en facturas
+
+### Mejorado
+- La deteccion automatica de bordes en `Compras > Importar con IA` deja de usar solo proyecciones de pixeles claros y ahora intenta aislar el documento como componente principal de papel.
+- El recorte automatico ahora devuelve un cuadrilatero con esquinas, mas parecido a un escaner de documentos, para luego enderezar la factura antes de enviarla a IA.
+- Se agregan filtros contra componentes que ocupan casi toda la foto, evitando aceptar fondo/mesa/sabana como si fuera la factura.
+
+### Pendiente de prueba
+- Tomar foto con fondo visible alrededor de una factura y confirmar que las esquinas caen sobre el papel, no sobre la foto completa.
+- Probar una factura blanca sobre fondo claro; si no detecta bien, ajustar manualmente y usar como caso de calibracion.
+
 ## 2026-06-06 - Proveedor en importacion IA
 
 ### Mejorado
