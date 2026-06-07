@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getPeriodParams } from "@/lib/list-period";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
-import { primaryActionClass } from "@/lib/ui-styles";
 import { getProformas } from "@/app/actions";
+import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListSearchSortBar } from "@/components/listing/ListSearchSortBar";
 import { ProformasTable } from "@/components/proformas/ProformasTable";
 import { formatCurrency } from "@/lib/format";
+import { getPeriodParams } from "@/lib/list-period";
+import { primaryActionClass } from "@/lib/ui-styles";
 
 export default async function ProformasPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -20,12 +21,12 @@ export default async function ProformasPage(props: {
   const advances = proformas.reduce((sum, item) => sum + item.paidAmount, 0);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 dark:border-slate-800 md:flex-row md:items-end">
         <div>
           <p className="text-xs font-black uppercase tracking-wider text-blue-600">No fiscal</p>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-white">Prefacturas</h1>
-          <p className="mt-1 text-sm text-slate-500">Solicitudes de pago sin NCF/e-NCF. No entran al 607 ni IT-1 hasta convertirlas.</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Prefacturas</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Solicitudes de pago sin NCF/e-NCF. No entran al 607 ni IT-1 hasta convertirlas.</p>
         </div>
         <Link href="/proformas/new" className={primaryActionClass}>
           <span className="material-icons-round text-lg">add</span>
@@ -41,20 +42,19 @@ export default async function ProformasPage(props: {
 
       <ListPeriodFilter basePath="/proformas" searchParams={searchParams} total={proformas.length} itemSingular="prefactura registrada" itemPlural="prefacturas registradas" />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <form className="relative w-full md:w-96">
-          {period.year ? <input type="hidden" name="year" value={period.year} /> : null}
-          {period.month ? <input type="hidden" name="month" value={period.month} /> : null}
-          <span className="material-icons-round absolute inset-y-0 left-3 flex items-center text-lg text-slate-400">search</span>
-          <input
-            type="search"
-            name="search"
-            placeholder="Buscar por cliente o numero..."
-            defaultValue={search}
-            className="block w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-          />
-        </form>
-      </div>
+      <ListSearchSortBar
+        basePath="/proformas"
+        searchParams={searchParams}
+        search={search}
+        searchPlaceholder="Buscar por cliente o numero..."
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        sortOptions={[
+          { key: "date", label: "Fecha" },
+          { key: "client", label: "Cliente" },
+          { key: "total", label: "Monto" },
+        ]}
+      />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {proformas.length === 0 ? (

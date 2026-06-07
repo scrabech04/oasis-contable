@@ -2,6 +2,20 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-06 - Unificacion de paginas madre
+
+### Mejorado
+- Se agrega una barra compartida de busqueda y ordenamiento para listados principales.
+- `Facturacion`, `Compras y Gastos`, `Cotizaciones` y `Prefacturas` ahora comparten estructura visual de header, filtros, busqueda/ordenamiento y contenedores de lista.
+- `Cotizaciones` ahora permite busqueda por numero/cliente y ordenamiento por fecha, cliente o monto.
+- `Cuentas por Cobrar` y `Cuentas por Pagar` ahora usan el filtro compartido por mes/ano y cargan como paginas servidor, manteniendo las acciones de cobrar/pagar en componentes cliente.
+- `Proyectos` se actualiza al mismo lenguaje visual de cards mobile, metricas y tabla desktop; se retiran componentes de tabla/card del estilo anterior.
+
+### Pendiente de prueba
+- Revisar en mobile y desktop: facturas, compras, cotizaciones, prefacturas, cuentas por cobrar, cuentas por pagar y proyectos.
+- Confirmar que registrar cobros/pagos desde cuentas por cobrar/pagar refresca la lista correctamente.
+- Probar busqueda y ordenamiento nuevo en cotizaciones.
+
 ## 2026-06-06 - Proveedor en importacion IA
 
 ### Mejorado

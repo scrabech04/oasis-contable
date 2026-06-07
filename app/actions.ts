@@ -2581,13 +2581,29 @@ export async function getNextQuotationNumber() {
   return `COT-${String((last?.id || 0) + 1).padStart(4, "0")}`;
 }
 
-export async function getQuotations(options?: PeriodParams) {
+export async function getQuotations(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
   const profileId = await getActiveProfileId();
+  const search = options?.search;
   const period = getPeriodDateRange(options || {});
+  const orderBy =
+    options?.sortBy === "client"
+      ? { contact: { name: options.sortOrder || "asc" } }
+      : { [options?.sortBy === "total" ? "total" : "date"]: options?.sortOrder || "desc" };
   return prisma.quotation.findMany({
-    where: { profileId, ...(period.gte ? { date: period } : {}) },
+    where: {
+      profileId,
+      ...(period.gte ? { date: period } : {}),
+      ...(search
+        ? {
+            OR: [
+              { number: { contains: search } },
+              { contact: { name: { contains: search } } },
+            ],
+          }
+        : {}),
+    },
     include: { contact: true, project: true, items: true },
-    orderBy: { date: "desc" },
+    orderBy: orderBy as any,
   });
 }
 
