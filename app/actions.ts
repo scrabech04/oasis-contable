@@ -593,14 +593,49 @@ async function generateGeminiInvoiceRows({
   };
 }
 
+function todayDateInputValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function expandTwoDigitYear(value: string) {
+  const year = Number(value);
+  if (!Number.isFinite(year)) return NaN;
+  return year >= 70 ? 1900 + year : 2000 + year;
+}
+
+function validDateParts(year: number, month: number, day: number) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+function dateInputValue(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function normalizeDateString(value: unknown) {
   const raw = String(value || "").trim();
-  if (!raw) return new Date().toISOString().slice(0, 10);
-  const local = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-  if (local) return `${local[3]}-${local[2].padStart(2, "0")}-${local[1].padStart(2, "0")}`;
-  const iso = raw.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  return raw.slice(0, 10);
+  if (!raw) return todayDateInputValue();
+
+  const iso = raw.match(/(^|[^\d])(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?=$|[^\d])/);
+  if (iso) {
+    const year = Number(iso[2]);
+    const month = Number(iso[3]);
+    const day = Number(iso[4]);
+    if (validDateParts(year, month, day)) return dateInputValue(year, month, day);
+  }
+
+  const local = raw.match(/(^|[^\d])(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?=$|[^\d])/);
+  if (local) {
+    const day = Number(local[2]);
+    const month = Number(local[3]);
+    const year = local[4].length === 2 ? expandTwoDigitYear(local[4]) : Number(local[4]);
+    if (validDateParts(year, month, day)) return dateInputValue(year, month, day);
+  }
+
+  return todayDateInputValue();
 }
 
 function normalizeMoney(value: unknown) {
@@ -1313,8 +1348,9 @@ Regla critica de proveedor:
 - Busca supplierTaxId en "RNC Emisor", "RNC proveedor", "Cedula emisor", "Tax ID", "VAT", "RUC". No uses "RNC comprador", "Cliente", "Customer" ni datos del comprador.
 - Si el proveedor es internacional y no tiene RNC dominicano, supplierTaxId debe ser cadena vacia, nunca inventes un RNC.
 
-Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.`
-      : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Si falta un dato usa cadena vacia o 0.`;
+Si aparece una URL oficial, dominio, sitio web del proveedor o plataforma, devuelve supplierWebsiteUrl. Nunca uses el nombre del proveedor como description del item. Cada factura debe traer exactamente un item resumen en items. El item debe tener description con el concepto principal de la compra si aparece en la factura; si no aparece usa "Compra importada con IA". El item debe tener quantity 1, baseAmount igual al subtotal/base imponible de la factura y taxAmount igual al ITBIS/impuesto total de la factura. El total debe ser el monto total final de la factura. Cada objeto debe tener: type ("FORMAL" o "INFORMAL"), supplierName, supplierTaxId, supplierWebsiteUrl, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, costType "02" por defecto, category, subtotal, taxAmount, total, taxTreatment ("LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS" o "FOREIGN_WITHHOLDING"), notes, items [{description, quantity, baseAmount, taxAmount}]. Si la factura no tiene ITBIS, usa taxAmount 0 y baseAmount igual al total. Si es proveedor internacional, plataforma digital o no corresponde 606, usa taxTreatment "FOREIGN_EXPENSE" y taxAmount 0. Si falta un dato usa cadena vacia o 0.
+Regla critica de fecha: en comprobantes dominicanos, fechas como 11/01/26, 11-01-2026 o 03/05/2026 son DIA/MES/ANO, nunca MES/DIA/ANO. Convierte siempre a YYYY-MM-DD preservando ese orden. Ejemplo: 11/01/26 => 2026-01-11; 03/05/2026 => 2026-05-03.`
+      : `Extrae todas las facturas de venta del archivo. Responde exclusivamente JSON valido, sin Markdown ni explicaciones. La respuesta debe ser un array JSON. Cada objeto debe tener: clientName, clientTaxId, ncf, date YYYY-MM-DD, dueDate YYYY-MM-DD o null, incomeType "01" por defecto, notes, items [{description, quantity, price, taxRate}]. taxRate debe ser porcentaje entero o decimal de porcentaje, por ejemplo 18 para ITBIS 18%, nunca 0.18. Regla critica de fecha: en comprobantes dominicanos, fechas como 11/01/26, 11-01-2026 o 03/05/2026 son DIA/MES/ANO, nunca MES/DIA/ANO. Convierte siempre a YYYY-MM-DD preservando ese orden. Si falta un dato usa cadena vacia o 0.`;
 
   const filePart = await fileToGenerativePart(file);
   const generated = await generateGeminiInvoiceRows({

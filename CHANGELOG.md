@@ -27,6 +27,16 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Tomar foto con fondo visible alrededor de una factura y confirmar que las esquinas caen sobre el papel, no sobre la foto completa.
 - Probar una factura blanca sobre fondo claro; si no detecta bien, ajustar manualmente y usar como caso de calibracion.
 
+## 2026-06-06 - Fechas en importacion IA
+
+### Corregido
+- La normalizacion de fechas importadas por IA ahora soporta `DD/MM/AA`, `DD-MM-AA`, `DD/MM/YYYY`, fechas con hora y fechas con texto alrededor.
+- Se evita enviar fechas crudas o invalidas al formulario cuando Gemini/OCR no devuelve una fecha limpia.
+- El prompt de Gemini ahora especifica que las fechas dominicanas se leen como dia/mes/ano, nunca mes/dia/ano.
+
+### Pendiente de prueba
+- Escanear facturas con fechas tipo `11/01/26`, `03/05/2026` y validar que el formulario muestre `2026-01-11` y `2026-05-03` respectivamente.
+
 ## 2026-06-06 - Proveedor en importacion IA
 
 ### Mejorado
