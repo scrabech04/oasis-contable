@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Mail, Phone, MapPin, DollarSign, Fingerprint, Settings2, Hash } from "lucide-react";
+import { Building2, Mail, Phone, MapPin, DollarSign, Fingerprint, Settings2, Hash, Percent } from "lucide-react";
 import Link from "next/link";
 import IdentitiesClient from "./IdentitiesClient";
 import ProfilesClient from "./ProfilesClient";
@@ -88,6 +88,38 @@ export default async function SettingsPage() {
                                         <DollarSign className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                                         <Input id="currency" name="currency" defaultValue={settings.currency} className="pl-10" required />
                                     </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="incomeTaxRegime">Regimen ISR para estimaciones</Label>
+                                    <select
+                                        id="incomeTaxRegime"
+                                        name="incomeTaxRegime"
+                                        defaultValue={settings.incomeTaxRegime || (activeProfile.type === "PERSON" ? "PERSON_PROGRESSIVE" : "LEGAL_ENTITY")}
+                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                                    >
+                                        <option value="LEGAL_ENTITY">Persona juridica - 27%</option>
+                                        <option value="PERSON_PROGRESSIVE">Persona fisica - escala progresiva</option>
+                                        <option value="CUSTOM">Tasa personalizada</option>
+                                    </select>
+                                    <p className="text-xs text-slate-500">Se usa en la estimacion fiscal de proyectos, no sustituye la declaracion anual.</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="incomeTaxRate">Tasa ISR estimada (%)</Label>
+                                    <div className="relative">
+                                        <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                        <Input
+                                            id="incomeTaxRate"
+                                            name="incomeTaxRate"
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            step="0.01"
+                                            defaultValue={(Number(settings.incomeTaxRate ?? (activeProfile.type === "PERSON" ? 0.25 : 0.27)) * 100).toFixed(2).replace(/\.00$/, "")}
+                                            className="pl-10"
+                                            required
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-500">Para juridica usa 27. Para personalizada puedes poner la tasa que indique tu contador.</p>
                                 </div>
                             </div>
                             <CoverTemplateSettings settings={settings} />

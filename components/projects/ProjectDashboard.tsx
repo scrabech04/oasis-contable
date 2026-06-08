@@ -13,11 +13,42 @@ interface ProjectDashboardProps {
         invoices: (Invoice & { items: InvoiceItem[], payments: Payment[] })[];
         purchases: (Purchase & { items: PurchaseItem[], payments: Payment[] })[];
     };
+    taxSettings?: {
+        incomeTaxRegime?: string | null;
+        incomeTaxRate?: number | null;
+    };
 }
 
-export function ProjectDashboard({ project }: ProjectDashboardProps) {
+function calculateIndividualProgressiveISR(annualTaxableIncome: number) {
+    const income = Math.max(0, annualTaxableIncome);
+    if (income <= 416220) return 0;
+    if (income <= 624329) return (income - 416220.01) * 0.15;
+    if (income <= 867123) return 31216 + (income - 624329.01) * 0.2;
+    return 79776 + (income - 867123.01) * 0.25;
+}
+
+function resolveIncomeTax(taxableProfit: number, taxSettings?: ProjectDashboardProps["taxSettings"]) {
+    const regime = taxSettings?.incomeTaxRegime || "LEGAL_ENTITY";
+    const configuredRate = Number.isFinite(Number(taxSettings?.incomeTaxRate)) ? Number(taxSettings?.incomeTaxRate) : 0.27;
+
+    if (regime === "PERSON_PROGRESSIVE") {
+        return {
+            amount: calculateIndividualProgressiveISR(taxableProfit),
+            label: "ISR PF progresivo",
+            helper: "Escala anual persona fisica",
+        };
+    }
+
+    const rate = Math.min(1, Math.max(0, configuredRate));
+    return {
+        amount: Math.max(0, taxableProfit) * rate,
+        label: regime === "CUSTOM" ? `ISR ref. ${(rate * 100).toFixed(2).replace(/\.00$/, "")}%` : `ISR PJ ${(rate * 100).toFixed(0)}%`,
+        helper: regime === "CUSTOM" ? "Tasa personalizada del perfil" : "Persona juridica",
+    };
+}
+
+export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps) {
     const router = useRouter();
-    const ISR_RATE = 0.27;
     // Financial Calculations
     const totalInvoiced = project.invoices.reduce((sum: number, inv: any) => sum + inv.total, 0);
     const totalSalesBase = project.invoices.reduce((sum: number, inv: any) => sum + inv.subtotal, 0);
@@ -48,7 +79,8 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
     const netItbisDue = Math.max(0, totalSalesItbis - creditableItbis);
     const itbisCreditBalance = Math.max(0, creditableItbis - totalSalesItbis);
     const taxableProfitBeforeISR = totalSalesBase - deductibleCosts;
-    const estimatedISR = Math.max(0, taxableProfitBeforeISR) * ISR_RATE;
+    const incomeTaxEstimate = resolveIncomeTax(taxableProfitBeforeISR, taxSettings);
+    const estimatedISR = incomeTaxEstimate.amount;
     const estimatedNetProfit = taxableProfitBeforeISR - estimatedISR;
     const estimatedCashAfterTaxes = totalInvoiced - totalCosts - netItbisDue - estimatedISR;
 
@@ -207,7 +239,7 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                             Estimacion fiscal del proyecto
                         </CardTitle>
                         <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-                            ISR ref. {(ISR_RATE * 100).toFixed(0)}%
+                            {incomeTaxEstimate.label}
                         </span>
                     </div>
                 </CardHeader>
@@ -233,7 +265,7 @@ export function ProjectDashboard({ project }: ProjectDashboardProps) {
                         <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
                             <p className="text-[10px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">ISR estimado</p>
                             <p className="mt-2 break-words font-mono text-lg font-black text-violet-600 dark:text-violet-300">RD$ {formatCurrency(estimatedISR)}</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Sobre utilidad positiva</p>
+                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{incomeTaxEstimate.helper}</p>
                         </div>
                     </div>
 

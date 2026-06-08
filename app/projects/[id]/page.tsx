@@ -1,4 +1,4 @@
-import { getProject } from "@/app/actions";
+import { getCompanySettings, getProject } from "@/app/actions";
 import { ProjectDashboard } from "@/components/projects/ProjectDashboard";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         notFound();
     }
 
-    const [project, activeProfile] = await Promise.all([
+    const [project, activeProfile, companySettings] = await Promise.all([
         getProject(projectId),
         getActiveProfile(),
+        getCompanySettings(),
     ]);
 
     if (!project) {
@@ -65,7 +66,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 </div>
             </div>
 
-            <ProjectDashboard project={project as any} />
+            <ProjectDashboard
+                project={project as any}
+                taxSettings={{
+                    incomeTaxRegime: companySettings.incomeTaxRegime,
+                    incomeTaxRate: companySettings.incomeTaxRate,
+                }}
+            />
         </div>
     );
 }

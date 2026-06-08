@@ -106,6 +106,8 @@ export async function ensureAccountProfilesSetup() {
           address: defaultProfile.address,
           logo: defaultProfile.logoUrl,
           currency: "RD$",
+          incomeTaxRegime: defaultProfile.type === "PERSON" ? "PERSON_PROGRESSIVE" : "LEGAL_ENTITY",
+          incomeTaxRate: defaultProfile.type === "PERSON" ? 0.25 : 0.27,
           profileId: defaultProfile.id,
         },
       });
@@ -167,6 +169,8 @@ export async function getScopedCompanySettings() {
       address: profile.address,
       logo: profile.logoUrl,
       currency: "RD$",
+      incomeTaxRegime: profile.type === "PERSON" ? "PERSON_PROGRESSIVE" : "LEGAL_ENTITY",
+      incomeTaxRate: profile.type === "PERSON" ? 0.25 : 0.27,
       profileId: profile.id,
     },
   });

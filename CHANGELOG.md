@@ -2,6 +2,22 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-08 - ISR configurable por perfil
+
+### Agregado
+- En `Configuracion` se agrega `Regimen ISR para estimaciones` por perfil: persona juridica, persona fisica progresiva o tasa personalizada.
+- La estimacion fiscal del detalle de proyecto deja de usar 27% fijo y ahora lee la configuracion del perfil activo.
+- Para persona fisica se agrega calculo progresivo anual con los tramos DGII: exento, 15%, 20% y 25%.
+
+### Migracion
+- Se agregan `incomeTaxRegime` e `incomeTaxRate` a `CompanySettings`.
+- Los perfiles tipo `PERSON` se inicializan como persona fisica progresiva; los demas quedan como persona juridica 27%.
+
+### Pendiente de prueba
+- Aplicar la migracion SQL en Supabase antes del deploy.
+- Revisar un proyecto en perfil persona juridica y otro en perfil persona fisica para confirmar el ISR estimado.
+- Confirmar con el contador si para cada perfil conviene usar escala progresiva o una tasa personalizada.
+
 ## 2026-06-06 - Propina legal 10% en importacion IA
 
 ### Mejorado
