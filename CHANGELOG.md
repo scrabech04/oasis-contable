@@ -2,6 +2,19 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-10 - Expediente de contactos
+
+### Agregado
+- Se crea la vista `/contacts/[id]` para ver el detalle completo de un contacto/cliente/proveedor.
+- El expediente muestra datos del contacto, metricas de facturado/cobrado/compras/cotizaciones, proyectos asociados, facturas de venta, compras/gastos, cotizaciones y prefacturas.
+- Las compras importadas sin contacto enlazado tambien pueden aparecer si coinciden por nombre o RNC del proveedor.
+- Desde el listado de contactos se puede abrir el detalle con el nombre o el icono de vista.
+- En el listado de facturas de venta, el nombre del cliente ahora enlaza al expediente del contacto.
+
+### Pendiente de prueba
+- Abrir un cliente desde `Facturacion` y confirmar que muestra facturas, cotizaciones, prefacturas y proyectos.
+- Abrir un proveedor desde `Contactos` y confirmar que muestra compras asociadas, incluyendo compras importadas con IA.
+
 ## 2026-06-08 - ISR configurable por perfil
 
 ### Agregado

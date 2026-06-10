@@ -49,9 +49,17 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <p className="text-sm font-black text-slate-900 dark:text-white">#{invoice.number}</p>
-                                <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-                                    {invoice.contact?.name || "Sin cliente"}
-                                </p>
+                                {invoice.contact?.id ? (
+                                    <Link
+                                        href={`/contacts/${invoice.contact.id}`}
+                                        onClick={(event) => event.stopPropagation()}
+                                        className="mt-1 block truncate text-xs font-bold text-slate-500 transition hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-300"
+                                    >
+                                        {invoice.contact.name}
+                                    </Link>
+                                ) : (
+                                    <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">Sin cliente</p>
+                                )}
                                 {invoice.ncf && (
                                     <p className="mt-1 text-[10px] font-bold tracking-tight text-slate-400">{invoice.ncf}</p>
                                 )}
@@ -137,7 +145,17 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                         <div className="hidden xs:flex w-7 h-7 md:w-8 md:h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 text-primary items-center justify-center text-[10px] md:text-xs font-bold uppercase">
                                             {invoice.contact?.name?.substring(0, 2) || "?"}
                                         </div>
-                                        <span className="text-xs md:text-sm font-medium text-slate-700 dark:text-slate-300 truncate max-w-[80px] md:max-w-[150px]">{invoice.contact?.name || "Sin cliente"}</span>
+                                        {invoice.contact?.id ? (
+                                            <Link
+                                                href={`/contacts/${invoice.contact.id}`}
+                                                onClick={(event) => event.stopPropagation()}
+                                                className="max-w-[80px] truncate text-xs font-bold text-slate-700 transition hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-300 md:max-w-[150px] md:text-sm"
+                                            >
+                                                {invoice.contact.name}
+                                            </Link>
+                                        ) : (
+                                            <span className="max-w-[80px] truncate text-xs font-medium text-slate-700 dark:text-slate-300 md:max-w-[150px] md:text-sm">Sin cliente</span>
+                                        )}
                                     </div>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden md:table-cell">

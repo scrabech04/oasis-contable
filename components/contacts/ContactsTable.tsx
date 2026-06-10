@@ -21,13 +21,15 @@ export function ContactsTable({ contacts }: { contacts: any[] }) {
         <div>
             <div className="space-y-3 md:hidden">
                 {contacts.map((contact) => {
-                    const mainPerson = contact.persons?.find((p: any) => p.isMain) || contact.persons?.[0];
+                    const mainPerson = contact.contactPersons?.find((p: any) => p.isMain) || contact.contactPersons?.[0];
 
                     return (
                         <article key={contact.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <p className="truncate text-sm font-black text-slate-900 dark:text-white">{contact.name}</p>
+                                    <Link href={`/contacts/${contact.id}`} className="truncate text-sm font-black text-slate-900 transition hover:text-blue-600 dark:text-white dark:hover:text-blue-300">
+                                        {contact.name}
+                                    </Link>
                                     <p className="mt-1 text-[10px] font-mono text-slate-500">{contact.taxId || "Sin RNC"}</p>
                                     <p className="mt-2 text-xs text-slate-500">
                                         {mainPerson ? mainPerson.name : "Contacto no definido"}
@@ -43,6 +45,9 @@ export function ContactsTable({ contacts }: { contacts: any[] }) {
                                     <p className="truncate">{contact.phone || mainPerson?.phone || "Sin teléfono"}</p>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1 text-slate-400">
+                                    <Link href={`/contacts/${contact.id}`} className="rounded-lg p-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30" title="Ver detalle">
+                                        <span className="material-icons-round text-[20px]">visibility</span>
+                                    </Link>
                                     <Link href={`/contacts/${contact.id}/edit`} className="rounded-lg p-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30" title="Editar">
                                         <span className="material-icons-round text-[20px]">edit</span>
                                     </Link>
@@ -67,13 +72,15 @@ export function ContactsTable({ contacts }: { contacts: any[] }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {contacts.map((contact) => {
-                            const mainPerson = contact.persons?.find((p: any) => p.isMain) || contact.persons?.[0];
+                            const mainPerson = contact.contactPersons?.find((p: any) => p.isMain) || contact.contactPersons?.[0];
 
                             return (
                                 <tr key={contact.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
                                     <td className="px-4 md:px-6 py-4">
                                         <div className="flex flex-col">
-                                            <span className="font-bold text-slate-900 dark:text-white">{contact.name}</span>
+                                            <Link href={`/contacts/${contact.id}`} className="font-bold text-slate-900 transition hover:text-blue-600 dark:text-white dark:hover:text-blue-300">
+                                                {contact.name}
+                                            </Link>
                                             <span className="text-[10px] text-slate-500 font-mono">{contact.taxId || "Sin RNC"}</span>
                                         </div>
                                     </td>
@@ -93,6 +100,9 @@ export function ContactsTable({ contacts }: { contacts: any[] }) {
                                     </td>
                                     <td className="px-4 md:px-6 py-4">
                                         <div className="flex justify-end items-center gap-1.5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Link href={`/contacts/${contact.id}`} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 text-slate-400 rounded-lg transition-all" title="Ver detalle">
+                                                <span className="material-icons-round text-[20px]">visibility</span>
+                                            </Link>
                                             <Link href={`/contacts/${contact.id}/edit`} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 text-slate-400 rounded-lg transition-all" title="Editar">
                                                 <span className="material-icons-round text-[20px]">edit</span>
                                             </Link>

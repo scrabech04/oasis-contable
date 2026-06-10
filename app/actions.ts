@@ -1829,6 +1829,59 @@ export async function getContact(id: number) {
   return prisma.contact.findFirst({ where: { id, profileId }, include: { contactPersons: true } });
 }
 
+export async function getContactLedger(id: number) {
+  const profileId = await getActiveProfileId();
+  const contact = await prisma.contact.findFirst({
+    where: { id, profileId },
+    include: {
+      contactPersons: true,
+      invoices: {
+        include: { project: true, payments: { include: { withholdings: true } } },
+        orderBy: { date: "desc" },
+      },
+      purchases: {
+        include: { project: true, payments: true },
+        orderBy: { date: "desc" },
+      },
+      quotations: {
+        include: { project: true },
+        orderBy: { date: "desc" },
+      },
+      proformaInvoices: {
+        include: { project: true, payments: true },
+        orderBy: { date: "desc" },
+      },
+      projects: {
+        orderBy: { startDate: "desc" },
+      },
+    },
+  });
+
+  if (!contact) return null;
+
+  const lookupTaxId = String(contact.taxId || "").replace(/\D/g, "");
+  const extraPurchases = await prisma.purchase.findMany({
+    where: {
+      profileId,
+      contactId: null,
+      OR: [
+        ...(lookupTaxId ? [{ supplierTaxId: { contains: lookupTaxId } }] : []),
+        { supplierName: { equals: contact.name } },
+      ],
+    },
+    include: { project: true, payments: true },
+    orderBy: { date: "desc" },
+  });
+
+  const purchaseIds = new Set(contact.purchases.map((purchase) => purchase.id));
+  const purchases = [
+    ...contact.purchases,
+    ...extraPurchases.filter((purchase) => !purchaseIds.has(purchase.id)),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  return { ...contact, purchases };
+}
+
 export async function createContact(formData: FormData): Promise<ActionResult> {
   const profileId = await getActiveProfileId();
   const persons = JSON.parse(text(formData, "contactPersons", "[]")).filter((p: any) => p.name);
