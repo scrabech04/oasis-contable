@@ -2,6 +2,19 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-06-10 - Refinamiento visual de proyectos
+
+### Mejorado
+- El detalle de proyecto recibe un header superior mas limpio, con acciones compactas para editar/eliminar y botones principales para compra/factura.
+- El resumen del proyecto y las metricas financieras se redisenan con tarjetas mas claras, iconos por bloque y divisores internos.
+- La estimacion fiscal se separa como seccion propia con tarjetas de ITBIS/ISR y una tarjeta destacada para caja despues de impuestos.
+- Los graficos y transacciones asociadas usan contenedores mas consistentes y jerarquia visual mas clara.
+- Se agregan micro-animaciones sutiles reutilizables (`premium-enter` y `premium-card`) con soporte para `prefers-reduced-motion`.
+
+### Pendiente de prueba
+- Revisar un proyecto real en desktop y mobile para confirmar que las tarjetas no se sienten demasiado altas y que las acciones superiores quedan comodas.
+- Validar modo oscuro en el detalle de proyecto, especialmente la seccion fiscal y las transacciones asociadas.
+
 ## 2026-06-10 - Expediente de contactos
 
 ### Agregado

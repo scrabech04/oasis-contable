@@ -131,32 +131,32 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-7">
             {/* Project Header Summary */}
-            <div className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-card p-4 text-card-foreground shadow-sm dark:border-slate-800 md:flex-row md:items-center md:p-6">
+            <div className="premium-card flex flex-col justify-between gap-5 rounded-xl border border-slate-200 bg-card p-5 text-card-foreground shadow-sm dark:border-slate-800 md:flex-row md:items-center md:p-6">
                 <div className="min-w-0">
-                    <div className="mb-1 flex flex-wrap items-center gap-2 md:gap-3">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{project.code}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${getStatusColor(project.status)}`}>
+                    <div className="mb-3 flex flex-wrap items-center gap-2 md:gap-3">
+                        <span className="rounded-md bg-slate-100 px-2.5 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:bg-slate-800 dark:text-slate-300">{project.code}</span>
+                        <span className={`rounded-md px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${getStatusColor(project.status)}`}>
                             {project.status}
                         </span>
                     </div>
-                    <h1 className="text-xl font-bold text-slate-900 dark:text-white md:text-2xl">{project.name}</h1>
-                    <p className="mt-1 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                        <span className="material-icons-outlined text-sm">person</span>
+                    <h2 className="text-xl font-black leading-tight text-slate-950 dark:text-white md:text-2xl">{project.name}</h2>
+                    <p className="mt-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <span className="material-icons-outlined text-[17px]">business</span>
                         {project.contact?.name || "Sin contacto"}
                     </p>
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto">
-                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/60">
-                        <span className="block text-[10px] font-bold text-slate-400 uppercase">Margen Bruto</span>
-                        <span className={`text-lg font-bold font-mono ${margin >= 20 ? 'text-green-600' : margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>
+                <div className="grid w-full grid-cols-2 gap-4 sm:w-auto sm:min-w-[260px]">
+                    <div className="text-left sm:text-right">
+                        <span className="block font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Margen bruto</span>
+                        <span className={`mt-2 block font-mono text-2xl font-black ${margin >= 20 ? 'text-emerald-600 dark:text-emerald-300' : margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>
                             {margin.toFixed(1)}%
                         </span>
                     </div>
-                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-2 dark:border-slate-800 dark:bg-slate-900/60">
-                        <span className="block text-[10px] font-bold text-slate-400 uppercase">Desvio Costos</span>
-                        <span className={`text-lg font-bold font-mono ${costDeviation <= 0 ? "text-green-600" : "text-orange-500"}`}>
+                    <div className="text-left sm:text-right">
+                        <span className="block font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Desvio costos</span>
+                        <span className={`mt-2 block font-mono text-2xl font-black ${costDeviation <= 0 ? "text-slate-950 dark:text-white" : "text-orange-500"}`}>
                             {costDeviation.toFixed(1)}%
                         </span>
                     </div>
@@ -164,160 +164,154 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
             </div>
 
             {/* Metric Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-blue-200 dark:border-slate-800 dark:hover:border-blue-900/60">
-                    <CardContent className="p-4 md:p-5">
-                        <div className="flex items-center gap-2 mb-3 text-blue-500">
-                            <span className="material-icons-outlined text-[18px]">account_balance_wallet</span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Total Facturado</span>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Card className="premium-card min-w-0 border-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:border-slate-800 dark:hover:border-blue-900/60">
+                    <CardContent className="p-5">
+                        <div className="mb-5 flex items-center gap-4">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                                <span className="material-icons-outlined text-[22px]">account_balance_wallet</span>
+                            </span>
+                            <span className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Total Facturado</span>
                         </div>
-                        <div className="break-words text-[13px] font-bold text-slate-900 font-mono dark:text-white sm:text-base md:text-2xl">RD$ {formatCurrency(totalInvoiced)}</div>
-                        <div className="mt-2 space-y-1 text-[10px] text-slate-500 dark:text-slate-400">
-                            <div>Total Cobrado: <span className="font-bold text-blue-600">RD$ {formatCurrency(totalCollected)}</span></div>
+                        <div className="break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(totalInvoiced)}</div>
+                        <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                            <div className="flex justify-between gap-3">Total Cobrado <span className="font-mono font-black text-blue-600 dark:text-blue-300">RD$ {formatCurrency(totalCollected)}</span></div>
                             <div className="flex justify-between">
-                                <span>- En Efectivo:</span>
-                                <span className="font-medium">RD$ {formatCurrency(actualCashCollected)}</span>
+                                <span>En efectivo</span>
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">RD$ {formatCurrency(actualCashCollected)}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span>- Retenciones:</span>
-                                <span className="font-medium text-amber-600">RD$ {formatCurrency(totalWithholdings)}</span>
+                                <span>Retenciones</span>
+                                <span className="font-mono font-bold text-amber-600">RD$ {formatCurrency(totalWithholdings)}</span>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-red-200 dark:border-slate-800 dark:hover:border-red-900/60">
-                    <CardContent className="p-4 md:p-5">
-                        <div className="flex items-center gap-2 mb-3 text-red-500">
-                            <span className="material-icons-outlined text-[18px]">shopping_cart</span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Costos Totales</span>
+                <Card className="premium-card min-w-0 border-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md dark:border-slate-800 dark:hover:border-red-900/60">
+                    <CardContent className="p-5">
+                        <div className="mb-5 flex items-center gap-4">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-300">
+                                <span className="material-icons-outlined text-[22px]">shopping_cart</span>
+                            </span>
+                            <span className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Costos Totales</span>
                         </div>
-                        <div className="break-words text-[13px] font-bold text-slate-900 font-mono dark:text-white sm:text-base md:text-2xl">RD$ {formatCurrency(totalCosts)}</div>
-                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-                            Presupuesto: <span className="font-bold text-slate-700 dark:text-slate-200">RD$ {formatCurrency(budgetCost)}</span>
+                        <div className="break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(totalCosts)}</div>
+                        <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                            <div className="flex justify-between gap-3">
+                                <span>Presupuesto</span>
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">RD$ {formatCurrency(budgetCost)}</span>
+                            </div>
+                            <div className="flex justify-between gap-3">
+                                <span>Desviacion</span>
+                                <span className={`font-mono font-black ${costDeviation <= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-red-600"}`}>{costDeviation.toFixed(1)}%</span>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-green-200 dark:border-slate-800 dark:hover:border-green-900/60">
-                    <CardContent className="p-4 md:p-5">
-                        <div className="flex items-center gap-2 mb-3 text-green-500">
-                            <span className="material-icons-outlined text-[18px]">trending_up</span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Ganancia Bruta</span>
+                <Card className="premium-card min-w-0 border-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md dark:border-slate-800 dark:hover:border-emerald-900/60">
+                    <CardContent className="p-5">
+                        <div className="mb-5 flex items-center gap-4">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                                <span className="material-icons-outlined text-[22px]">trending_up</span>
+                            </span>
+                            <span className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Ganancia Bruta</span>
                         </div>
-                        <div className={`break-words text-[13px] font-bold font-mono sm:text-base md:text-2xl ${grossProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <div className={`break-words font-mono text-2xl font-black ${grossProfit >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-600"}`}>
                             RD$ {formatCurrency(grossProfit)}
                         </div>
-                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-                            Sobre lo facturado
+                        <div className="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+                            Rendimiento basado sobre el total facturado neto de costos.
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="min-w-0 shadow-none border-slate-200 transition-colors hover:border-indigo-200 dark:border-slate-800 dark:hover:border-indigo-900/60">
-                    <CardContent className="p-4 md:p-5">
-                        <div className="flex items-center gap-2 mb-3 text-indigo-500">
-                            <span className="material-icons-outlined text-[18px]">payments</span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider">Flujo de Caja</span>
+                <Card className="premium-card min-w-0 border-slate-200 shadow-sm transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md dark:border-slate-800 dark:hover:border-orange-900/60">
+                    <CardContent className="p-5">
+                        <div className="mb-5 flex items-center gap-4">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
+                                <span className="material-icons-outlined text-[22px]">payments</span>
+                            </span>
+                            <span className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Flujo de Caja</span>
                         </div>
-                        <div className={`break-words text-[13px] font-bold font-mono sm:text-base md:text-2xl ${netProfit >= 0 ? "text-indigo-600" : "text-red-600"}`}>
+                        <div className={`break-words font-mono text-2xl font-black ${netProfit >= 0 ? "text-blue-700 dark:text-blue-300" : "text-red-600"}`}>
                             RD$ {formatCurrency(netProfit)}
                         </div>
-                        <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-                            Efectivo - Gastos
+                        <div className="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
+                            Diferencia entre ingresos percibidos y gastos pagados.
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
             {/* Project Fiscal Estimate */}
-            <Card className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-800">
-                <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                            <span className="material-icons-outlined text-[20px] text-blue-600 dark:text-blue-300">request_quote</span>
-                            Estimacion fiscal del proyecto
-                        </CardTitle>
-                        <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-                            {incomeTaxEstimate.label}
-                        </span>
+            <section className="space-y-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="flex items-center gap-2 text-2xl font-black text-slate-950 dark:text-white">
+                        <span className="material-icons-outlined text-[24px] text-blue-700 dark:text-blue-300">analytics</span>
+                        Estimacion Fiscal del Proyecto
+                    </h2>
+                    <span className="w-fit rounded-full bg-blue-100 px-3 py-1 font-mono text-[10px] font-black uppercase tracking-widest text-blue-800 dark:bg-blue-950/60 dark:text-blue-300">
+                        {incomeTaxEstimate.label}
+                    </span>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="premium-card rounded-xl border border-blue-100 bg-blue-50/50 p-5 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/20">
+                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300">ITBIS cobrado</p>
+                            <p className="mt-3 break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(totalSalesItbis)}</p>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Facturas de venta</p>
+                        </div>
+                        <div className="premium-card rounded-xl border border-emerald-100 bg-emerald-50/40 p-5 shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">ITBIS acreditable</p>
+                            <p className="mt-3 break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(creditableItbis)}</p>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Compras con credito fiscal</p>
+                        </div>
+                        <div className="premium-card rounded-xl border border-red-100 bg-red-50/40 p-5 shadow-sm dark:border-red-900/50 dark:bg-red-950/20">
+                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-red-700 dark:text-red-300">ITBIS neto a pagar</p>
+                            <p className="mt-3 break-words font-mono text-2xl font-black text-red-600 dark:text-red-300">RD$ {formatCurrency(netItbisDue)}</p>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                                {itbisCreditBalance > 0 ? `Credito a favor RD$ ${formatCurrency(itbisCreditBalance)}` : "Despues de creditos aplicados"}
+                            </p>
+                        </div>
+                        <div className="premium-card rounded-xl border border-orange-100 bg-orange-50/40 p-5 shadow-sm dark:border-orange-900/50 dark:bg-orange-950/20">
+                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300">ISR estimado</p>
+                            <p className="mt-3 break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(estimatedISR)}</p>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{incomeTaxEstimate.helper}</p>
+                        </div>
                     </div>
-                </CardHeader>
-                <CardContent className="p-4 md:p-5">
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">ITBIS cobrado</p>
-                            <p className="mt-2 break-words font-mono text-lg font-black text-slate-950 dark:text-white">RD$ {formatCurrency(totalSalesItbis)}</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Facturas de venta</p>
-                        </div>
-                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">ITBIS acreditable</p>
-                            <p className="mt-2 break-words font-mono text-lg font-black text-slate-950 dark:text-white">RD$ {formatCurrency(creditableItbis)}</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Compras con credito fiscal</p>
-                        </div>
-                        <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-4 dark:border-orange-900/50 dark:bg-orange-950/20">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-orange-700 dark:text-orange-300">ITBIS neto a pagar</p>
-                            <p className="mt-2 break-words font-mono text-lg font-black text-orange-600 dark:text-orange-300">RD$ {formatCurrency(netItbisDue)}</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                {itbisCreditBalance > 0 ? `Credito a favor RD$ ${formatCurrency(itbisCreditBalance)}` : "Despues de creditos"}
-                            </p>
-                        </div>
-                        <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4 dark:border-violet-900/50 dark:bg-violet-950/20">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-300">ISR estimado</p>
-                            <p className="mt-2 break-words font-mono text-lg font-black text-violet-600 dark:text-violet-300">RD$ {formatCurrency(estimatedISR)}</p>
-                            <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{incomeTaxEstimate.helper}</p>
-                        </div>
-                    </div>
 
-                    <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/70">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Base para ISR</p>
-                            <div className="mt-3 space-y-2 text-sm">
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-500 dark:text-slate-400">Ingresos sin ITBIS</span>
-                                    <span className="font-mono font-bold text-slate-900 dark:text-white">RD$ {formatCurrency(totalSalesBase)}</span>
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-500 dark:text-slate-400">Costos deducibles</span>
-                                    <span className="font-mono font-bold text-slate-900 dark:text-white">RD$ {formatCurrency(deductibleCosts)}</span>
-                                </div>
-                                <div className="border-t border-slate-100 pt-2 dark:border-slate-800">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <span className="font-black text-slate-700 dark:text-slate-200">Utilidad fiscal</span>
-                                        <span className={`font-mono font-black ${taxableProfitBeforeISR >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-red-600 dark:text-red-300"}`}>
-                                            RD$ {formatCurrency(taxableProfitBeforeISR)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/70">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Ganancia real estimada</p>
-                            <p className={`mt-3 break-words font-mono text-2xl font-black ${estimatedNetProfit >= 0 ? "text-emerald-600 dark:text-emerald-300" : "text-red-600 dark:text-red-300"}`}>
-                                RD$ {formatCurrency(estimatedNetProfit)}
-                            </p>
-                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                Utilidad fiscal menos ISR estimado.
-                            </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">Caja despues de impuestos</p>
-                            <p className={`mt-3 break-words font-mono text-2xl font-black ${estimatedCashAfterTaxes >= 0 ? "text-blue-200" : "text-red-300"}`}>
+                    <div className="space-y-4">
+                        <div className="premium-card rounded-xl border border-slate-900 bg-slate-900 p-6 text-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
+                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-400">Caja despues de impuestos</p>
+                            <p className={`mt-4 break-words font-mono text-4xl font-light ${estimatedCashAfterTaxes >= 0 ? "text-white" : "text-red-300"}`}>
                                 RD$ {formatCurrency(estimatedCashAfterTaxes)}
                             </p>
-                            <p className="mt-2 text-xs text-slate-300">
-                                Total facturado menos compras, ITBIS neto e ISR.
+                            <p className="mt-4 text-sm leading-relaxed text-slate-300">
+                                Total facturado menos compras, ITBIS neto e ISR estimado.
                             </p>
                         </div>
+                        <div className="premium-card rounded-xl border border-blue-100 bg-blue-50/60 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/20">
+                            <div className="flex items-center justify-between gap-3 text-sm">
+                                <span className="text-slate-600 dark:text-slate-400">Base para ISR</span>
+                                <span className="font-mono font-black text-slate-950 dark:text-white">RD$ {formatCurrency(taxableProfitBeforeISR)}</span>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                                <span className="text-slate-600 dark:text-slate-400">Ganancia Real Est.</span>
+                                <span className={`font-mono font-black ${estimatedNetProfit >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-600 dark:text-red-300"}`}>
+                                    RD$ {formatCurrency(estimatedNetProfit)}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </section>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
-                <Card className="lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <Card className="premium-card border-slate-200 shadow-sm dark:border-slate-800">
                     <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between p-4 dark:border-slate-800">
                         <CardTitle className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">
                             <span className="material-icons-outlined">bar_chart</span>
@@ -327,7 +321,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                             Ingresos {incomeDeviation.toFixed(1)}%
                         </span>
                     </CardHeader>
-                    <CardContent className="h-[230px] p-3 sm:p-4 md:h-[300px] md:p-6 [--chart-axis:#64748b] [--chart-grid:#e2e8f0] dark:[--chart-axis:#94a3b8] dark:[--chart-grid:#243244]">
+                    <CardContent className="h-[260px] p-3 sm:p-4 md:h-[360px] md:p-6 [--chart-axis:#64748b] [--chart-grid:#e2e8f0] dark:[--chart-axis:#94a3b8] dark:[--chart-grid:#243244]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} margin={{ top: 10, right: 4, left: -22, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
@@ -346,14 +340,14 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800">
+                <Card className="premium-card border-slate-200 shadow-sm dark:border-slate-800">
                     <CardHeader className="border-b border-slate-100 p-4 dark:border-slate-800">
                         <CardTitle className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">
                             <span className="material-icons-outlined">pie_chart</span>
                             Composición
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[240px] p-3 sm:p-4 md:h-[300px] md:p-6">
+                    <CardContent className="h-[260px] p-3 sm:p-4 md:h-[360px] md:p-6">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
@@ -383,12 +377,15 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
 
             {/* Timeline / Transactions Table */}
             <div className="grid grid-cols-1 gap-6">
-                <Card className="shadow-sm border-slate-200 dark:border-slate-800">
-                    <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between p-4 dark:border-slate-800">
-                        <CardTitle className="text-sm font-bold uppercase text-slate-500 flex items-center gap-2">
-                            <span className="material-icons-outlined">list_alt</span>
+                <Card className="premium-card overflow-hidden border-slate-200 shadow-sm dark:border-slate-800">
+                    <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
+                        <CardTitle className="flex items-center gap-2 text-2xl font-black text-slate-950 dark:text-white">
+                            <span className="material-icons-outlined text-[24px] text-blue-700 dark:text-blue-300">list_alt</span>
                             Transacciones Asociadas
                         </CardTitle>
+                        <span className="hidden text-sm text-slate-500 dark:text-slate-400 sm:inline-flex">
+                            Mostrando {transactions.length} {transactions.length === 1 ? "resultado" : "resultados"}
+                        </span>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="space-y-3 p-4 md:hidden">
@@ -461,7 +458,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
 
                         <div className="hidden md:block">
                         <Table>
-                            <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
+                            <TableHeader className="bg-blue-50/80 dark:bg-slate-800/70">
                                 <TableRow>
                                     <TableHead className="text-[10px] uppercase font-bold">Fecha</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold">Tipo</TableHead>

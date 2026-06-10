@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { deleteProject } from "@/app/actions";
 
-export function ProjectDeleteButton({ id, redirectTo = "/projects" }: { id: number; redirectTo?: string }) {
+export function ProjectDeleteButton({ id, redirectTo = "/projects", compact = false }: { id: number; redirectTo?: string; compact?: boolean }) {
     const router = useRouter();
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -29,13 +29,14 @@ export function ProjectDeleteButton({ id, redirectTo = "/projects" }: { id: numb
         <Button
             type="button"
             variant="outline"
-            size="sm"
+            size={compact ? "icon" : "sm"}
             onClick={handleDelete}
             disabled={isDeleting}
-            className="h-9 px-4 border-red-200 text-red-600 hover:bg-red-50"
+            className={compact ? "h-9 w-9 border-red-100 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/30" : "h-9 px-4 border-red-200 text-red-600 hover:bg-red-50"}
+            title="Eliminar proyecto"
         >
-            <span className="material-icons-outlined mr-2 text-[18px]">delete</span>
-            {isDeleting ? "Eliminando..." : "Eliminar"}
+            <span className={`material-icons-outlined text-[18px] ${compact ? "" : "mr-2"}`}>delete</span>
+            {compact ? null : isDeleting ? "Eliminando..." : "Eliminar"}
         </Button>
     );
 }
