@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { getActiveProfile } from "@/lib/account-profiles";
 import { ProjectDeleteButton } from "@/components/projects/ProjectDeleteButton";
+import { ProjectLinkDocumentsButton } from "@/components/projects/ProjectLinkDocumentsButton";
 
 interface ProjectPageProps {
     params: Promise<{ id: string }>;
@@ -51,6 +52,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                             </span>
                         </>
                     )}
+                    <ProjectLinkDocumentsButton projectId={projectId} />
                     <Link href={`/purchases/new?projectId=${projectId}&returnTo=/projects/${projectId}`}>
                         <Button size="sm" className="h-9 w-full gap-2 border border-emerald-700 bg-emerald-700 px-4 text-white shadow-sm hover:bg-emerald-800 sm:w-auto">
                             <span className="material-icons-outlined text-[18px]">shopping_cart</span>

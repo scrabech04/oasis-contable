@@ -2083,6 +2083,79 @@ export async function getUnlinkedInvoicesByContact(contactId: number) {
   });
 }
 
+export async function getProjectLinkCandidates(projectId: number) {
+  const profileId = await getActiveProfileId();
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { profileId },
+        { sharedWith: { some: { profileId } } },
+      ],
+    },
+    select: { id: true, contactId: true },
+  });
+
+  if (!project) return null;
+
+  const [invoices, purchases] = await Promise.all([
+    prisma.invoice.findMany({
+      where: {
+        profileId,
+        contactId: project.contactId,
+        OR: [{ projectId: null }, { projectId: project.id }],
+      },
+      include: { contact: true, project: true },
+      orderBy: { date: "desc" },
+    }),
+    prisma.purchase.findMany({
+      where: {
+        profileId,
+        OR: [{ projectId: null }, { projectId: project.id }],
+      },
+      include: { contact: true, project: true },
+      orderBy: { date: "desc" },
+    }),
+  ]);
+
+  return { projectId: project.id, invoices, purchases };
+}
+
+export async function setProjectDocumentLink(projectId: number, documentType: "invoice" | "purchase", documentId: number, linked: boolean): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { profileId },
+        { sharedWith: { some: { profileId } } },
+      ],
+    },
+    select: { id: true, contactId: true },
+  });
+  if (!project) return { success: false, error: "Proyecto no encontrado para el perfil activo." };
+
+  if (documentType === "invoice") {
+    const result = await prisma.invoice.updateMany({
+      where: { id: documentId, profileId, contactId: project.contactId, ...(linked ? {} : { projectId }) },
+      data: { projectId: linked ? projectId : null },
+    });
+    if (result.count === 0) return { success: false, error: "No se pudo vincular esta factura al proyecto." };
+    revalidatePath("/invoices");
+  } else {
+    const result = await prisma.purchase.updateMany({
+      where: { id: documentId, profileId, ...(linked ? {} : { projectId }) },
+      data: { projectId: linked ? projectId : null },
+    });
+    if (result.count === 0) return { success: false, error: "No se pudo vincular esta compra al proyecto." };
+    revalidatePath("/purchases");
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  return { success: true, id: documentId, projectId };
+}
+
 export async function getNextNcf(sequenceId: number) {
   const profileId = await getActiveProfileId();
   const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });

@@ -4,6 +4,10 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 
 ## 2026-06-10 - Refinamiento visual de proyectos
 
+### Agregado
+- En el detalle de proyecto se agrega la accion `Vincular` para asociar facturas de venta o compras existentes al proyecto sin crear documentos nuevos.
+- El modal de vinculacion permite alternar entre facturas y compras, ver documentos ya vinculados y desvincularlos si hace falta.
+
 ### Mejorado
 - El detalle de proyecto recibe un header superior mas limpio, con acciones compactas para editar/eliminar y botones principales para compra/factura.
 - El resumen del proyecto y las metricas financieras se redisenan con tarjetas mas claras, iconos por bloque y divisores internos.
