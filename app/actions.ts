@@ -1971,7 +1971,7 @@ export async function getProject(id: number) {
       profile: true,
       sharedWith: { include: { profile: true } },
       invoices: { include: { contact: true, payments: { include: { withholdings: true } } } },
-      purchases: true,
+      purchases: { include: { contact: true, payments: { include: { withholdings: true } } } },
       quotations: true,
     },
   });

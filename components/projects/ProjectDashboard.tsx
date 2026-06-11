@@ -3,15 +3,15 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/format";
-import { Project, Invoice, Purchase, Contact, InvoiceItem, PurchaseItem, Payment } from "@prisma/client";
+import { Project, Invoice, Purchase, Contact, InvoiceItem, PurchaseItem, Payment, Withholding } from "@prisma/client";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { useRouter } from "next/navigation";
 
 interface ProjectDashboardProps {
     project: Project & {
         contact: Contact;
-        invoices: (Invoice & { items: InvoiceItem[], payments: Payment[] })[];
-        purchases: (Purchase & { items: PurchaseItem[], payments: Payment[] })[];
+        invoices: (Invoice & { items: InvoiceItem[], payments: (Payment & { withholdings: Withholding[] })[] })[];
+        purchases: (Purchase & { items: PurchaseItem[], payments: (Payment & { withholdings: Withholding[] })[] })[];
     };
     taxSettings?: {
         incomeTaxRegime?: string | null;
@@ -47,26 +47,34 @@ function resolveIncomeTax(taxableProfit: number, taxSettings?: ProjectDashboardP
     };
 }
 
+function sumPaymentCash(payments: Array<Payment & { withholdings?: Withholding[] }> = []) {
+    return payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+}
+
+function sumWithholdings(payments: Array<Payment & { withholdings?: Withholding[] }> = [], kind?: "ITBIS" | "ISR") {
+    return payments.reduce((sum, payment) => {
+        return sum + (payment.withholdings || []).reduce((withholdingSum, withholding) => {
+            const type = String(withholding.type || "").toUpperCase();
+            if (kind && !type.startsWith(kind)) return withholdingSum;
+            return withholdingSum + (Number(withholding.amount) || 0);
+        }, 0);
+    }, 0);
+}
+
 export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps) {
     const router = useRouter();
     // Financial Calculations
     const totalInvoiced = project.invoices.reduce((sum: number, inv: any) => sum + inv.total, 0);
     const totalSalesBase = project.invoices.reduce((sum: number, inv: any) => sum + inv.subtotal, 0);
     const totalSalesItbis = project.invoices.reduce((sum: number, inv: any) => sum + inv.tax, 0);
-    const totalCollected = project.invoices.reduce((sum: number, inv: any) => {
-        // paidAmount now includes withholdings from the backend fix
-        return sum + inv.paidAmount;
-    }, 0);
-
-    const totalWithholdings = project.invoices.reduce((sum: number, inv: any) => {
-        const invWithholdings = inv.payments?.reduce((pSum: number, p: any) => {
-            return pSum + (p.withholdings?.reduce((wSum: number, w: any) => wSum + w.amount, 0) || 0);
-        }, 0) || 0;
-        return sum + invWithholdings;
-    }, 0);
-
-    const actualCashCollected = totalCollected - totalWithholdings;
+    const totalCollected = project.invoices.reduce((sum: number, inv: any) => sum + inv.paidAmount, 0);
+    const totalWithholdings = project.invoices.reduce((sum: number, inv: any) => sum + sumWithholdings(inv.payments), 0);
+    const salesItbisWithheld = project.invoices.reduce((sum: number, inv: any) => sum + sumWithholdings(inv.payments, "ITBIS"), 0);
+    const salesIsrWithheld = project.invoices.reduce((sum: number, inv: any) => sum + sumWithholdings(inv.payments, "ISR"), 0);
+    const actualCashCollected = project.invoices.reduce((sum: number, inv: any) => sum + sumPaymentCash(inv.payments), 0);
     const totalCosts = project.purchases.reduce((sum: number, pur: any) => sum + pur.total, 0);
+    const actualCashPaid = project.purchases.reduce((sum: number, pur: any) => sum + sumPaymentCash(pur.payments), 0);
+    const purchaseWithholdings = project.purchases.reduce((sum: number, pur: any) => sum + sumWithholdings(pur.payments), 0);
     const creditableItbis = project.purchases.reduce((sum: number, pur: any) => {
         const canUseAsCredit = pur.hasFiscalCredit && pur.report606 !== false && pur.taxTreatment === "LOCAL_CREDIT";
         return sum + (canUseAsCredit ? pur.tax : 0);
@@ -76,17 +84,19 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
         const taxIsCredit = pur.hasFiscalCredit && pur.report606 !== false && pur.taxTreatment === "LOCAL_CREDIT";
         return sum + (taxIsCredit ? pur.subtotal : pur.total);
     }, 0);
-    const netItbisDue = Math.max(0, totalSalesItbis - creditableItbis);
-    const itbisCreditBalance = Math.max(0, creditableItbis - totalSalesItbis);
+    const netItbisBeforeWithholdings = Math.max(0, totalSalesItbis - creditableItbis);
+    const netItbisDue = Math.max(0, totalSalesItbis - creditableItbis - salesItbisWithheld);
+    const itbisCreditBalance = Math.max(0, creditableItbis + salesItbisWithheld - totalSalesItbis);
     const taxableProfitBeforeISR = totalSalesBase - deductibleCosts;
     const incomeTaxEstimate = resolveIncomeTax(taxableProfitBeforeISR, taxSettings);
     const estimatedISR = incomeTaxEstimate.amount;
+    const remainingISRDue = Math.max(0, estimatedISR - salesIsrWithheld);
     const estimatedNetProfit = taxableProfitBeforeISR - estimatedISR;
-    const estimatedCashAfterTaxes = totalInvoiced - totalCosts - netItbisDue - estimatedISR;
+    const estimatedCashAfterTaxes = actualCashCollected - actualCashPaid - netItbisDue - remainingISRDue - purchaseWithholdings;
 
-    const grossProfit = totalInvoiced - totalCosts;
-    const netProfit = actualCashCollected - totalCosts; // Based on cash flow (collected cash - total costs incurred)
-    const margin = totalInvoiced > 0 ? (grossProfit / totalInvoiced) * 100 : 0;
+    const grossProfit = totalSalesBase - deductibleCosts;
+    const netProfit = actualCashCollected - actualCashPaid;
+    const margin = totalSalesBase > 0 ? (grossProfit / totalSalesBase) * 100 : 0;
 
     const budgetIncome = project.budgetIncome || 0;
     const budgetCost = project.budgetCost || 0;
@@ -96,13 +106,13 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
 
     // Chart Data
     const summaryData = [
-        { name: "Facturado", value: totalInvoiced },
-        { name: "Costos", value: totalCosts },
+        { name: "Ingresos netos", value: totalSalesBase },
+        { name: "Costos", value: deductibleCosts },
     ];
 
     const chartData = [
         { name: "Presupuesto", Ingresos: budgetIncome, Costos: budgetCost },
-        { name: "Real", Ingresos: totalInvoiced, Costos: totalCosts },
+        { name: "Real", Ingresos: totalSalesBase, Costos: deductibleCosts },
     ];
 
     const COLORS = ["#3b82f6", "#ef4444"];
@@ -175,9 +185,9 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                         </div>
                         <div className="break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(totalInvoiced)}</div>
                         <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                            <div className="flex justify-between gap-3">Total Cobrado <span className="font-mono font-black text-blue-600 dark:text-blue-300">RD$ {formatCurrency(totalCollected)}</span></div>
+                            <div className="flex justify-between gap-3">Liquidado fiscal <span className="font-mono font-black text-blue-600 dark:text-blue-300">RD$ {formatCurrency(totalCollected)}</span></div>
                             <div className="flex justify-between">
-                                <span>En efectivo</span>
+                                <span>En banco/caja</span>
                                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">RD$ {formatCurrency(actualCashCollected)}</span>
                             </div>
                             <div className="flex justify-between">
@@ -222,7 +232,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                             RD$ {formatCurrency(grossProfit)}
                         </div>
                         <div className="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
-                            Rendimiento basado sobre el total facturado neto de costos.
+                            Subtotal de ventas menos costos deducibles; no incluye ITBIS ni retenciones.
                         </div>
                     </CardContent>
                 </Card>
@@ -239,7 +249,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                             RD$ {formatCurrency(netProfit)}
                         </div>
                         <div className="mt-5 border-t border-slate-100 pt-4 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
-                            Diferencia entre ingresos percibidos y gastos pagados.
+                            Efectivo recibido menos pagos hechos en efectivo.
                         </div>
                     </CardContent>
                 </Card>
@@ -273,13 +283,19 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                             <p className="font-mono text-[10px] font-black uppercase tracking-widest text-red-700 dark:text-red-300">ITBIS neto a pagar</p>
                             <p className="mt-3 break-words font-mono text-2xl font-black text-red-600 dark:text-red-300">RD$ {formatCurrency(netItbisDue)}</p>
                             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                                {itbisCreditBalance > 0 ? `Credito a favor RD$ ${formatCurrency(itbisCreditBalance)}` : "Despues de creditos aplicados"}
+                                {itbisCreditBalance > 0
+                                    ? `Credito a favor RD$ ${formatCurrency(itbisCreditBalance)}`
+                                    : salesItbisWithheld > 0
+                                        ? `Antes de retenciones RD$ ${formatCurrency(netItbisBeforeWithholdings)}`
+                                        : "Despues de creditos aplicados"}
                             </p>
                         </div>
                         <div className="premium-card rounded-xl border border-orange-100 bg-orange-50/40 p-5 shadow-sm dark:border-orange-900/50 dark:bg-orange-950/20">
                             <p className="font-mono text-[10px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300">ISR estimado</p>
                             <p className="mt-3 break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(estimatedISR)}</p>
-                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{incomeTaxEstimate.helper}</p>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                                {salesIsrWithheld > 0 ? `Retenido RD$ ${formatCurrency(salesIsrWithheld)}` : incomeTaxEstimate.helper}
+                            </p>
                         </div>
                     </div>
 
@@ -290,13 +306,17 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                 RD$ {formatCurrency(estimatedCashAfterTaxes)}
                             </p>
                             <p className="mt-4 text-sm leading-relaxed text-slate-300">
-                                Total facturado menos compras, ITBIS neto e ISR estimado.
+                                Efectivo recibido menos pagos realizados e impuestos pendientes.
                             </p>
                         </div>
                         <div className="premium-card rounded-xl border border-blue-100 bg-blue-50/60 p-4 shadow-sm dark:border-blue-900/50 dark:bg-blue-950/20">
                             <div className="flex items-center justify-between gap-3 text-sm">
                                 <span className="text-slate-600 dark:text-slate-400">Base para ISR</span>
                                 <span className="font-mono font-black text-slate-950 dark:text-white">RD$ {formatCurrency(taxableProfitBeforeISR)}</span>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                                <span className="text-slate-600 dark:text-slate-400">ITBIS retenido</span>
+                                <span className="font-mono font-black text-amber-600">RD$ {formatCurrency(salesItbisWithheld)}</span>
                             </div>
                             <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                                 <span className="text-slate-600 dark:text-slate-400">Ganancia Real Est.</span>
@@ -432,7 +452,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
 
                                         <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
                                             <div>
-                                                <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">{isSale ? "Cobrado" : "Pagado"}</p>
+                                                <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500">{isSale ? "Liquidado" : "Pagado"}</p>
                                                 <p className="mt-1 font-mono text-xs font-bold text-emerald-600">RD$ {formatCurrency(doc.paidAmount)}</p>
                                             </div>
                                             <div>
@@ -464,7 +484,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                     <TableHead className="text-[10px] uppercase font-bold">Tipo</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold">Documento</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold text-right">Monto</TableHead>
-                                    <TableHead className="text-[10px] uppercase font-bold text-right">Cobrado/Pagado</TableHead>
+                                    <TableHead className="text-[10px] uppercase font-bold text-right">Liquidado/Pagado</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold text-center">Estado</TableHead>
                                 </TableRow>
                             </TableHeader>
