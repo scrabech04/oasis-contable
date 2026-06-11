@@ -24,16 +24,18 @@ export default async function PurchasesPage(props: {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Compras y Gastos</h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Historial de adquisiciones, gastos operativos e importaciones.</p>
         </div>
-        <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:flex-wrap">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <PurchasesActions autoOpenQR={autoOpenQR} />
           <Link
             href="/purchases/ai-import"
-            className="inline-flex h-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 px-3 text-center text-sm font-bold text-blue-600 shadow-sm transition-all hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 sm:px-6"
+            title="Importar con IA"
+            aria-label="Importar con IA"
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-md dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
           >
-            <span className="material-icons-round mr-1.5 text-[20px] sm:mr-2">auto_awesome</span>
-            Importar con IA
+            <span className="material-icons-round text-[22px]">auto_awesome</span>
+            <span className="sr-only">Importar con IA</span>
           </Link>
-          <Link href="/purchases/new" className={primaryActionClass}>
+          <Link href="/purchases/new" className={`${primaryActionClass} min-w-[11rem] flex-1 px-5 sm:flex-none`}>
             <span className="material-icons-round text-[20px]">add</span>
             Nueva Compra
           </Link>
