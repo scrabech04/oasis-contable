@@ -17,6 +17,9 @@ export default async function SettingsPage() {
         getAccountProfiles(),
         getActiveProfile()
     ]);
+    const selectedIncomeTaxRegime = settings.incomeTaxRegime === "PERSON_PROGRESSIVE"
+        ? "INDIVIDUAL"
+        : settings.incomeTaxRegime || (activeProfile.type === "PERSON" ? "INDIVIDUAL" : "LEGAL_ENTITY");
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -94,11 +97,11 @@ export default async function SettingsPage() {
                                     <select
                                         id="incomeTaxRegime"
                                         name="incomeTaxRegime"
-                                        defaultValue={settings.incomeTaxRegime || (activeProfile.type === "PERSON" ? "PERSON_PROGRESSIVE" : "LEGAL_ENTITY")}
+                                        defaultValue={selectedIncomeTaxRegime}
                                         className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                                     >
                                         <option value="LEGAL_ENTITY">Persona juridica - 27%</option>
-                                        <option value="PERSON_PROGRESSIVE">Persona fisica - escala progresiva</option>
+                                        <option value="INDIVIDUAL">Persona fisica - 25%</option>
                                         <option value="CUSTOM">Tasa personalizada</option>
                                     </select>
                                     <p className="text-xs text-slate-500">Se usa en la estimacion fiscal de proyectos, no sustituye la declaracion anual.</p>
@@ -119,7 +122,7 @@ export default async function SettingsPage() {
                                             required
                                         />
                                     </div>
-                                    <p className="text-xs text-slate-500">Para juridica usa 27. Para personalizada puedes poner la tasa que indique tu contador.</p>
+                                    <p className="text-xs text-slate-500">Para persona fisica usa 25 y para juridica 27. Para personalizada puedes poner la tasa que indique tu contador.</p>
                                 </div>
                             </div>
                             <CoverTemplateSettings settings={settings} />

@@ -1660,7 +1660,7 @@ export async function updateCompanySettings(formData: FormData) {
       phone: optionalText(formData, "phone"),
       address: optionalText(formData, "address"),
       currency: text(formData, "currency", "RD$"),
-      incomeTaxRegime: boundedText(formData, "incomeTaxRegime", ["LEGAL_ENTITY", "PERSON_PROGRESSIVE", "CUSTOM"], "LEGAL_ENTITY"),
+      incomeTaxRegime: boundedText(formData, "incomeTaxRegime", ["LEGAL_ENTITY", "INDIVIDUAL", "CUSTOM"], "LEGAL_ENTITY"),
       incomeTaxRate: clampNumber(numberValue(formData, "incomeTaxRate", 27) / 100, 0, 1),
       coverImageFit: boundedText(formData, "coverImageFit", ["COVER", "CONTAIN"], "COVER"),
       coverImagePosition: boundedText(formData, "coverImagePosition", ["CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT"], "CENTER"),

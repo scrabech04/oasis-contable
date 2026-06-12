@@ -10,12 +10,12 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - La ganancia bruta del proyecto se calcula sobre ingresos netos/base imponible menos costos deducibles, sin inflar el resultado con ITBIS.
 - La caja despues de impuestos usa efectivo real recibido y pagos realizados, y descuenta solo impuestos pendientes despues de retenciones.
 - El ITBIS neto a pagar del proyecto ahora descuenta ITBIS retenido por clientes, igual que la logica fiscal usada en reportes.
-- La tarjeta de ISR explica cuando el regimen de persona fisica progresiva queda exento por no superar el tramo anual, para evitar que parezca un calculo roto.
+- La estimacion ISR del proyecto usa tasas simples por perfil: persona fisica 25% y persona juridica 27%, con soporte para tasa personalizada.
 
 ### Pendiente de prueba
 - Revisar un proyecto con factura pagada por transferencia + retenciones para confirmar que `Caja despues de impuestos` no suma retenciones como efectivo.
 - Validar un proyecto con compras pagadas parcialmente para confirmar que el flujo de caja usa pagos reales y no costos registrados completos.
-- Probar un proyecto por encima del tramo exento de persona fisica y otro en persona juridica para confirmar que el ISR estimado cambia segun configuracion.
+- Probar un proyecto de persona fisica y otro de persona juridica para confirmar que el ISR estimado aplica 25% y 27% respectivamente.
 
 ## 2026-06-10 - Refinamiento visual de proyectos
 
@@ -50,18 +50,18 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 ## 2026-06-08 - ISR configurable por perfil
 
 ### Agregado
-- En `Configuracion` se agrega `Regimen ISR para estimaciones` por perfil: persona juridica, persona fisica progresiva o tasa personalizada.
+- En `Configuracion` se agrega `Regimen ISR para estimaciones` por perfil: persona juridica 27%, persona fisica 25% o tasa personalizada.
 - La estimacion fiscal del detalle de proyecto deja de usar 27% fijo y ahora lee la configuracion del perfil activo.
-- Para persona fisica se agrega calculo progresivo anual con los tramos DGII: exento, 15%, 20% y 25%.
+- Para persona fisica se usa una referencia fija de 25% para estimaciones por proyecto.
 
 ### Migracion
 - Se agregan `incomeTaxRegime` e `incomeTaxRate` a `CompanySettings`.
-- Los perfiles tipo `PERSON` se inicializan como persona fisica progresiva; los demas quedan como persona juridica 27%.
+- Los perfiles tipo `PERSON` se inicializan como persona fisica 25%; los demas quedan como persona juridica 27%.
 
 ### Pendiente de prueba
 - Aplicar la migracion SQL en Supabase antes del deploy.
 - Revisar un proyecto en perfil persona juridica y otro en perfil persona fisica para confirmar el ISR estimado.
-- Confirmar con el contador si para cada perfil conviene usar escala progresiva o una tasa personalizada.
+- Confirmar con el contador si para cada perfil conviene usar tasa fija o una tasa personalizada.
 
 ## 2026-06-06 - Propina legal 10% en importacion IA
 

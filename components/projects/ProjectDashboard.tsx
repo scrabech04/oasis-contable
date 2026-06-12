@@ -19,26 +19,16 @@ interface ProjectDashboardProps {
     };
 }
 
-const PERSON_INCOME_TAX_EXEMPT_LIMIT = 416220;
-
-function calculateIndividualProgressiveISR(annualTaxableIncome: number) {
-    const income = Math.max(0, annualTaxableIncome);
-    if (income <= PERSON_INCOME_TAX_EXEMPT_LIMIT) return 0;
-    if (income <= 624329) return (income - 416220.01) * 0.15;
-    if (income <= 867123) return 31216 + (income - 624329.01) * 0.2;
-    return 79776 + (income - 867123.01) * 0.25;
-}
-
 function resolveIncomeTax(taxableProfit: number, taxSettings?: ProjectDashboardProps["taxSettings"]) {
     const regime = taxSettings?.incomeTaxRegime || "LEGAL_ENTITY";
     const configuredRate = Number.isFinite(Number(taxSettings?.incomeTaxRate)) ? Number(taxSettings?.incomeTaxRate) : 0.27;
 
-    if (regime === "PERSON_PROGRESSIVE") {
-        const isExempt = Math.max(0, taxableProfit) <= PERSON_INCOME_TAX_EXEMPT_LIMIT;
+    if (regime === "INDIVIDUAL" || regime === "PERSON_PROGRESSIVE") {
+        const rate = 0.25;
         return {
-            amount: calculateIndividualProgressiveISR(taxableProfit),
-            label: "ISR PF progresivo",
-            helper: isExempt ? `Exento por escala anual hasta RD$ ${formatCurrency(PERSON_INCOME_TAX_EXEMPT_LIMIT)}` : "Escala anual persona fisica",
+            amount: Math.max(0, taxableProfit) * rate,
+            label: "ISR PF 25%",
+            helper: "Persona fisica",
         };
     }
 

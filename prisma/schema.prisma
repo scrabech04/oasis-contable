@@ -379,7 +379,7 @@ model CompanySettings {
   coverShowDocumentNumber Boolean @default(true)
   coverShowDate Boolean @default(true)
   coverShowProject Boolean @default(true)
-  incomeTaxRegime String @default("LEGAL_ENTITY") // LEGAL_ENTITY, PERSON_PROGRESSIVE, CUSTOM
+  incomeTaxRegime String @default("LEGAL_ENTITY") // LEGAL_ENTITY, INDIVIDUAL, CUSTOM
   incomeTaxRate Float @default(0.27)
   profileId Int?     @unique
   profile   AccountProfile? @relation(fields: [profileId], references: [id])
