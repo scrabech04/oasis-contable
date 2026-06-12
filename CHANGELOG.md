@@ -10,10 +10,12 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - La ganancia bruta del proyecto se calcula sobre ingresos netos/base imponible menos costos deducibles, sin inflar el resultado con ITBIS.
 - La caja despues de impuestos usa efectivo real recibido y pagos realizados, y descuenta solo impuestos pendientes despues de retenciones.
 - El ITBIS neto a pagar del proyecto ahora descuenta ITBIS retenido por clientes, igual que la logica fiscal usada en reportes.
+- La tarjeta de ISR explica cuando el regimen de persona fisica progresiva queda exento por no superar el tramo anual, para evitar que parezca un calculo roto.
 
 ### Pendiente de prueba
 - Revisar un proyecto con factura pagada por transferencia + retenciones para confirmar que `Caja despues de impuestos` no suma retenciones como efectivo.
 - Validar un proyecto con compras pagadas parcialmente para confirmar que el flujo de caja usa pagos reales y no costos registrados completos.
+- Probar un proyecto por encima del tramo exento de persona fisica y otro en persona juridica para confirmar que el ISR estimado cambia segun configuracion.
 
 ## 2026-06-10 - Refinamiento visual de proyectos
 

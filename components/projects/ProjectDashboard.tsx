@@ -19,9 +19,11 @@ interface ProjectDashboardProps {
     };
 }
 
+const PERSON_INCOME_TAX_EXEMPT_LIMIT = 416220;
+
 function calculateIndividualProgressiveISR(annualTaxableIncome: number) {
     const income = Math.max(0, annualTaxableIncome);
-    if (income <= 416220) return 0;
+    if (income <= PERSON_INCOME_TAX_EXEMPT_LIMIT) return 0;
     if (income <= 624329) return (income - 416220.01) * 0.15;
     if (income <= 867123) return 31216 + (income - 624329.01) * 0.2;
     return 79776 + (income - 867123.01) * 0.25;
@@ -32,10 +34,11 @@ function resolveIncomeTax(taxableProfit: number, taxSettings?: ProjectDashboardP
     const configuredRate = Number.isFinite(Number(taxSettings?.incomeTaxRate)) ? Number(taxSettings?.incomeTaxRate) : 0.27;
 
     if (regime === "PERSON_PROGRESSIVE") {
+        const isExempt = Math.max(0, taxableProfit) <= PERSON_INCOME_TAX_EXEMPT_LIMIT;
         return {
             amount: calculateIndividualProgressiveISR(taxableProfit),
             label: "ISR PF progresivo",
-            helper: "Escala anual persona fisica",
+            helper: isExempt ? `Exento por escala anual hasta RD$ ${formatCurrency(PERSON_INCOME_TAX_EXEMPT_LIMIT)}` : "Escala anual persona fisica",
         };
     }
 
@@ -293,15 +296,18 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                         <div className="premium-card rounded-xl border border-orange-100 bg-orange-50/40 p-5 shadow-sm dark:border-orange-900/50 dark:bg-orange-950/20">
                             <p className="font-mono text-[10px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300">ISR estimado</p>
                             <p className="mt-3 break-words font-mono text-2xl font-black text-slate-950 dark:text-white">RD$ {formatCurrency(estimatedISR)}</p>
-                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                                {salesIsrWithheld > 0 ? `Retenido RD$ ${formatCurrency(salesIsrWithheld)}` : incomeTaxEstimate.helper}
-                            </p>
+                            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{incomeTaxEstimate.helper}</p>
+                            {(salesIsrWithheld > 0 || remainingISRDue > 0) && (
+                                <p className="mt-1 text-xs font-bold text-amber-600 dark:text-amber-300">
+                                    Retenido RD$ {formatCurrency(salesIsrWithheld)} | Pendiente RD$ {formatCurrency(remainingISRDue)}
+                                </p>
+                            )}
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <div className="premium-card rounded-xl border border-slate-900 bg-slate-900 p-6 text-white shadow-sm dark:border-slate-700 dark:bg-slate-950">
-                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-400">Caja despues de impuestos</p>
+                            <p className="font-mono text-[10px] font-black uppercase tracking-widest text-slate-400">Caja actual despues de impuestos</p>
                             <p className={`mt-4 break-words font-mono text-4xl font-light ${estimatedCashAfterTaxes >= 0 ? "text-white" : "text-red-300"}`}>
                                 RD$ {formatCurrency(estimatedCashAfterTaxes)}
                             </p>
@@ -317,6 +323,10 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                             <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                                 <span className="text-slate-600 dark:text-slate-400">ITBIS retenido</span>
                                 <span className="font-mono font-black text-amber-600">RD$ {formatCurrency(salesItbisWithheld)}</span>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                                <span className="text-slate-600 dark:text-slate-400">ISR pendiente</span>
+                                <span className="font-mono font-black text-slate-950 dark:text-white">RD$ {formatCurrency(remainingISRDue)}</span>
                             </div>
                             <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                                 <span className="text-slate-600 dark:text-slate-400">Ganancia Real Est.</span>
