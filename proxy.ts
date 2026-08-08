@@ -6,6 +6,9 @@ const PUBLIC_PATHS = [
   "/api/auth/google",
   "/api/auth/google/callback",
   "/api/auth/logout",
+  // MCP routes enforce their own x-api-key auth (see lib/mcp.ts) instead of the
+  // browser session cookie - an external MCP server process has no cookie to send.
+  "/api/mcp",
   "/favicon.ico",
   "/manifest.webmanifest",
   "/sw.js",
