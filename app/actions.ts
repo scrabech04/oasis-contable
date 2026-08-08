@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import {
   ACTIVE_PROFILE_COOKIE,
   getActiveProfileId,
@@ -223,8 +224,8 @@ async function uniqueProjectCode(baseCode: string) {
   return candidate;
 }
 
-async function resolvePurchaseProfileId(formData: FormData) {
-  const requestedProfileId = Number(text(formData, "targetProfileId"));
+async function resolveExplicitOrActiveProfileId(formData: FormData, key = "targetProfileId") {
+  const requestedProfileId = Number(text(formData, key));
   if (Number.isFinite(requestedProfileId) && requestedProfileId > 0) {
     const profile = await prisma.accountProfile.findUnique({
       where: { id: requestedProfileId },
@@ -233,6 +234,21 @@ async function resolvePurchaseProfileId(formData: FormData) {
     if (profile) return profile.id;
   }
 
+  return getActiveProfileId();
+}
+
+async function resolvePurchaseProfileId(formData: FormData) {
+  return resolveExplicitOrActiveProfileId(formData, "targetProfileId");
+}
+
+// Used by read functions to accept an explicit profileId (MCP-facing callers) while
+// preserving cookie-derived behavior for the web UI, which never passes one.
+async function resolveReadProfileId(explicitProfileId?: number) {
+  if (explicitProfileId !== undefined) {
+    const profile = await prisma.accountProfile.findUnique({ where: { id: explicitProfileId }, select: { id: true } });
+    if (!profile) throw new Error("Perfil no encontrado.");
+    return profile.id;
+  }
   return getActiveProfileId();
 }
 
@@ -1801,8 +1817,8 @@ export async function deleteAccountProfile(id: number) {
   return { success: true };
 }
 
-export async function getContacts(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string } & PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getContacts(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string; profileId?: number } & PeriodParams) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
   const typeFilter =
     options?.type === "CLIENT"
@@ -1940,8 +1956,8 @@ export async function deleteContact(id: number) {
   return { success: true };
 }
 
-export async function getProjects(options?: PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getProjects(options?: PeriodParams & { profileId?: number }) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
   return prisma.project.findMany({
     where: {
@@ -2166,6 +2182,38 @@ export async function getNextNcf(sequenceId: number) {
   return `${sequence.prefix}${String(sequence.nextNumber).padStart(8, "0")}`;
 }
 
+export async function getNcfPreview(sequenceId: number, profileId: number) {
+  const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });
+  if (!sequence) throw new Error("Secuencia no encontrada para el perfil activo.");
+  if (sequence.finalNumber && sequence.nextNumber > sequence.finalNumber) {
+    throw new Error("Esta secuencia ya agotó su numeración.");
+  }
+  return `${sequence.prefix}${String(sequence.nextNumber).padStart(8, "0")}`;
+}
+
+// Atomically claims the next NCF for a sequence using optimistic-concurrency retry:
+// the updateMany's where clause only matches (and thus only succeeds) for the caller
+// that still sees the value it just read, so a losing concurrent call gets count 0
+// and retries with a fresh read instead of silently reusing the same NCF as another call.
+export async function issueNextNcf(sequenceId: number, profileId: number, maxRetries = 5) {
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });
+    if (!sequence) throw new Error("Secuencia no encontrada para el perfil activo.");
+    if (sequence.finalNumber && sequence.nextNumber > sequence.finalNumber) {
+      throw new Error("Esta secuencia ya agotó su numeración.");
+    }
+    const claimed = sequence.nextNumber;
+    const result = await prisma.numberingSequence.updateMany({
+      where: { id: sequenceId, nextNumber: claimed },
+      data: { nextNumber: { increment: 1 } },
+    });
+    if (result.count === 1) {
+      return `${sequence.prefix}${String(claimed).padStart(8, "0")}`;
+    }
+  }
+  throw new Error("No fue posible asignar el siguiente NCF, intenta de nuevo.");
+}
+
 export async function getNumberingSequences(docType = "INVOICE") {
   const profileId = await getActiveProfileId();
   return prisma.numberingSequence.findMany({
@@ -2233,8 +2281,8 @@ export async function deleteNumberingSequence(id: number) {
   return { success: true };
 }
 
-export async function getInvoices(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getInvoices(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const search = options?.search;
   const period = getPeriodDateRange(options || {});
   const orderBy =
@@ -2271,42 +2319,48 @@ export async function getInvoice(id: number) {
 
 export async function createInvoice(formData: FormData): Promise<ActionResult> {
   try {
-    const profileId = await getActiveProfileId();
+    const profileId = await resolveExplicitOrActiveProfileId(formData);
     const items = parseItems(formData);
     const total = totals(items);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
-    const number = await getNextInvoiceNumber();
-    const invoice = await prisma.invoice.create({
-      data: {
-        number,
-        ncf: optionalText(formData, "ncf"),
-        date: dateValue(formData, "date"),
-        dueDate: dateValue(formData, "dueDate"),
-        contactId,
-        projectId,
-        subtotal: total.subtotal,
-        tax: total.tax,
-        total: total.total,
-        incomeType: text(formData, "incomeType", "01"),
-        title: optionalText(formData, "title"),
-        subtitle: optionalText(formData, "subtitle"),
-        notes: optionalText(formData, "notes"),
-        termsAndConditions: optionalText(formData, "termsAndConditions"),
-        includeCoverPage: checkboxValue(formData, "includeCoverPage"),
-        includeTermsPage: checkboxValue(formData, "includeTermsPage"),
-        profileId,
-        items: { create: invoiceItemsData(items) },
-      },
-    });
+    const ncfSequenceId = optionalNumber(formData, "ncfSequenceId");
+    const ncf = ncfSequenceId ? await issueNextNcf(ncfSequenceId, profileId) : optionalText(formData, "ncf");
 
-    const ncf = text(formData, "ncf");
-    if (ncf) {
-      await prisma.numberingSequence.updateMany({
-        where: { profileId, prefix: ncf.slice(0, 3), nextNumber: Number(ncf.slice(3)) },
-        data: { nextNumber: { increment: 1 } },
-      });
+    let invoice;
+    for (let attempt = 0; ; attempt += 1) {
+      const number = await getNextInvoiceNumber();
+      try {
+        invoice = await prisma.invoice.create({
+          data: {
+            number,
+            ncf,
+            date: dateValue(formData, "date"),
+            dueDate: dateValue(formData, "dueDate"),
+            contactId,
+            projectId,
+            subtotal: total.subtotal,
+            tax: total.tax,
+            total: total.total,
+            incomeType: text(formData, "incomeType", "01"),
+            title: optionalText(formData, "title"),
+            subtitle: optionalText(formData, "subtitle"),
+            notes: optionalText(formData, "notes"),
+            termsAndConditions: optionalText(formData, "termsAndConditions"),
+            includeCoverPage: checkboxValue(formData, "includeCoverPage"),
+            includeTermsPage: checkboxValue(formData, "includeTermsPage"),
+            profileId,
+            items: { create: invoiceItemsData(items) },
+          },
+        });
+        break;
+      } catch (error) {
+        const isUniqueNumberClash = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+        if (isUniqueNumberClash && attempt < 2) continue;
+        throw error;
+      }
     }
+
     revalidatePath("/invoices");
     return { success: true, id: invoice.id };
   } catch (error) {
@@ -2573,8 +2627,8 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   return { success: true, id: invoice.id, invoiceId: invoice.id };
 }
 
-export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
   return prisma.purchase.findMany({
     where: { profileId, ...(period.gte ? { date: period } : {}) },
@@ -2847,8 +2901,8 @@ export async function createExpense(formData: FormData) {
   return createPurchase(formData);
 }
 
-export async function getExpenses(options?: PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getExpenses(options?: PeriodParams & { profileId?: number }) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
   return prisma.purchase.findMany({
     where: { profileId, type: "INFORMAL", ...(period.gte ? { date: period } : {}) },
@@ -3357,21 +3411,7 @@ async function createInvoiceFromRecurringTemplate(template: any, issueDate: Date
 
   const total = totals(template.items);
   const number = await getNextInvoiceNumber();
-  let ncf: string | null = null;
-
-  if (template.ncfSequenceId) {
-    const sequence = await prisma.numberingSequence.findFirst({
-      where: { id: template.ncfSequenceId, profileId },
-    });
-
-    if (sequence && (!sequence.finalNumber || sequence.nextNumber <= sequence.finalNumber)) {
-      ncf = `${sequence.prefix}${String(sequence.nextNumber).padStart(8, "0")}`;
-      await prisma.numberingSequence.update({
-        where: { id: sequence.id },
-        data: { nextNumber: { increment: 1 } },
-      });
-    }
-  }
+  const ncf = template.ncfSequenceId ? await issueNextNcf(template.ncfSequenceId, profileId).catch(() => null) : null;
 
   const invoice = await prisma.invoice.create({
     data: {

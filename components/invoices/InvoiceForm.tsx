@@ -220,6 +220,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
             formData.append("contactTaxId", contactTaxId);
         }
         formData.append("ncf", ncf);
+        formData.append("ncfSequenceId", selectedSequenceId);
         formData.append("date", invoiceDate);
         formData.append("dueDate", dueDate);
         formData.append("incomeType", incomeType);

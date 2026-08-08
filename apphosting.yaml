@@ -44,3 +44,7 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: MCP_API_KEY
+    secret: MCP_API_KEY
+    availability:
+      - RUNTIME

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "oasis-contable": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"]
+    }
+  }
+}
