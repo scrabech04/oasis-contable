@@ -2371,7 +2371,7 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
 
 export async function updateInvoice(id: number, formData: FormData): Promise<ActionResult> {
   try {
-    const profileId = await getActiveProfileId();
+    const profileId = await resolveExplicitOrActiveProfileId(formData);
     const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true } });
     if (!existing) return { success: false, error: "Factura no encontrada para el perfil activo." };
     const items = parseItems(formData);
@@ -2742,7 +2742,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
 }
 
 export async function updatePurchase(id: number, formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
+  const profileId = await resolveExplicitOrActiveProfileId(formData);
   const existing = await prisma.purchase.findFirst({ where: { id, profileId }, select: { paidAmount: true } });
   if (!existing) return { success: false, error: "Compra no encontrada para el perfil activo." };
   const items = parseItems(formData);

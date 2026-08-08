@@ -44,6 +44,17 @@ export async function oasisPost(path: string, body: Record<string, unknown>) {
   return handleResponse(response);
 }
 
+export async function oasisPatch(path: string, body: Record<string, unknown>) {
+  const { BASE_URL, API_KEY } = requireConfig();
+  const url = new URL(path, BASE_URL);
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "x-api-key": API_KEY, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return handleResponse(response);
+}
+
 export function defaultProfileId(): number | undefined {
   const raw = process.env.OASIS_DEFAULT_PROFILE_ID;
   const parsed = raw ? Number(raw) : NaN;

@@ -60,3 +60,68 @@ export function mcpErrorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "Unexpected error";
   return Response.json({ error: message }, { status });
 }
+
+// Fields an update PATCH body may omit to mean "leave as-is". updatePurchase/updateInvoice
+// do a full items replace, so partial edits (e.g. only relinking a project) must be seeded
+// with the record's current values before the caller's body is layered on top.
+export async function purchaseUpdateDefaults(id: number, profileId: number) {
+  const purchase = await prisma.purchase.findFirst({
+    where: { id, profileId },
+    include: { items: true },
+  });
+  if (!purchase) throw new McpBadRequestError("Purchase not found for this profile");
+
+  const rate = purchase.exchangeRate || 1;
+  return {
+    contactId: purchase.contactId ?? "manual",
+    contactName: purchase.supplierName ?? undefined,
+    contactTaxId: purchase.supplierTaxId ?? undefined,
+    supplierWebsiteUrl: purchase.supplierWebsiteUrl ?? undefined,
+    projectId: purchase.projectId ?? "none",
+    currency: purchase.currency,
+    exchangeRate: purchase.exchangeRate,
+    date: purchase.date.toISOString().slice(0, 10),
+    dueDate: purchase.dueDate ? purchase.dueDate.toISOString().slice(0, 10) : undefined,
+    ncf: purchase.ncf ?? undefined,
+    costType: purchase.costType ?? undefined,
+    taxTreatment: purchase.taxTreatment,
+    notes: purchase.notes ?? undefined,
+    items: purchase.items.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      // Stored items are already exchangeRate-converted to DOP; undo that so a
+      // re-submitted item round-trips through convertItemsToDop() unchanged.
+      price: item.price / rate,
+      taxRate: item.taxRate,
+    })),
+  };
+}
+
+export async function invoiceUpdateDefaults(id: number, profileId: number) {
+  const invoice = await prisma.invoice.findFirst({
+    where: { id, profileId },
+    include: { items: true },
+  });
+  if (!invoice) throw new McpBadRequestError("Invoice not found for this profile");
+
+  return {
+    contactId: invoice.contactId,
+    projectId: invoice.projectId ?? "none",
+    date: invoice.date.toISOString().slice(0, 10),
+    dueDate: invoice.dueDate.toISOString().slice(0, 10),
+    ncf: invoice.ncf ?? undefined,
+    incomeType: invoice.incomeType ?? undefined,
+    title: invoice.title ?? undefined,
+    subtitle: invoice.subtitle ?? undefined,
+    notes: invoice.notes ?? undefined,
+    termsAndConditions: invoice.termsAndConditions ?? undefined,
+    includeCoverPage: invoice.includeCoverPage,
+    includeTermsPage: invoice.includeTermsPage,
+    items: invoice.items.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      price: item.price,
+      taxRate: item.taxRate,
+    })),
+  };
+}

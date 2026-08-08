@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { oasisPost, defaultProfileId } from "../oasisClient.js";
+import { oasisPatch, oasisPost, defaultProfileId } from "../oasisClient.js";
 
 const profileIdSchema = z.number().int().positive().describe(
   "AccountProfile id this record belongs to. Call list_profiles first if you don't already know it."
@@ -33,6 +33,21 @@ const confirmSchema = z.boolean().describe(
   "summary (items, subtotal, tax, total, NCF if applicable, counterparty) and getting their explicit approval " +
   "in this same conversation turn."
 );
+
+const updateConfirmSchema = z.boolean().describe(
+  "Must be true to actually apply the update. Only set true after showing the user the full computed " +
+  "summary of the resulting record (items, subtotal, tax, total, counterparty, project) and getting their " +
+  "explicit approval in this same conversation turn."
+);
+
+const idSchema = z.number().int().positive().describe("id of the existing record to update.");
+
+const updateNote =
+  " This is a full update: any field you omit is preserved from the current record (call list_expenses / " +
+  "list_purchases / list_invoices first if you need to see current values), but items - when you DO pass " +
+  "items - fully replace the existing line items rather than merging with them. To just relink the record " +
+  "to a different project or change the counterparty, pass only projectId/projectName or contactId/contactName " +
+  "plus id, profileId and confirm - the rest carries over.";
 
 export function registerWriteTools(server: McpServer) {
   server.registerTool(
@@ -144,6 +159,127 @@ export function registerWriteTools(server: McpServer) {
       const { confirm, ...rest } = input;
       const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
       const result = await oasisPost("/api/mcp/invoices", body);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  server.registerTool(
+    "update_expense",
+    {
+      title: "Update expense",
+      description:
+        "Update an existing informal expense (Purchase record with type=INFORMAL) in Oasis Software Contable, " +
+        "including relinking it to a different project (projectId/projectName) or changing its counterparty " +
+        "(contactId/contactName)." +
+        updateNote +
+        " REQUIRES explicit user confirmation: show the full computed summary and get an explicit yes from the " +
+        "user before calling this with confirm: true.",
+      inputSchema: {
+        id: idSchema,
+        profileId: profileIdSchema.optional(),
+        contactId: z.union([z.number(), z.literal("new"), z.literal("manual")]).optional(),
+        contactName: z.string().optional(),
+        contactTaxId: z.string().optional(),
+        supplierWebsiteUrl: z.string().optional(),
+        projectId: z.union([z.number(), z.literal("new"), z.literal("manual"), z.literal("none")]).optional(),
+        projectName: z.string().optional(),
+        items: z.array(itemSchema).min(1).optional(),
+        currency: z.enum(["DOP", "USD"]).optional(),
+        exchangeRate: z.number().optional(),
+        date: z.string().optional().describe("YYYY-MM-DD"),
+        dueDate: z.string().optional().describe("YYYY-MM-DD"),
+        ncf: z.string().optional(),
+        notes: z.string().optional(),
+        confirm: updateConfirmSchema,
+      },
+    },
+    async ({ id, ...input }) => {
+      assertConfirmed(input.confirm);
+      const { confirm, ...rest } = input;
+      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const result = await oasisPatch(`/api/mcp/expenses/${id}`, body);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  server.registerTool(
+    "update_purchase",
+    {
+      title: "Update formal purchase",
+      description:
+        "Update an existing formal supplier purchase (Purchase record with type=FORMAL) in Oasis Software " +
+        "Contable, including relinking it to a different project (projectId/projectName) or changing its " +
+        "supplier (contactId/contactName)." +
+        updateNote +
+        " REQUIRES explicit user confirmation: show the full computed summary and get an explicit yes from the " +
+        "user before calling this with confirm: true.",
+      inputSchema: {
+        id: idSchema,
+        profileId: profileIdSchema.optional(),
+        contactId: z.union([z.number(), z.literal("new"), z.literal("manual")]).optional(),
+        contactName: z.string().optional(),
+        contactTaxId: z.string().optional(),
+        supplierWebsiteUrl: z.string().optional(),
+        projectId: z.union([z.number(), z.literal("new"), z.literal("manual"), z.literal("none")]).optional(),
+        projectName: z.string().optional(),
+        items: z.array(itemSchema).min(1).optional(),
+        currency: z.enum(["DOP", "USD"]).optional(),
+        exchangeRate: z.number().optional(),
+        date: z.string().optional().describe("YYYY-MM-DD"),
+        dueDate: z.string().optional().describe("YYYY-MM-DD"),
+        ncf: z.string().optional().describe("Supplier's NCF on the purchase document, if any. Free text - purchases are not numbered by our own sequences."),
+        costType: z.string().optional().describe("DGII 606 cost-type code, e.g. 02"),
+        taxTreatment: z.enum(["LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"]).optional(),
+        notes: z.string().optional(),
+        confirm: updateConfirmSchema,
+      },
+    },
+    async ({ id, ...input }) => {
+      assertConfirmed(input.confirm);
+      const { confirm, ...rest } = input;
+      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const result = await oasisPatch(`/api/mcp/purchases/${id}`, body);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  server.registerTool(
+    "update_invoice",
+    {
+      title: "Update sales invoice",
+      description:
+        "Update an existing sales invoice in Oasis Software Contable, including relinking it to a different " +
+        "project (projectId/projectName) or changing its client (contactId/contactName). The invoice's NCF is " +
+        "never changed by this tool - it always keeps the NCF that was issued at creation." +
+        updateNote +
+        " REQUIRES explicit user confirmation: show the full computed summary and get an explicit yes from the " +
+        "user before calling this with confirm: true.",
+      inputSchema: {
+        id: idSchema,
+        profileId: profileIdSchema.optional(),
+        contactId: z.union([z.number(), z.literal("new")]).optional().describe("Client contact id, or \"new\" with contactName to create one."),
+        contactName: z.string().optional(),
+        contactTaxId: z.string().optional(),
+        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectName: z.string().optional(),
+        items: z.array(itemSchema).min(1).optional(),
+        date: z.string().optional().describe("YYYY-MM-DD"),
+        dueDate: z.string().optional().describe("YYYY-MM-DD"),
+        incomeType: z.string().optional().describe("DGII 606/607 income-type code, e.g. 01"),
+        title: z.string().optional(),
+        subtitle: z.string().optional(),
+        notes: z.string().optional(),
+        termsAndConditions: z.string().optional(),
+        includeCoverPage: z.boolean().optional(),
+        includeTermsPage: z.boolean().optional(),
+        confirm: updateConfirmSchema,
+      },
+    },
+    async ({ id, ...input }) => {
+      assertConfirmed(input.confirm);
+      const { confirm, ...rest } = input;
+      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const result = await oasisPatch(`/api/mcp/invoices/${id}`, body);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
