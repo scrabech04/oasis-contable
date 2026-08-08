@@ -2195,7 +2195,7 @@ export async function getNcfPreview(sequenceId: number, profileId: number) {
 // the updateMany's where clause only matches (and thus only succeeds) for the caller
 // that still sees the value it just read, so a losing concurrent call gets count 0
 // and retries with a fresh read instead of silently reusing the same NCF as another call.
-export async function issueNextNcf(sequenceId: number, profileId: number, maxRetries = 5) {
+export async function issueNextNcf(sequenceId: number, profileId: number, maxRetries = 10) {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });
     if (!sequence) throw new Error("Secuencia no encontrada para el perfil activo.");
