@@ -4,6 +4,13 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getProjectLinkCandidates, setProjectDocumentLink } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/format";
 
 type Candidate = {
@@ -125,57 +132,50 @@ export function ProjectLinkDocumentsButton({ projectId }: { projectId: number })
         Vincular
       </Button>
 
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center" onClick={() => setIsOpen(false)}>
-          <div className="premium-enter max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5 dark:border-slate-800">
-              <div>
-                <h2 className="text-xl font-black text-slate-950 dark:text-white">Vincular documentos existentes</h2>
-                <p className="mt-1 text-sm text-slate-500">Asocia facturas o compras ya registradas a este proyecto.</p>
-              </div>
-              <button className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-white" onClick={() => setIsOpen(false)} title="Cerrar">
-                <span className="material-icons-outlined text-[20px]">close</span>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl gap-0 overflow-hidden p-0">
+          <DialogHeader className="p-5 pr-12">
+            <DialogTitle className="text-xl font-black text-slate-950 dark:text-white">Vincular documentos existentes</DialogTitle>
+            <DialogDescription>Asocia facturas o compras ya registradas a este proyecto.</DialogDescription>
+          </DialogHeader>
+
+          <div className="border-y border-slate-100 px-5 py-4 dark:border-slate-800">
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
+              <button
+                className={`rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === "invoice" ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300" : "text-slate-500"}`}
+                onClick={() => setActiveTab("invoice")}
+              >
+                Facturas {data ? `(${data.invoices.length})` : ""}
+              </button>
+              <button
+                className={`rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === "purchase" ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300" : "text-slate-500"}`}
+                onClick={() => setActiveTab("purchase")}
+              >
+                Compras {data ? `(${data.purchases.length})` : ""}
               </button>
             </div>
-
-            <div className="border-b border-slate-100 px-5 pt-4 dark:border-slate-800">
-              <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
-                <button
-                  className={`rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === "invoice" ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300" : "text-slate-500"}`}
-                  onClick={() => setActiveTab("invoice")}
-                >
-                  Facturas {data ? `(${data.invoices.length})` : ""}
-                </button>
-                <button
-                  className={`rounded-lg px-3 py-2 text-sm font-black transition ${activeTab === "purchase" ? "bg-white text-blue-700 shadow-sm dark:bg-slate-800 dark:text-blue-300" : "text-slate-500"}`}
-                  onClick={() => setActiveTab("purchase")}
-                >
-                  Compras {data ? `(${data.purchases.length})` : ""}
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-[58vh] overflow-y-auto p-5">
-              {isLoading ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-bold text-slate-400 dark:border-slate-800">Cargando documentos...</div>
-              ) : activeRows.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
-                  <p className="font-black text-slate-600 dark:text-slate-300">No hay documentos disponibles.</p>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Las facturas se filtran por el cliente del proyecto; las compras muestran registros sin proyecto o ya vinculados.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {activeRows.map((doc) => (
-                    <DocumentRow key={`${activeTab}-${doc.id}`} doc={doc} type={activeTab} projectId={projectId} onLinked={refreshData} />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      ) : null}
+
+          <div className="max-h-[55vh] overflow-y-auto p-5">
+            {isLoading ? (
+              <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm font-bold text-slate-400 dark:border-slate-800">Cargando documentos...</div>
+            ) : activeRows.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
+                <p className="font-black text-slate-600 dark:text-slate-300">No hay documentos disponibles.</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Las facturas se filtran por el cliente del proyecto; las compras muestran registros sin proyecto o ya vinculados.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeRows.map((doc) => (
+                  <DocumentRow key={`${activeTab}-${doc.id}`} doc={doc} type={activeTab} projectId={projectId} onLinked={refreshData} />
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
