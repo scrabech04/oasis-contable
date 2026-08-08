@@ -178,6 +178,61 @@ async function getNextProformaNumber(profileId: number) {
   return `PRO-${String((last?.id || 0) + 1).padStart(4, "0")}`;
 }
 
+// Nombre canonico para comparar contactos: sin acentos, mayusculas y sin puntuacion ni
+// espacios, para que "Ferreteria Lopez, S.R.L." y "FERRETERIA LOPEZ SRL" sean el mismo.
+function normalizeContactName(name: string | null | undefined) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+// Un contacto ya registrado se considera el mismo cuando comparte el RNC/cedula, o
+// cuando comparte el nombre y ninguno de los dos RNC contradice al otro.
+function isSameContact(
+  candidate: { name: string; taxId: string | null },
+  name: string,
+  taxId: string | null,
+) {
+  const candidateTaxId = normalizeProfileTaxId(candidate.taxId);
+  const incomingTaxId = normalizeProfileTaxId(taxId);
+  if (candidateTaxId && incomingTaxId) return candidateTaxId === incomingTaxId;
+
+  const candidateName = normalizeContactName(candidate.name);
+  const incomingName = normalizeContactName(name);
+  return Boolean(candidateName) && candidateName === incomingName;
+}
+
+async function findExistingContact(profileId: number, name: string, taxId: string | null, excludeId?: number) {
+  const incomingTaxId = normalizeProfileTaxId(taxId);
+  const incomingName = normalizeContactName(name);
+  if (!incomingTaxId && !incomingName) return null;
+
+  const candidates = await prisma.contact.findMany({
+    where: { profileId, ...(excludeId ? { NOT: { id: excludeId } } : {}) },
+    select: { id: true, name: true, taxId: true, email: true, phone: true, website: true, type: true },
+    orderBy: { id: "asc" },
+  });
+
+  // El match por RNC manda sobre el match por nombre.
+  return (
+    candidates.find(
+      (candidate) => incomingTaxId && normalizeProfileTaxId(candidate.taxId) === incomingTaxId,
+    ) ||
+    candidates.find((candidate) => isSameContact(candidate, name, taxId)) ||
+    null
+  );
+}
+
+// Un contacto que ya existe como CLIENT y ahora aparece como proveedor (o al reves)
+// pasa a BOTH en lugar de duplicarse.
+function mergeContactType(existingType: string | null, incomingType: string) {
+  const current = existingType || incomingType;
+  if (current === incomingType || current === "BOTH") return current;
+  return "BOTH";
+}
+
 async function resolveContact(formData: FormData, profileId: number, fallbackType = "CLIENT") {
   const contactId = text(formData, "contactId");
   if (contactId && contactId !== "new" && contactId !== "manual") {
@@ -192,13 +247,36 @@ async function resolveContact(formData: FormData, profileId: number, fallbackTyp
   const name = text(formData, "contactName");
   if (!name) throw new Error("Debe indicar un contacto.");
 
+  const taxId = optionalText(formData, "contactTaxId");
+  const email = optionalText(formData, "contactEmail");
+  const phone = optionalText(formData, "contactPhone");
+  const website = optionalText(formData, "contactWebsiteUrl") || optionalText(formData, "supplierWebsiteUrl");
+
+  const existing = await findExistingContact(profileId, name, taxId);
+  if (existing) {
+    // Reusamos el perfil existente y solo completamos los datos que le falten.
+    const patch: Prisma.ContactUpdateInput = {};
+    if (taxId && !existing.taxId) patch.taxId = taxId;
+    if (email && !existing.email) patch.email = email;
+    if (phone && !existing.phone) patch.phone = phone;
+    if (website && !existing.website) patch.website = website;
+    const type = mergeContactType(existing.type, fallbackType);
+    if (type !== existing.type) patch.type = type;
+
+    if (Object.keys(patch).length > 0) {
+      await prisma.contact.update({ where: { id: existing.id }, data: patch });
+    }
+
+    return existing.id;
+  }
+
   const contact = await prisma.contact.create({
     data: {
       name,
-      taxId: optionalText(formData, "contactTaxId"),
-      email: optionalText(formData, "contactEmail"),
-      phone: optionalText(formData, "contactPhone"),
-      website: optionalText(formData, "contactWebsiteUrl") || optionalText(formData, "supplierWebsiteUrl"),
+      taxId,
+      email,
+      phone,
+      website,
       type: fallbackType,
       profileId,
     },
@@ -1900,11 +1978,21 @@ export async function getContactLedger(id: number) {
 
 export async function createContact(formData: FormData): Promise<ActionResult> {
   const profileId = await getActiveProfileId();
+  const name = text(formData, "name");
+  const taxId = optionalText(formData, "taxId");
+  const duplicate = await findExistingContact(profileId, name, taxId);
+  if (duplicate) {
+    return {
+      success: false,
+      error: `Ya existe el contacto "${duplicate.name}"${duplicate.taxId ? ` (RNC ${duplicate.taxId})` : ""} en este perfil. Edita ese contacto en lugar de crear uno nuevo.`,
+    };
+  }
+
   const persons = JSON.parse(text(formData, "contactPersons", "[]")).filter((p: any) => p.name);
   const contact = await prisma.contact.create({
     data: {
-      name: text(formData, "name"),
-      taxId: optionalText(formData, "taxId"),
+      name,
+      taxId,
       type: text(formData, "type", "CLIENT"),
       address: optionalText(formData, "address"),
       city: optionalText(formData, "city"),
@@ -1926,12 +2014,22 @@ export async function updateContact(id: number, formData: FormData): Promise<Act
   const profileId = await getActiveProfileId();
   const existing = await prisma.contact.findFirst({ where: { id, profileId }, select: { id: true } });
   if (!existing) return { success: false, error: "Contacto no encontrado para el perfil activo." };
+  const name = text(formData, "name");
+  const taxId = optionalText(formData, "taxId");
+  const duplicate = await findExistingContact(profileId, name, taxId, id);
+  if (duplicate) {
+    return {
+      success: false,
+      error: `Ya existe otro contacto "${duplicate.name}"${duplicate.taxId ? ` (RNC ${duplicate.taxId})` : ""} con estos datos en este perfil.`,
+    };
+  }
+
   const persons = JSON.parse(text(formData, "contactPersons", "[]")).filter((p: any) => p.name);
   await prisma.contact.update({
     where: { id },
     data: {
-      name: text(formData, "name"),
-      taxId: optionalText(formData, "taxId"),
+      name,
+      taxId,
       type: text(formData, "type", "CLIENT"),
       address: optionalText(formData, "address"),
       city: optionalText(formData, "city"),
