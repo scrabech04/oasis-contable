@@ -12,6 +12,7 @@ import {
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
+import { formatNcf, nextFreeNumber } from "@/lib/ncf";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
 
 type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number; recurringInvoiceId?: number; proformaId?: number } | { success: false; error: string };
@@ -2271,23 +2272,57 @@ export async function setProjectDocumentLink(projectId: number, documentType: "i
   return { success: true, id: documentId, projectId };
 }
 
-export async function getNextNcf(sequenceId: number) {
-  const profileId = await getActiveProfileId();
+// Los NCF ya emitidos con ese prefijo mandan sobre el contador de la secuencia; la
+// decision de cual numero toca vive en lib/ncf.ts.
+async function nextFreeSequenceNumber(profileId: number, prefix: string, counter: number) {
+  const cleanPrefix = String(prefix || "").trim();
+  if (!cleanPrefix) return counter;
+
+  const issued = await prisma.invoice.findMany({
+    where: { profileId, ncf: { startsWith: cleanPrefix, mode: "insensitive" } },
+    select: { ncf: true },
+  });
+
+  return nextFreeNumber(cleanPrefix, counter, issued.map((invoice) => invoice.ncf));
+}
+
+// Un NCF escrito a mano no pasa por la secuencia, asi que se comprueba contra las
+// facturas ya emitidas del perfil. La DGII no permite repetir un comprobante.
+async function findInvoiceWithNcf(profileId: number, ncf: string, excludeId?: number) {
+  const clean = String(ncf || "").trim();
+  if (!clean) return null;
+
+  return prisma.invoice.findFirst({
+    where: {
+      profileId,
+      ncf: { equals: clean, mode: "insensitive" },
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+    },
+    select: { id: true, number: true },
+  });
+}
+
+async function resolveSequenceNumber(sequenceId: number, profileId: number) {
   const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });
   if (!sequence) throw new Error("Secuencia no encontrada para el perfil activo.");
-  if (sequence.finalNumber && sequence.nextNumber > sequence.finalNumber) {
+
+  const number = await nextFreeSequenceNumber(profileId, sequence.prefix, sequence.nextNumber);
+  if (sequence.finalNumber && number > sequence.finalNumber) {
     throw new Error("Esta secuencia ya agotó su numeración.");
   }
-  return `${sequence.prefix}${String(sequence.nextNumber).padStart(8, "0")}`;
+
+  return { sequence, number };
+}
+
+export async function getNextNcf(sequenceId: number) {
+  const profileId = await getActiveProfileId();
+  const { sequence, number } = await resolveSequenceNumber(sequenceId, profileId);
+  return formatNcf(sequence.prefix, number);
 }
 
 export async function getNcfPreview(sequenceId: number, profileId: number) {
-  const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });
-  if (!sequence) throw new Error("Secuencia no encontrada para el perfil activo.");
-  if (sequence.finalNumber && sequence.nextNumber > sequence.finalNumber) {
-    throw new Error("Esta secuencia ya agotó su numeración.");
-  }
-  return `${sequence.prefix}${String(sequence.nextNumber).padStart(8, "0")}`;
+  const { sequence, number } = await resolveSequenceNumber(sequenceId, profileId);
+  return formatNcf(sequence.prefix, number);
 }
 
 // Atomically claims the next NCF for a sequence using optimistic-concurrency retry:
@@ -2296,18 +2331,15 @@ export async function getNcfPreview(sequenceId: number, profileId: number) {
 // and retries with a fresh read instead of silently reusing the same NCF as another call.
 export async function issueNextNcf(sequenceId: number, profileId: number, maxRetries = 10) {
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
-    const sequence = await prisma.numberingSequence.findFirst({ where: { id: sequenceId, profileId } });
-    if (!sequence) throw new Error("Secuencia no encontrada para el perfil activo.");
-    if (sequence.finalNumber && sequence.nextNumber > sequence.finalNumber) {
-      throw new Error("Esta secuencia ya agotó su numeración.");
-    }
-    const claimed = sequence.nextNumber;
+    const { sequence, number } = await resolveSequenceNumber(sequenceId, profileId);
+    // El contador queda en el numero emitido + 1, no en un increment: asi tambien absorbe
+    // el salto cuando venia por detras de las facturas ya emitidas.
     const result = await prisma.numberingSequence.updateMany({
-      where: { id: sequenceId, nextNumber: claimed },
-      data: { nextNumber: { increment: 1 } },
+      where: { id: sequenceId, nextNumber: sequence.nextNumber },
+      data: { nextNumber: number + 1 },
     });
     if (result.count === 1) {
-      return `${sequence.prefix}${String(claimed).padStart(8, "0")}`;
+      return formatNcf(sequence.prefix, number);
     }
   }
   throw new Error("No fue posible asignar el siguiente NCF, intenta de nuevo.");
@@ -2424,7 +2456,16 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
     const ncfSequenceId = optionalNumber(formData, "ncfSequenceId");
-    const ncf = ncfSequenceId ? await issueNextNcf(ncfSequenceId, profileId) : optionalText(formData, "ncf");
+    const manualNcf = ncfSequenceId ? null : optionalText(formData, "ncf");
+
+    if (manualNcf) {
+      const clash = await findInvoiceWithNcf(profileId, manualNcf);
+      if (clash) {
+        return { success: false, error: `El NCF ${manualNcf} ya está usado en la factura ${clash.number}.` };
+      }
+    }
+
+    const ncf = ncfSequenceId ? await issueNextNcf(ncfSequenceId, profileId) : manualNcf;
 
     let invoice;
     for (let attempt = 0; ; attempt += 1) {
@@ -2473,6 +2514,15 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true } });
     if (!existing) return { success: false, error: "Factura no encontrada para el perfil activo." };
+
+    const ncf = optionalText(formData, "ncf");
+    if (ncf) {
+      const clash = await findInvoiceWithNcf(profileId, ncf, id);
+      if (clash) {
+        return { success: false, error: `El NCF ${ncf} ya está usado en la factura ${clash.number}.` };
+      }
+    }
+
     const items = parseItems(formData);
     const total = totals(items);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
@@ -2480,7 +2530,7 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
     await prisma.invoice.update({
       where: { id },
       data: {
-        ncf: optionalText(formData, "ncf"),
+        ncf,
         date: dateValue(formData, "date"),
         dueDate: dateValue(formData, "dueDate"),
         contactId,
@@ -2681,6 +2731,12 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   if (proforma.status === "CONVERTED") return { success: false, error: "Esta prefactura ya fue convertida." };
   if ((proforma.paidAmount || 0) < proforma.total) return { success: false, error: "La prefactura debe estar pagada completa antes de emitir la factura fiscal." };
   const ncf = formData ? optionalText(formData, "ncf") : null;
+  if (ncf) {
+    const clash = await findInvoiceWithNcf(profileId, ncf);
+    if (clash) {
+      return { success: false, error: `El NCF ${ncf} ya está usado en la factura ${clash.number}.` };
+    }
+  }
   const number = await getNextInvoiceNumber();
   const invoice = await prisma.$transaction(async (tx) => {
     const created = await tx.invoice.create({
@@ -2713,10 +2769,13 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
       data: { invoiceId: created.id },
     });
     await tx.proformaInvoice.update({ where: { id: proforma.id }, data: { status: "CONVERTED" } });
-    if (ncf) {
+    // Si el NCF escrito a mano pertenece a una secuencia, esta se adelanta a el en vez de
+    // exigir que el contador estuviera justo en ese numero: asi no lo vuelve a entregar.
+    const usedNumber = Number(ncf?.slice(3));
+    if (ncf && Number.isFinite(usedNumber)) {
       await tx.numberingSequence.updateMany({
-        where: { profileId, prefix: ncf.slice(0, 3), nextNumber: Number(ncf.slice(3)) },
-        data: { nextNumber: { increment: 1 } },
+        where: { profileId, prefix: ncf.slice(0, 3), nextNumber: { lte: usedNumber } },
+        data: { nextNumber: usedNumber + 1 },
       });
     }
     return created;
