@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { AlertTriangle, ExternalLink, Paperclip, ShieldCheck, Upload } from "lucide-react";
+import { AlertTriangle, ExternalLink, Paperclip, QrCode, ShieldCheck, Upload } from "lucide-react";
 import { attachDgiiConstancia, replacePurchaseAttachment } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { QRScannerDialog } from "./QRScannerDialog";
 
 const DGII_CONSTANCIA_TYPE = "DGII_VERIFICATION";
 
@@ -30,10 +31,25 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showTimbreInput, setShowTimbreInput] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [timbreUrl, setTimbreUrl] = useState("");
   const [isVerifying, startVerifying] = useTransition();
   const hasLegacyAttachment = attachments.some((attachment) => !attachment.isInline);
   const hasConstancia = attachments.some((attachment) => attachment.type === DGII_CONSTANCIA_TYPE);
+
+  const runConstancia = (url: string, onDone?: () => void) =>
+    startVerifying(async () => {
+      const result = await attachDgiiConstancia(purchaseId, url);
+      if (result.success) {
+        setMessage("Constancia de la DGII adjuntada correctamente.");
+        setTimbreUrl("");
+        setShowTimbreInput(false);
+        onDone?.();
+        return;
+      }
+      setMessage(result.error);
+      onDone?.();
+    });
 
   const handleConstancia = () => {
     const url = timbreUrl.trim();
@@ -43,16 +59,13 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
     }
 
     setMessage(null);
-    startVerifying(async () => {
-      const result = await attachDgiiConstancia(purchaseId, url);
-      if (result.success) {
-        setMessage("Constancia de la DGII adjuntada correctamente.");
-        setTimbreUrl("");
-        setShowTimbreInput(false);
-        return;
-      }
-      setMessage(result.error);
-    });
+    runConstancia(url);
+  };
+
+  const handleScanned = (data: { timbreUrl?: string }) => {
+    setMessage(null);
+    setIsScannerOpen(false);
+    runConstancia(String(data?.timbreUrl || ""));
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,17 +116,35 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
                 : "Sin constancia de verificacion de la DGII"}
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isVerifying}
-            className="h-8 shrink-0 rounded-lg text-[11px] font-black"
-            onClick={() => setShowTimbreInput((current) => !current)}
-          >
-            {hasConstancia ? "Regenerar" : "Generar"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={isVerifying}
+              className="h-8 gap-1.5 rounded-lg text-[11px] font-black"
+              onClick={() => setIsScannerOpen(true)}
+            >
+              <QrCode className="h-3.5 w-3.5" />
+              {isVerifying ? "Consultando..." : "Escanear QR"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isVerifying}
+              className="h-8 rounded-lg text-[11px] font-black"
+              onClick={() => setShowTimbreInput((current) => !current)}
+            >
+              Pegar enlace
+            </Button>
+          </div>
         </div>
+
+        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+          {hasConstancia
+            ? "Puedes volver a escanear el QR de la factura para regenerarla con los datos actuales de la DGII."
+            : "Escanea el codigo QR de la factura para consultar la DGII y adjuntar el PDF de constancia."}
+        </p>
 
         {showTimbreInput && (
           <div className="mt-3 space-y-2">
@@ -125,8 +156,8 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900"
             />
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Es el enlace al que apunta el codigo QR de la factura. Escanealo con la camara del
-              telefono y copia la direccion, o usa Reconstruir e-NCF si la factura no trae el QR.
+              Es el enlace al que apunta el codigo QR. Util si tienes la factura en pantalla, o si
+              el QR no se deja escanear. Si la factura no trae QR, usa Reconstruir e-NCF.
             </p>
             <Button
               type="button"
@@ -140,6 +171,15 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
           </div>
         )}
       </div>
+
+      <QRScannerDialog
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onSuccess={handleScanned}
+        rawText
+        title="Escanear QR de la factura"
+        description="Apunta la camara al codigo QR para consultar la DGII y adjuntar la constancia a esta compra."
+      />
 
       <input
         ref={inputRef}

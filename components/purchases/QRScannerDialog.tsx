@@ -12,9 +12,25 @@ interface QRScannerDialogProps {
     onClose: () => void;
     onSuccess: (data: any) => Promise<void> | void;
     processingMessage?: string | null;
+    /**
+     * Entrega el texto crudo del QR como { timbreUrl } sin pasar por processDGIIQR.
+     * Necesario al adjuntar la constancia a una compra ya registrada, porque
+     * processDGIIQR rechaza el QR por duplicado justamente cuando la compra existe.
+     */
+    rawText?: boolean;
+    title?: string;
+    description?: string;
 }
 
-export function QRScannerDialog({ isOpen, onClose, onSuccess, processingMessage }: QRScannerDialogProps) {
+export function QRScannerDialog({
+    isOpen,
+    onClose,
+    onSuccess,
+    processingMessage,
+    rawText = false,
+    title = "Escanear Factura Electrónica",
+    description = "Apunta la cámara al código QR de la factura para extraer los datos fiscales automáticamente.",
+}: QRScannerDialogProps) {
     const [isScanning, setIsScanning] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -108,6 +124,11 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess, processingMessage 
                         }
 
                         try {
+                            if (rawText) {
+                                await onSuccess({ timbreUrl: decodedText });
+                                return;
+                            }
+
                             const result = await processDGIIQR(decodedText);
                             if (result.success) {
                                 await onSuccess(result.data);
@@ -141,7 +162,7 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess, processingMessage 
                 }
             };
         }
-    }, [isOpen, isScanning, onSuccess]);
+    }, [isOpen, isScanning, onSuccess, rawText]);
 
     const handleRetry = () => {
         setError(null);
@@ -156,10 +177,10 @@ export function QRScannerDialog({ isOpen, onClose, onSuccess, processingMessage 
                         <Camera className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                     </div>
                     <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">
-                        Escanear Factura Electrónica
+                        {title}
                     </DialogTitle>
                     <DialogDescription className="text-slate-500 dark:text-slate-400">
-                        Apunta la cámara al código QR de la factura para extraer los datos fiscales automáticamente.
+                        {description}
                     </DialogDescription>
                 </DialogHeader>
 
