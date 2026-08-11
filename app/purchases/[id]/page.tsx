@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CreditCard, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText } from "lucide-react";
-import { getPurchase } from "@/app/actions";
+import { deletePurchase, getPurchase } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { DeleteButton } from "@/components/DeleteButton";
 import { PurchaseAttachmentManager } from "@/components/purchases/PurchaseAttachmentManager";
 import { formatCurrency, formatDate } from "@/lib/format";
 
@@ -119,6 +120,7 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
               Editar
             </Button>
           </Link>
+          <DeleteButton id={purchase.id} action={deletePurchase} variant="outline" redirectTo="/purchases" />
         </div>
       </header>
 
