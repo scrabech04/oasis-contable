@@ -1,11 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Camera, AlertCircle, ScanLine } from "lucide-react";
-import { processDGIIQR } from "@/app/actions";
+import { Loader2, Camera, AlertCircle, ScanLine, FileWarning, ShieldCheck, ExternalLink } from "lucide-react";
+import { attachDgiiConstancia, processDGIIQR, setActiveProfile } from "@/app/actions";
+
+/**
+ * Compra ya registrada que la DGII identifico a partir del mismo QR. Como ese QR es el
+ * enlace del timbre, desde aqui se puede completar su constancia sin volver a escanear.
+ */
+type DuplicatePurchase = {
+    purchaseId: number;
+    profileId: number;
+    profileName: string | null;
+    supplierName: string;
+    ncf: string;
+    total: number;
+    hasConstancia: boolean;
+    timbreUrl: string;
+};
+
+const money = new Intl.NumberFormat("es-DO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
 
 interface QRScannerDialogProps {
     isOpen: boolean;
@@ -34,7 +55,20 @@ export function QRScannerDialog({
     const [isScanning, setIsScanning] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [duplicate, setDuplicate] = useState<DuplicatePurchase | null>(null);
+    const [recovery, setRecovery] = useState<{ ok: boolean; text: string } | null>(null);
+    const [isRecovering, setIsRecovering] = useState(false);
+    const router = useRouter();
     const isBusy = isLoading || Boolean(processingMessage);
+
+    // Al reabrir el modal se empieza limpio: si no, queda el resultado del escaneo anterior.
+    useEffect(() => {
+        if (!isOpen) return;
+        setError(null);
+        setDuplicate(null);
+        setRecovery(null);
+        setIsScanning(true);
+    }, [isOpen]);
 
     useEffect(() => {
         let scanner: Html5QrcodeScanner | null = null;
@@ -135,6 +169,7 @@ export function QRScannerDialog({
                                 // The onSuccess callback will handle navigation or form population
                             } else {
                                 setError(result.error || "Error desconocido al procesar el QR");
+                                setDuplicate(result.duplicate || null);
                                 setIsScanning(false); // Stop scanning to show error
                             }
                         } catch (e: any) {
@@ -166,7 +201,48 @@ export function QRScannerDialog({
 
     const handleRetry = () => {
         setError(null);
+        setDuplicate(null);
+        setRecovery(null);
         setIsScanning(true);
+    };
+
+    // La compra ya existe, asi que solo falta su constancia: se adjunta con el enlace del
+    // timbre que trae este mismo QR.
+    const handleAttachConstancia = async () => {
+        if (!duplicate?.timbreUrl) return;
+
+        setIsRecovering(true);
+        setRecovery(null);
+
+        try {
+            const result = await attachDgiiConstancia(
+                duplicate.purchaseId,
+                duplicate.timbreUrl,
+                duplicate.profileId,
+            );
+
+            if (result.success) {
+                setDuplicate({ ...duplicate, hasConstancia: true });
+                setRecovery({ ok: true, text: "Constancia de la DGII adjuntada a la compra." });
+                return;
+            }
+
+            setRecovery({ ok: false, text: result.error });
+        } catch {
+            setRecovery({ ok: false, text: "No fue posible conectar con la DGII." });
+        } finally {
+            setIsRecovering(false);
+        }
+    };
+
+    // La compra puede vivir en otro perfil, asi que se cambia antes de abrirla.
+    const handleOpenPurchase = async () => {
+        if (!duplicate) return;
+
+        setIsRecovering(true);
+        await setActiveProfile(duplicate.profileId);
+        router.push(`/purchases/${duplicate.purchaseId}`);
+        onClose();
     };
 
     return (
@@ -199,7 +275,7 @@ export function QRScannerDialog({
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
+                            <div className={`grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center ${duplicate ? "hidden" : ""}`}>
                                 <div className="rounded-xl bg-white px-2 py-3 shadow-sm">
                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Paso 1</p>
                                     <p className="mt-1 text-xs font-semibold text-slate-700">Elige cámara</p>
@@ -225,6 +301,93 @@ export function QRScannerDialog({
                                     </div>
                                     <div id="qr-reader" className="w-full overflow-hidden bg-black min-h-[300px]" />
                                 </div>
+                            ) : duplicate ? (
+                                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/30 dark:bg-amber-950/20">
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                                            <FileWarning className="h-5 w-5 text-amber-700 dark:text-amber-400" />
+                                        </div>
+                                        <div className="min-w-0 space-y-1">
+                                            <p className="text-sm font-bold text-amber-900 dark:text-amber-100">
+                                                Esta factura ya está registrada
+                                            </p>
+                                            <p className="text-xs leading-relaxed text-amber-800/80 dark:text-amber-300/80">
+                                                No se abrirá el formulario para no duplicarla
+                                                {duplicate.profileName ? ` en ${duplicate.profileName}` : ""}.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-slate-900/40">
+                                        {duplicate.supplierName && (
+                                            <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                {duplicate.supplierName}
+                                            </p>
+                                        )}
+                                        <p className="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                            {duplicate.ncf} · RD$ {money.format(duplicate.total)}
+                                        </p>
+                                        <p
+                                            className={`mt-1.5 flex items-center gap-1.5 text-[11px] font-bold ${duplicate.hasConstancia ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}
+                                        >
+                                            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                                            {duplicate.hasConstancia
+                                                ? "Ya tiene la constancia de la DGII"
+                                                : "Le falta la constancia de la DGII"}
+                                        </p>
+                                    </div>
+
+                                    {recovery && (
+                                        <p
+                                            className={`rounded-xl px-3 py-2 text-[11px] font-bold ${recovery.ok ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300"}`}
+                                        >
+                                            {recovery.text}
+                                        </p>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                        {!duplicate.hasConstancia && duplicate.timbreUrl && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                disabled={isRecovering}
+                                                onClick={handleAttachConstancia}
+                                                className="h-9 gap-1.5 rounded-lg text-[11px] font-black"
+                                            >
+                                                <ShieldCheck className="h-3.5 w-3.5" />
+                                                {isRecovering ? "Consultando DGII..." : "Adjuntar constancia"}
+                                            </Button>
+                                        )}
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isRecovering}
+                                            onClick={handleOpenPurchase}
+                                            className="h-9 gap-1.5 rounded-lg text-[11px] font-black"
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            Ver la compra
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            disabled={isRecovering}
+                                            onClick={handleRetry}
+                                            className="h-9 rounded-lg text-[11px] font-black text-slate-500"
+                                        >
+                                            Escanear otra
+                                        </Button>
+                                    </div>
+
+                                    {!duplicate.hasConstancia && !duplicate.timbreUrl && (
+                                        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80">
+                                            El QR no apunta al portal de la DGII, así que la constancia hay que
+                                            adjuntarla desde el detalle de la compra.
+                                        </p>
+                                    )}
+                                </div>
                             ) : error ? (
                                 <div className="p-6 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-100 dark:border-red-900/30 flex flex-col items-center text-center space-y-3">
                                     <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
@@ -244,7 +407,7 @@ export function QRScannerDialog({
                                 </div>
                             ) : null}
 
-                            <div className="flex items-center gap-3 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100/50 dark:border-blue-800/20">
+                            <div className={`flex items-center gap-3 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100/50 dark:border-blue-800/20 ${duplicate ? "hidden" : ""}`}>
                                 <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
                                     <Camera className="w-4 h-4 text-blue-700 dark:text-blue-300" />
                                 </div>

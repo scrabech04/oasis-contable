@@ -3722,9 +3722,25 @@ export async function processDGIIQR(qrText: string) {
     const duplicate = await findDuplicatePurchase(targetProfileId, ncf, supplierTaxId);
     if (duplicate) {
       const profileName = targetProfile?.name ? ` en el perfil ${targetProfile.name}` : "";
+      const constanciaCount = await prisma.purchaseAttachment.count({
+        where: { purchaseId: duplicate.id, type: DGII_CONSTANCIA_TYPE },
+      });
+
       return {
         success: false,
         error: `Esta factura ya fue registrada${profileName}: ${ncf}${supplierTaxId ? ` / RNC ${supplierTaxId}` : ""}. No se abrirá el formulario para evitar duplicarla.`,
+        // El QR recien escaneado ya es el enlace del timbre, asi que desde el error se puede
+        // adjuntar la constancia a la compra existente sin volver a escanear.
+        duplicate: {
+          purchaseId: duplicate.id,
+          profileId: targetProfileId,
+          profileName: targetProfile?.name || null,
+          supplierName: duplicate.supplierName || duplicate.contact?.name || "",
+          ncf: duplicate.ncf || ncf,
+          total: duplicate.total,
+          hasConstancia: constanciaCount > 0,
+          timbreUrl: isDgiiTimbreUrl(qrText) ? qrText : "",
+        },
       };
     }
 
@@ -3745,6 +3761,6 @@ export async function processDGIIQR(qrText: string) {
       },
     };
   } catch {
-    return { success: false, error: "El QR no contiene un enlace válido de DGII." };
+    return { success: false, error: "El QR no contiene un enlace válido de DGII.", duplicate: null };
   }
 }
