@@ -3086,6 +3086,83 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
   return { success: true, id };
 }
 
+/**
+ * El mismo proveedor en el perfil destino: se reusa si ya existe alli y se copia si no.
+ * Un contacto pertenece a un solo perfil, asi que la compra no puede seguir apuntando al
+ * del perfil de origen.
+ */
+async function supplierContactInProfile(profileId: number, contact: Prisma.ContactGetPayload<object>) {
+  const existing = await findExistingContact(profileId, contact.name, contact.taxId);
+
+  if (existing) {
+    const type = mergeContactType(existing.type, contact.type || "SUPPLIER");
+    if (type !== existing.type) {
+      await prisma.contact.update({ where: { id: existing.id }, data: { type } });
+    }
+    return existing.id;
+  }
+
+  const created = await prisma.contact.create({
+    data: {
+      name: contact.name,
+      taxId: contact.taxId,
+      email: contact.email,
+      phone: contact.phone,
+      address: contact.address,
+      city: contact.city,
+      country: contact.country,
+      website: contact.website,
+      type: contact.type || "SUPPLIER",
+      profileId,
+    },
+  });
+
+  return created.id;
+}
+
+/**
+ * Mueve una compra al perfil que le corresponde, para cuando se registro en el equivocado.
+ * El proyecto se desvincula: los proyectos tambien pertenecen a un perfil y el destino no
+ * puede quedar apuntando a uno ajeno.
+ */
+export async function movePurchaseToProfile(purchaseId: number, targetProfileId: number): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: purchaseId, profileId },
+    include: { contact: true },
+  });
+  if (!purchase) return { success: false, error: "Compra no encontrada para el perfil activo." };
+  if (targetProfileId === profileId) return { success: false, error: "La compra ya esta en ese perfil." };
+
+  const target = await prisma.accountProfile.findUnique({
+    where: { id: targetProfileId },
+    select: { id: true, name: true },
+  });
+  if (!target) return { success: false, error: "Perfil destino no encontrado." };
+
+  const supplierTaxId = purchase.supplierTaxId || purchase.contact?.taxId || null;
+  const duplicate = await findDuplicatePurchase(targetProfileId, purchase.ncf, supplierTaxId);
+  if (duplicate) {
+    return {
+      success: false,
+      error: `En ${target.name} ya hay una compra con el NCF ${purchase.ncf}. No se movio para no duplicarla.`,
+    };
+  }
+
+  const contactId = purchase.contact
+    ? await supplierContactInProfile(targetProfileId, purchase.contact)
+    : null;
+
+  await prisma.purchase.update({
+    where: { id: purchase.id },
+    data: { profileId: targetProfileId, contactId, projectId: null },
+  });
+
+  revalidatePath("/purchases");
+  revalidatePath(`/purchases/${purchase.id}`);
+  return { success: true, id: purchase.id };
+}
+
 export async function deletePurchase(id: number) {
   const profileId = await getActiveProfileId();
   const result = await prisma.purchase.deleteMany({ where: { id, profileId } });

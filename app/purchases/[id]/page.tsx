@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CreditCard, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText } from "lucide-react";
 import { deletePurchase, getPurchase } from "@/app/actions";
+import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/DeleteButton";
+import { MovePurchaseProfile } from "@/components/purchases/MovePurchaseProfile";
 import { PurchaseAttachmentManager } from "@/components/purchases/PurchaseAttachmentManager";
 import { formatCurrency, formatDate } from "@/lib/format";
 
@@ -58,7 +60,11 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
     notFound();
   }
 
-  const purchase = await getPurchase(purchaseId);
+  const [purchase, profiles, activeProfile] = await Promise.all([
+    getPurchase(purchaseId),
+    getAccountProfiles(),
+    getActiveProfile(),
+  ]);
 
   if (!purchase) {
     notFound();
@@ -182,6 +188,14 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
                 </Link>
               </div>
             )}
+            <MovePurchaseProfile
+              purchaseId={purchase.id}
+              currentProfileName={activeProfile.name}
+              hasProject={Boolean(purchase.projectId)}
+              profiles={profiles
+                .filter((profile) => profile.id !== activeProfile.id)
+                .map((profile) => ({ id: profile.id, name: profile.name }))}
+            />
           </div>
         </div>
 
