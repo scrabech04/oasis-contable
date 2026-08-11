@@ -74,7 +74,12 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
     fileName: attachment.fileName,
     fileSize: attachment.fileSize,
     isInline: attachment.storagePath.startsWith("data:"),
+    type: attachment.type,
   }));
+  // "Soporte" debe abrir la factura original, no la constancia de la DGII.
+  const primaryAttachment =
+    purchase.attachments.find((attachment) => attachment.type !== "DGII_VERIFICATION") ??
+    purchase.attachments[0];
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
@@ -100,8 +105,8 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {purchase.attachments[0] && (
-            <Link href={`/api/purchases/attachments/${purchase.attachments[0].id}`} target="_blank">
+          {primaryAttachment && (
+            <Link href={`/api/purchases/attachments/${primaryAttachment.id}`} target="_blank">
               <Button variant="outline" size="sm" className="gap-2">
                 <Paperclip className="h-4 w-4" />
                 Soporte

@@ -46,6 +46,13 @@ function sourceCurrencyLabel(purchase: any) {
     return purchase.currency === "USD" ? "US$" : "RD$";
 }
 
+// "Soporte" debe abrir la factura original, no la constancia de verificacion de la DGII.
+function primaryAttachment(purchase: any) {
+    const attachments = purchase.attachments as Array<{ id: number; type?: string | null }> | undefined;
+    if (!attachments?.length) return null;
+    return attachments.find((attachment) => attachment.type !== "DGII_VERIFICATION") ?? attachments[0];
+}
+
 export function PurchasesTable({ purchases }: { purchases: any[] }) {
     const router = useRouter();
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
@@ -82,9 +89,9 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                     <span className="mt-2 inline-flex w-fit rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800">
                                         {taxTreatmentLabel(purchase.taxTreatment)}
                                     </span>
-                                    {purchase.attachments?.[0] && (
+                                    {primaryAttachment(purchase) && (
                                         <a
-                                            href={`/api/purchases/attachments/${purchase.attachments[0].id}`}
+                                            href={`/api/purchases/attachments/${primaryAttachment(purchase)!.id}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-blue-600"
@@ -196,9 +203,9 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                             <span className="mt-1 inline-flex w-fit rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800">
                                                 {taxTreatmentLabel(purchase.taxTreatment)}
                                             </span>
-                                            {purchase.attachments?.[0] && (
+                                            {primaryAttachment(purchase) && (
                                                 <a
-                                                    href={`/api/purchases/attachments/${purchase.attachments[0].id}`}
+                                                    href={`/api/purchases/attachments/${primaryAttachment(purchase)!.id}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-700"

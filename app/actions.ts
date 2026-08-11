@@ -12,6 +12,7 @@ import {
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
+import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
 
 type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number; recurringInvoiceId?: number; proformaId?: number } | { success: false; error: string };
 
@@ -2743,6 +2744,60 @@ export async function getPurchase(id: number) {
   });
 }
 
+// Sin exportar: en un archivo "use server" solo pueden exportarse funciones async.
+// El cliente declara su propia copia en PurchaseAttachmentManager.
+const DGII_CONSTANCIA_TYPE = "DGII_VERIFICATION";
+
+/**
+ * Consulta el timbre en la DGII y guarda el PDF de constancia como soporte adicional de
+ * la compra. Convive con el soporte ORIGINAL_INVOICE: solo reemplaza una constancia previa.
+ */
+export async function attachDgiiConstancia(
+  purchaseId: number,
+  timbreUrl: string,
+  explicitProfileId?: number,
+): Promise<ActionResult> {
+  try {
+    if (!isDgiiTimbreUrl(timbreUrl)) {
+      return { success: false, error: "El enlace del timbre no corresponde al portal de la DGII." };
+    }
+
+    // Al registrar desde QR la compra puede caer en otro perfil que el activo, asi que el
+    // llamador puede indicar cual es.
+    const profileId = explicitProfileId ?? (await getActiveProfileId());
+    const purchase = await prisma.purchase.findFirst({
+      where: { id: purchaseId, profileId },
+      select: { id: true },
+    });
+    if (!purchase) return { success: false, error: "Compra no encontrada para el perfil activo." };
+
+    const settings = await getScopedCompanySettings();
+    const { encf: _encf, estado: _estado, ...attachment } = await buildDgiiConstancia(timbreUrl, {
+      companyName: settings?.name,
+    });
+
+    await prisma.$transaction([
+      prisma.purchaseAttachment.deleteMany({
+        where: { purchaseId, type: DGII_CONSTANCIA_TYPE },
+      }),
+      prisma.purchaseAttachment.create({
+        data: { purchaseId, ...attachment, type: DGII_CONSTANCIA_TYPE },
+      }),
+    ]);
+
+    revalidatePath("/purchases");
+    revalidatePath(`/purchases/${purchaseId}`);
+    return { success: true, id: purchaseId };
+  } catch (error) {
+    if (error instanceof ConstanciaError) {
+      return { success: false, error: error.message };
+    }
+
+    console.error("attachDgiiConstancia failed:", error);
+    return { success: false, error: "No fue posible generar la constancia de la DGII." };
+  }
+}
+
 export async function replacePurchaseAttachment(purchaseId: number, formData: FormData): Promise<ActionResult> {
   try {
     const profileId = await getActiveProfileId();
@@ -2835,6 +2890,16 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       ...(attachment ? { attachments: { create: attachment } } : {}),
     },
   });
+  // Compras que vienen del QR: se adjunta la constancia de la DGII sin bloquear el guardado.
+  // Si la DGII falla, la compra queda igual y el usuario puede reintentar desde el detalle.
+  const timbreUrl = optionalText(formData, "dgiiTimbreUrl");
+  if (timbreUrl) {
+    const constancia = await attachDgiiConstancia(purchase.id, timbreUrl, profileId);
+    if (!constancia.success) {
+      console.warn(`Constancia DGII no adjuntada en compra ${purchase.id}: ${constancia.error}`);
+    }
+  }
+
   revalidatePath("/purchases");
   return { success: true, id: purchase.id };
 }
@@ -3666,6 +3731,8 @@ export async function processDGIIQR(qrText: string) {
         total: pageDetails.total || moneyParam("MontoTotal", "Total", "total"),
         taxAmount: pageDetails.taxAmount,
         date: params.get("FechaEmision") || "",
+        // Se conserva para adjuntar despues la constancia de verificacion de la DGII.
+        timbreUrl: isDgiiTimbreUrl(qrText) ? qrText : "",
       },
     };
   } catch {

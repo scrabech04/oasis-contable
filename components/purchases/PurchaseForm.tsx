@@ -153,6 +153,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState("");
     const [isFromQR, setIsFromQR] = useState(false);
+    // Enlace del timbre leido del QR: permite adjuntar la constancia de la DGII al guardar.
+    const [dgiiTimbreUrl, setDgiiTimbreUrl] = useState("");
     const [saveAsContact, setSaveAsContact] = useState(true);
     const [targetProfileId, setTargetProfileId] = useState<number | null>(null);
     const [purchaseType, setPurchaseType] = useState("FORMAL");
@@ -184,6 +186,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                 const now = new Date().getTime();
                 if (now - qrData.scannedAt < 5 * 60 * 1000) {
                     setIsFromQR(true);
+                    setDgiiTimbreUrl(qrData.timbreUrl || "");
                     setTaxTreatment("LOCAL_CREDIT");
                     setContactId("");
                     setContactName(qrData.supplierName || "");
@@ -410,6 +413,9 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
         formData.append("exchangeRate", String(exchangeRateValue));
         if (isFromQR && targetProfileId) {
             formData.append("targetProfileId", String(targetProfileId));
+        }
+        if (dgiiTimbreUrl) {
+            formData.append("dgiiTimbreUrl", dgiiTimbreUrl);
         }
         if (importAttachment) {
             formData.append("attachmentStoragePath", importAttachment.storagePath || "");

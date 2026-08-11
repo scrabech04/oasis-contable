@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { AlertTriangle, ExternalLink, Paperclip, Upload } from "lucide-react";
-import { replacePurchaseAttachment } from "@/app/actions";
+import { AlertTriangle, ExternalLink, Paperclip, ShieldCheck, Upload } from "lucide-react";
+import { attachDgiiConstancia, replacePurchaseAttachment } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+
+const DGII_CONSTANCIA_TYPE = "DGII_VERIFICATION";
 
 interface PurchaseAttachmentManagerProps {
   purchaseId: number;
@@ -13,6 +15,7 @@ interface PurchaseAttachmentManagerProps {
     fileName: string;
     fileSize: number;
     isInline: boolean;
+    type?: string;
   }>;
 }
 
@@ -26,7 +29,31 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [showTimbreInput, setShowTimbreInput] = useState(false);
+  const [timbreUrl, setTimbreUrl] = useState("");
+  const [isVerifying, startVerifying] = useTransition();
   const hasLegacyAttachment = attachments.some((attachment) => !attachment.isInline);
+  const hasConstancia = attachments.some((attachment) => attachment.type === DGII_CONSTANCIA_TYPE);
+
+  const handleConstancia = () => {
+    const url = timbreUrl.trim();
+    if (!url) {
+      setMessage("Pega el enlace del timbre que trae el QR de la factura.");
+      return;
+    }
+
+    setMessage(null);
+    startVerifying(async () => {
+      const result = await attachDgiiConstancia(purchaseId, url);
+      if (result.success) {
+        setMessage("Constancia de la DGII adjuntada correctamente.");
+        setTimbreUrl("");
+        setShowTimbreInput(false);
+        return;
+      }
+      setMessage(result.error);
+    });
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -64,6 +91,56 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
         </Button>
       </div>
 
+      <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <ShieldCheck
+              className={`h-4 w-4 shrink-0 ${hasConstancia ? "text-emerald-600" : "text-slate-400"}`}
+            />
+            <p className="min-w-0 text-xs font-bold text-slate-600 dark:text-slate-300">
+              {hasConstancia
+                ? "Constancia de la DGII adjuntada"
+                : "Sin constancia de verificacion de la DGII"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isVerifying}
+            className="h-8 shrink-0 rounded-lg text-[11px] font-black"
+            onClick={() => setShowTimbreInput((current) => !current)}
+          >
+            {hasConstancia ? "Regenerar" : "Generar"}
+          </Button>
+        </div>
+
+        {showTimbreInput && (
+          <div className="mt-3 space-y-2">
+            <input
+              type="url"
+              value={timbreUrl}
+              onChange={(event) => setTimbreUrl(event.target.value)}
+              placeholder="https://ecf.dgii.gov.do/ecf/ConsultaTimbre?..."
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-900"
+            />
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Es el enlace al que apunta el codigo QR de la factura. Escanealo con la camara del
+              telefono y copia la direccion, o usa Reconstruir e-NCF si la factura no trae el QR.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isVerifying}
+              className="h-9 rounded-lg text-xs font-black"
+              onClick={handleConstancia}
+            >
+              {isVerifying ? "Consultando DGII..." : "Consultar y adjuntar"}
+            </Button>
+          </div>
+        )}
+      </div>
+
       <input
         ref={inputRef}
         type="file"
@@ -90,7 +167,11 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
             className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <span className="flex min-w-0 items-center gap-2">
-              <Paperclip className="h-4 w-4 shrink-0 text-slate-400" />
+              {attachment.type === DGII_CONSTANCIA_TYPE ? (
+                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+              ) : (
+                <Paperclip className="h-4 w-4 shrink-0 text-slate-400" />
+              )}
               <span className="min-w-0 truncate">{attachment.fileName}</span>
             </span>
             <span className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
