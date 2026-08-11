@@ -13,6 +13,7 @@ import {
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 import { formatNcf, nextFreeNumber } from "@/lib/ncf";
+import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
 
 type ActionResult = { success: true; id?: number; newId?: number; invoiceId?: number; projectId?: number; recurringInvoiceId?: number; proformaId?: number } | { success: false; error: string };
@@ -317,7 +318,24 @@ async function resolveExplicitOrActiveProfileId(formData: FormData, key = "targe
   return getActiveProfileId();
 }
 
+/**
+ * El RNC comprador del timbre manda sobre el perfil activo y sobre lo que mande el
+ * cliente: es el documento fiscal el que dice de quien es la compra. Asi la compra cae en
+ * su perfil aunque el cambio automatico del navegador no llegue a aplicarse.
+ */
 async function resolvePurchaseProfileId(formData: FormData) {
+  const timbreUrl = optionalText(formData, "dgiiTimbreUrl");
+
+  if (timbreUrl && isDgiiTimbreUrl(timbreUrl)) {
+    try {
+      const buyerTaxId = qrParamReader(timbreUrl)(...BUYER_TAX_ID_PARAMS);
+      const profile = await profileForBuyerTaxId(buyerTaxId);
+      if (profile) return profile.id;
+    } catch {
+      // Un timbre ilegible no debe impedir guardar: se sigue con el perfil de siempre.
+    }
+  }
+
   return resolveExplicitOrActiveProfileId(formData, "targetProfileId");
 }
 
@@ -818,6 +836,18 @@ function textAfterLabel(text: string, labels: string[]) {
   }
 
   return "";
+}
+
+/** Perfil dueno del comprobante segun el RNC comprador que trae el QR. */
+async function profileForBuyerTaxId(buyerTaxId: string) {
+  const normalized = normalizeProfileTaxId(buyerTaxId);
+  if (!normalized) return null;
+
+  const profiles = await prisma.accountProfile.findMany({
+    select: { id: true, name: true, taxId: true },
+  });
+
+  return profiles.find((profile) => normalizeProfileTaxId(profile.taxId) === normalized) || null;
 }
 
 async function fetchDgiiTimbreDetails(url: string) {
@@ -3786,38 +3816,22 @@ export async function processSalesInvoiceAction(formData?: FormData) {
 
 export async function processDGIIQR(qrText: string) {
   try {
-    const url = new URL(qrText);
-    const params = url.searchParams;
+    const param = qrParamReader(qrText);
     const moneyParam = (...names: string[]) => {
       for (const name of names) {
-        const raw = params.get(name);
+        const raw = param(name);
         if (!raw) continue;
         const value = normalizeMoney(raw);
         if (Number.isFinite(value) && value > 0) return value;
       }
       return 0;
     };
-    const buyerTaxId =
-      params.get("RncComprador") ||
-      params.get("RNCComprador") ||
-      params.get("RncReceptor") ||
-      params.get("RNCReceptor") ||
-      params.get("RncCliente") ||
-      params.get("RNCCliente") ||
-      "";
-    const normalizedBuyerTaxId = normalizeProfileTaxId(buyerTaxId);
-    const profiles = normalizedBuyerTaxId
-      ? await prisma.accountProfile.findMany({
-          select: { id: true, name: true, taxId: true },
-        })
-      : [];
-    const targetProfile = profiles.find(
-      (profile) => normalizeProfileTaxId(profile.taxId) === normalizedBuyerTaxId,
-    );
+    const buyerTaxId = param(...BUYER_TAX_ID_PARAMS);
+    const targetProfile = await profileForBuyerTaxId(buyerTaxId);
     const pageDetails = await fetchDgiiTimbreDetails(qrText);
     const targetProfileId = targetProfile?.id || await getActiveProfileId();
-    const supplierTaxId = params.get("RncEmisor") || params.get("rnc") || "";
-    const ncf = params.get("eNCF") || params.get("ENCF") || params.get("encf") || params.get("ncf") || "";
+    const supplierTaxId = param("RncEmisor", "rnc");
+    const ncf = param("eNCF", "ncf");
     const duplicate = await findDuplicatePurchase(targetProfileId, ncf, supplierTaxId);
     if (duplicate) {
       const profileName = targetProfile?.name ? ` en el perfil ${targetProfile.name}` : "";
@@ -3852,9 +3866,9 @@ export async function processDGIIQR(qrText: string) {
         targetProfileId: targetProfile?.id || null,
         targetProfileName: targetProfile?.name || null,
         ncf,
-        total: pageDetails.total || moneyParam("MontoTotal", "Total", "total"),
+        total: pageDetails.total || moneyParam("MontoTotal", "Total"),
         taxAmount: pageDetails.taxAmount,
-        date: params.get("FechaEmision") || "",
+        date: param("FechaEmision"),
         // Se conserva para adjuntar despues la constancia de verificacion de la DGII.
         timbreUrl: isDgiiTimbreUrl(qrText) ? qrText : "",
       },
