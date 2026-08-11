@@ -1,21 +1,22 @@
-import path from "path";
-import fs from "fs/promises";
-import os from "os";
+import * as cheerio from "cheerio";
 import QRCode from "qrcode";
-import { chromium, type BrowserContext, type Page } from "playwright";
 
-const HEADLESS = process.env.DGII_ENCF_HEADLESS !== "false";
-const SLOW_MO = Number(process.env.DGII_ENCF_SLOW_MO || 125);
-const DEFAULT_SWEEP_SECONDS = Number(process.env.DGII_ENCF_SWEEP_SECONDS || 15);
 const DGII_URL =
   "https://dgii.gov.do/app/WebApps/ConsultasWeb2/ConsultasWeb/consultas/ncf.aspx";
-const CACHE_DIR = process.env.DGII_ENCF_CACHE_DIR || path.join(os.tmpdir(), "oasis-dgii-encf");
-const SCREENSHOT_DIR = path.join(CACHE_DIR, "screenshots");
-const USER_DATA_DIR = path.join(CACHE_DIR, "playwright-profile");
-const CHROME_USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-];
+const TIMBRE_URL = "https://ecf.dgii.gov.do/ecf/ConsultaTimbre";
+
+const REQUEST_TIMEOUT_MS = Number(process.env.DGII_ENCF_TIMEOUT_MS || 25_000);
+const DEFAULT_SWEEP_SECONDS = Number(process.env.DGII_ENCF_SWEEP_SECONDS || 15);
+const SWEEP_CONCURRENCY = Math.max(1, Number(process.env.DGII_ENCF_SWEEP_CONCURRENCY || 6));
+const TOTAL_BUDGET_MS = Number(process.env.DGII_ENCF_BUDGET_MS || 90_000);
+
+const BASE_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "es-DO,es-ES;q=0.9,es;q=0.8,en;q=0.6",
+};
 
 export interface DgiiEncfInput {
   rncEmisor: string;
@@ -29,6 +30,8 @@ export interface DgiiEncfExtractedData {
   fechaEmision: string;
   montoTotal: string;
   fechaFirma: string;
+  estado: string;
+  totalItbis: string;
 }
 
 export interface DgiiEncfValidation {
@@ -44,7 +47,6 @@ export interface DgiiEncfValidation {
 
 export interface DgiiEncfResult {
   message: string;
-  headless: boolean;
   elapsedMs: number;
   extracted: DgiiEncfExtractedData;
   validation: DgiiEncfValidation;
@@ -52,6 +54,8 @@ export interface DgiiEncfResult {
   qrDataUrl: string;
   dgiiUrl: string;
 }
+
+export class FriendlyError extends Error {}
 
 export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
   const data: DgiiEncfInput = {
@@ -65,11 +69,12 @@ export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
   if (!data.rncEmisor || !data.encf || !data.rncComprador || !data.codigoSeguridad) {
     return {
       ok: false as const,
-      message: "Completa RNC emisor, e-NCF, RNC comprador y código de seguridad antes de consultar.",
+      message:
+        "Completa RNC emisor, e-NCF, RNC comprador y código de seguridad antes de consultar.",
     };
   }
 
-  if (data.horaFirma && !/^\d{2}:\d{2}:\d{2}$/.test(data.horaFirma)) {
+  if (data.horaFirma && !/^([0-1]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(data.horaFirma)) {
     return {
       ok: false as const,
       message: "La hora de firma debe tener formato HH:mm:ss, por ejemplo 17:17:01.",
@@ -81,564 +86,196 @@ export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
 
 export async function rebuildDgiiEncfTimbre(input: DgiiEncfInput): Promise<DgiiEncfResult> {
   const startedAt = Date.now();
-  let context: BrowserContext | undefined;
-  let page: Page | undefined;
+  const deadline = startedAt + TOTAL_BUDGET_MS;
+
+  const extracted = await consultarEncf(input);
+
+  const validation = await validateOrSweepTimbre({ input, extracted, deadline });
+
+  const timbreUrl = buildTimbreUrl({
+    rncEmisor: input.rncEmisor,
+    rncComprador: input.rncComprador,
+    encf: input.encf,
+    fechaEmision: extracted.fechaEmision,
+    montoTotal: extracted.montoTotal,
+    fechaFirma: validation.fechaFirma,
+    codigoSeguridad: input.codigoSeguridad,
+  });
+
+  const qrDataUrl = await QRCode.toDataURL(timbreUrl, {
+    errorCorrectionLevel: "M",
+    margin: 1,
+    width: 280,
+  });
+
+  return {
+    message: "Factura encontrada. Se reconstruyó el enlace oficial del timbre DGII.",
+    elapsedMs: Date.now() - startedAt,
+    extracted,
+    validation,
+    timbreUrl,
+    qrDataUrl,
+    dgiiUrl: DGII_URL,
+  };
+}
+
+async function dgiiFetch(url: string, init: RequestInit, label: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    await fs.mkdir(SCREENSHOT_DIR, { recursive: true });
-    await fs.mkdir(USER_DATA_DIR, { recursive: true });
-
-    context = await createStealthContext();
-    page = context.pages()[0] || (await context.newPage());
-    page.setDefaultTimeout(45_000);
-
-    await prepareStealthPage(page);
-    await page.bringToFront().catch(() => undefined);
-
-    await humanNavigate(page, DGII_URL);
-    await assertNotBlocked(page);
-    await waitForForm(page);
-    await runConsultaFlow(page, input);
-
-    const outcome = await waitForOutcome(page);
-    if (!outcome.success) {
-      throw new FriendlyError(outcome.message);
-    }
-
-    const validation = await validateOrSweepTimbre({
-      context,
-      input,
-      extracted: outcome.data,
+    return await fetch(url, {
+      ...init,
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { ...BASE_HEADERS, ...(init.headers as Record<string, string> | undefined) },
     });
-
-    const timbreUrl = buildTimbreUrl({
-      rncEmisor: input.rncEmisor,
-      rncComprador: input.rncComprador,
-      encf: input.encf,
-      fechaEmision: outcome.data.fechaEmision,
-      montoTotal: outcome.data.montoTotal,
-      fechaFirma: validation.fechaFirma,
-      codigoSeguridad: input.codigoSeguridad,
-    });
-
-    const qrDataUrl = await QRCode.toDataURL(timbreUrl, {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 280,
-    });
-
-    return {
-      message: "Factura encontrada. Se reconstruyó el enlace oficial del timbre DGII.",
-      headless: HEADLESS,
-      elapsedMs: Date.now() - startedAt,
-      extracted: outcome.data,
-      validation,
-      timbreUrl,
-      qrDataUrl,
-      dgiiUrl: DGII_URL,
-    };
   } catch (error) {
-    if (page) {
-      await captureFailureScreenshot(page).catch(() => undefined);
-    }
-
-    if (error instanceof FriendlyError) {
-      throw error;
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new FriendlyError(
+        `La DGII no respondió a tiempo durante ${label}. Intenta nuevamente en unos segundos.`
+      );
     }
 
     throw new FriendlyError(
-      "No fue posible completar la consulta en DGII. Intenta nuevamente en unos segundos."
+      `No fue posible conectar con la DGII durante ${label}. Revisa la conexión e intenta de nuevo.`
     );
   } finally {
-    if (context) {
-      await context.close().catch(() => undefined);
-    }
+    clearTimeout(timer);
   }
 }
 
-function normalizeCompact(value: unknown) {
-  return String(value || "").trim().replace(/\s+/g, "");
-}
-
-function normalizeTaxId(value: unknown) {
-  return String(value || "").replace(/\D/g, "");
-}
-
-function normalizeTime(value: unknown) {
-  const compact = String(value || "").trim();
-  if (!compact) {
-    return "";
+function readCookies(response: Response) {
+  const jar = response.headers.getSetCookie?.() ?? [];
+  if (jar.length > 0) {
+    return jar.map((cookie) => cookie.split(";")[0]).join("; ");
   }
 
-  if (/^\d{6}$/.test(compact)) {
-    return `${compact.slice(0, 2)}:${compact.slice(2, 4)}:${compact.slice(4, 6)}`;
-  }
-
-  return compact;
+  const single = response.headers.get("set-cookie");
+  return single ? single.split(";")[0] : "";
 }
 
-async function createStealthContext() {
-  const userAgent =
-    CHROME_USER_AGENTS[Math.floor(Math.random() * CHROME_USER_AGENTS.length)];
+async function consultarEncf(input: DgiiEncfInput): Promise<DgiiEncfExtractedData> {
+  const formResponse = await dgiiFetch(DGII_URL, {}, "la carga del formulario");
 
-  return chromium.launchPersistentContext(USER_DATA_DIR, {
-    headless: HEADLESS,
-    slowMo: SLOW_MO,
-    locale: "es-DO",
-    timezoneId: "America/Santo_Domingo",
-    viewport: { width: 1366, height: 900 },
-    userAgent,
-    colorScheme: "light",
-    extraHTTPHeaders: {
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "Accept-Language": "es-DO,es-ES;q=0.9,es;q=0.8,en;q=0.6",
-      "Cache-Control": "max-age=0",
-      DNT: "1",
-      "Upgrade-Insecure-Requests": "1",
+  if (!formResponse.ok) {
+    throw new FriendlyError(
+      `La página de consulta de DGII respondió con un error ${formResponse.status}. Intenta más tarde.`
+    );
+  }
+
+  const formHtml = await formResponse.text();
+  const cookies = readCookies(formResponse);
+  const $ = cheerio.load(formHtml);
+  const hiddenValue = (name: string) => $(`input[name="${name}"]`).attr("value") || "";
+
+  const viewState = hiddenValue("__VIEWSTATE");
+  if (!viewState) {
+    throw new FriendlyError(
+      "La página de consulta de DGII cambió su estructura y no expuso el formulario esperado."
+    );
+  }
+
+  const payload = new URLSearchParams({
+    __EVENTTARGET: "",
+    __EVENTARGUMENT: "",
+    __VIEWSTATE: viewState,
+    __VIEWSTATEGENERATOR: hiddenValue("__VIEWSTATEGENERATOR"),
+    __EVENTVALIDATION: hiddenValue("__EVENTVALIDATION"),
+    "ctl00$cphMain$txtRNC": input.rncEmisor,
+    "ctl00$cphMain$txtNCF": input.encf,
+    "ctl00$cphMain$txtRncComprador": input.rncComprador,
+    "ctl00$cphMain$txtCodigoSeg": input.codigoSeguridad,
+    "ctl00$cphMain$btnConsultar": "Buscar",
+  });
+
+  const consultaResponse = await dgiiFetch(
+    DGII_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Origin: "https://dgii.gov.do",
+        Referer: DGII_URL,
+        ...(cookies ? { Cookie: cookies } : {}),
+      },
+      body: payload.toString(),
     },
-    args: [
-      "--disable-blink-features=AutomationControlled",
-      "--disable-dev-shm-usage",
-      "--no-default-browser-check",
-      "--disable-features=IsolateOrigins,site-per-process",
-      "--start-maximized",
-    ],
-  });
-}
+    "la consulta del e-NCF"
+  );
 
-async function prepareStealthPage(page: Page) {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "webdriver", {
-      get: () => undefined,
-    });
-
-    Object.defineProperty(navigator, "languages", {
-      get: () => ["es-DO", "es-ES", "es", "en-US"],
-    });
-
-    Object.defineProperty(navigator, "platform", {
-      get: () => "Win32",
-    });
-
-    Object.defineProperty(navigator, "hardwareConcurrency", {
-      get: () => 8,
-    });
-
-    Object.defineProperty(navigator, "deviceMemory", {
-      get: () => 8,
-    });
-
-    const chromeStub = {
-      runtime: {},
-      app: {},
-      csi: () => undefined,
-      loadTimes: () => undefined,
-    };
-
-    Object.defineProperty(window, "chrome", {
-      value: chromeStub,
-      configurable: true,
-    });
-
-    const originalQuery = window.navigator.permissions.query.bind(window.navigator.permissions);
-    window.navigator.permissions.query = ((parameters: PermissionDescriptor) =>
-      parameters && parameters.name === "notifications"
-        ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
-        : originalQuery(parameters)) as typeof window.navigator.permissions.query;
-  });
-}
-
-async function humanNavigate(page: Page, url: string) {
-  await page.goto(url, {
-    waitUntil: "domcontentloaded",
-    timeout: 45_000,
-  });
-
-  await randomPause(1200, 2200);
-}
-
-async function assertNotBlocked(page: Page) {
-  const currentUrl = page.url();
-  const pageText = normalizeVisibleText(await page.locator("body").innerText().catch(() => ""));
-
-  if (
-    pageText.match(/acceso denegado|error 403|solicitud fue bloqueada|servicios de seguridad/i) ||
-    currentUrl.toLowerCase().includes("error")
-  ) {
+  if (!consultaResponse.ok) {
     throw new FriendlyError(
-      "La DGII bloqueó temporalmente la consulta con un error 403. Espera unos minutos e intenta de nuevo."
-    );
-  }
-}
-
-async function waitForForm(page: Page) {
-  await page.waitForLoadState("domcontentloaded");
-  const totalInputs = await countVisibleTextInputs(page);
-
-  if (totalInputs < 2) {
-    throw new FriendlyError(
-      "La página de DGII cargó, pero no expuso los campos mínimos esperados del formulario."
-    );
-  }
-}
-
-async function runConsultaFlow(page: Page, input: DgiiEncfInput) {
-  const initialCount = await countVisibleTextInputs(page);
-
-  if (initialCount >= 4) {
-    await fillVisibleFields(page, [
-      input.rncEmisor,
-      input.encf,
-      input.rncComprador,
-      input.codigoSeguridad,
-    ]);
-    await submitConsulta(page);
-    return;
-  }
-
-  if (initialCount >= 2) {
-    await fillVisibleFields(page, [input.rncEmisor, input.encf]);
-    await submitConsulta(page);
-
-    const followUp = await waitForExpandedForm(page);
-    if (followUp.state === "expanded") {
-      await fillVisibleFields(page, [
-        input.rncEmisor,
-        input.encf,
-        input.rncComprador,
-        input.codigoSeguridad,
-      ]);
-      await submitConsulta(page);
-      return;
-    }
-
-    if (followUp.state === "result" || followUp.state === "error") {
-      return;
-    }
-
-    throw new FriendlyError(
-      "DGII no mostró los campos adicionales ni devolvió resultado después de la primera búsqueda."
+      `La DGII respondió con un error ${consultaResponse.status} al consultar el e-NCF.`
     );
   }
 
-  throw new FriendlyError(
-    "No fue posible determinar el flujo correcto del formulario de DGII en esta sesión."
-  );
+  return parseConsultaResult(await consultaResponse.text());
 }
 
-async function fillVisibleFields(page: Page, values: string[]) {
-  const result = await page.evaluate(async (payload) => {
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-    const isVisible = (element: Element | null) => {
-      if (!element) return false;
-      const style = window.getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return (
-        style.visibility !== "hidden" &&
-        style.display !== "none" &&
-        rect.width > 0 &&
-        rect.height > 0
-      );
-    };
+function parseConsultaResult(html: string): DgiiEncfExtractedData {
+  const $ = cheerio.load(html);
+  const label = (id: string) => cleanText($(`#${id}`).text());
 
-    const candidates = Array.from(document.querySelectorAll("input")).filter((input) => {
-      const type = (input.getAttribute("type") || "text").toLowerCase();
-      return (type === "text" || type === "") && isVisible(input);
-    });
+  const encf = label("cphMain_lblencf");
 
-    const fields = candidates.slice(0, payload.length);
-    if (fields.length < payload.length) {
-      return {
-        ok: false,
-        reason: `Solo se detectaron ${fields.length} campos visibles para ${payload.length} valores.`,
-      };
-    }
-
-    for (let index = 0; index < fields.length; index += 1) {
-      const field = fields[index];
-      field.focus();
-      field.value = "";
-      field.dispatchEvent(new Event("focus", { bubbles: true }));
-
-      for (const char of String(payload[index] || "")) {
-        field.value += char;
-        field.dispatchEvent(new Event("input", { bubbles: true }));
-        field.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
-        await sleep(45 + Math.floor(Math.random() * 50));
-      }
-
-      field.dispatchEvent(new Event("change", { bubbles: true }));
-      field.dispatchEvent(new Event("blur", { bubbles: true }));
-      await sleep(150 + Math.floor(Math.random() * 120));
-    }
-
-    return { ok: true };
-  }, values);
-
-  if (!result.ok) {
-    throw new FriendlyError(`No fue posible llenar el formulario de DGII. ${result.reason}`);
-  }
-}
-
-async function submitConsulta(page: Page) {
-  const submitResult = await page.evaluate(() => {
-    const isVisible = (element: Element | null) => {
-      if (!element) return false;
-      const style = window.getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return (
-        style.visibility !== "hidden" &&
-        style.display !== "none" &&
-        rect.width > 0 &&
-        rect.height > 0
-      );
-    };
-
-    const candidates = Array.from(
-      document.querySelectorAll("button, input[type='submit'], input[type='button'], input[type='image'], a")
-    ).filter(isVisible);
-
-    const preferred = candidates.find((element) => {
-      const rawElement = element as HTMLButtonElement | HTMLInputElement | HTMLAnchorElement;
-      const text = (
-        rawElement.innerText ||
-        rawElement.getAttribute("value") ||
-        rawElement.getAttribute("title") ||
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-      return /consultar|buscar|consulta/.test(text);
-    });
-
-    const target = preferred || candidates[0] || null;
-    if (target) {
-      (target as HTMLElement).click();
-      return { ok: true };
-    }
-
-    const form = document.querySelector("form") as HTMLFormElement | null;
-    if (form) {
-      if (typeof form.requestSubmit === "function") {
-        form.requestSubmit();
-      } else {
-        form.submit();
-      }
-      return { ok: true };
-    }
-
-    return { ok: false, reason: "No se encontró botón ni formulario." };
-  });
-
-  if (!submitResult.ok) {
-    throw new FriendlyError(
-      `No se encontró una forma válida de enviar el formulario de DGII. ${submitResult.reason}`
-    );
-  }
-}
-
-async function waitForExpandedForm(page: Page) {
-  const timeoutMs = 20_000;
-  const pollMs = 700;
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    await page.waitForTimeout(pollMs);
-
-    const visibleCount = await countVisibleTextInputs(page);
-    if (visibleCount >= 4) {
-      return { state: "expanded" as const, visibleCount };
-    }
-
-    const text = normalizeVisibleText(await page.locator("body").innerText());
-    if (parseSuccessFields(text)) {
-      return { state: "result" as const, visibleCount };
-    }
-
-    const blockedMessage = detectBlockMessage(text);
-    if (blockedMessage) {
-      return { state: "error" as const, visibleCount, message: blockedMessage };
-    }
-
-    const errorMessage = detectKnownError(text);
-    if (errorMessage) {
-      return { state: "error" as const, visibleCount, message: errorMessage };
-    }
+  if (!encf) {
+    throw new FriendlyError(buildNotFoundMessage($));
   }
 
-  return { state: "timeout" as const, visibleCount: await countVisibleTextInputs(page) };
-}
-
-async function waitForOutcome(page: Page) {
-  const timeoutMs = 35_000;
-  const pollMs = 900;
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    await page.waitForTimeout(pollMs);
-
-    const text = normalizeVisibleText(await page.locator("body").innerText());
-    const parsed = parseSuccessFields(text);
-    if (parsed) {
-      return { success: true as const, data: parsed };
-    }
-
-    const blockedMessage = detectBlockMessage(text);
-    if (blockedMessage) {
-      return { success: false as const, message: blockedMessage };
-    }
-
-    const errorMessage = detectKnownError(text);
-    if (errorMessage) {
-      return { success: false as const, message: errorMessage };
-    }
-  }
-
-  throw new FriendlyError(
-    "DGII no respondió dentro del tiempo esperado. Revisa la conectividad o vuelve a intentarlo."
-  );
-}
-
-async function countVisibleTextInputs(page: Page) {
-  return page.evaluate(() => {
-    const isVisible = (element: Element | null) => {
-      if (!element) return false;
-      const style = window.getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return (
-        style.visibility !== "hidden" &&
-        style.display !== "none" &&
-        rect.width > 0 &&
-        rect.height > 0
-      );
-    };
-
-    return Array.from(document.querySelectorAll("input")).filter((input) => {
-      const type = (input.getAttribute("type") || "text").toLowerCase();
-      return (type === "text" || type === "") && isVisible(input);
-    }).length;
-  });
-}
-
-function normalizeVisibleText(text: string) {
-  return String(text || "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\r/g, "")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n+/g, "\n")
-    .trim();
-}
-
-function parseSuccessFields(text: string): DgiiEncfExtractedData | null {
-  const fechaEmision = extractField(
-    text,
-    /Fecha\s*(?:de\s+)?Emisi[oó]n\s*:?\s*((?:\d{4}[/-][0-1]?\d[/-][0-3]?\d)|(?:[0-3]?\d[/-][0-1]?\d[/-]\d{4}))/i
-  );
-  const montoTotal = extractField(
-    text,
-    /Monto\s+Total\s*:?\s*(RD\$\s*)?([\d,]+(?:\.\d{1,2})?)/i,
-    2
-  );
-  const fechaFirma = extractField(
-    text,
-    /Fecha\s*(?:de\s+)?Firma\s*:?\s*((?:\d{4}[/-][0-1]?\d[/-][0-3]?\d)|(?:[0-3]?\d[/-][0-1]?\d[/-]\d{4}))(?:\s+([0-2]?\d:\d{2}:\d{2}))?/i,
-    1
-  );
+  const fechaEmision = label("cphMain_lblFechaEmision");
+  const montoTotal = label("cphMain_lblMontoTotal");
+  const fechaFirma = label("cphMain_lblFechaFirma");
 
   if (!fechaEmision || !montoTotal || !fechaFirma) {
-    return null;
+    throw new FriendlyError(
+      "La DGII encontró el comprobante pero no devolvió fecha de emisión, monto o fecha de firma."
+    );
   }
 
   return {
     fechaEmision: normalizeDate(fechaEmision),
     montoTotal: normalizeAmount(montoTotal),
     fechaFirma: normalizeDateTime(fechaFirma),
+    estado: label("cphMain_lblEstadoFe"),
+    totalItbis: normalizeAmount(label("cphMain_lblTotalItbis")),
   };
 }
 
-function extractField(text: string, regex: RegExp, group = 1) {
-  const match = text.match(regex);
-  return match ? match[group].trim() : null;
-}
+function buildNotFoundMessage($: cheerio.CheerioAPI) {
+  const notices: string[] = [];
 
-function detectKnownError(text: string) {
-  const messages = [
-    /no se encontraron datos/i,
-    /no existe/i,
-    /no fue encontrado/i,
-    /comprobante.*inv[áa]lido/i,
-    /rnc digitado es inv[áa]lido/i,
-    /formato inv[áa]lido/i,
-    /debe introducir/i,
-    /ocurrió un error/i,
-  ];
+  $("#cphMain_lblInformacion, span[id^='cphMain_rfv'], span[id^='cphMain_rev']").each((_, el) => {
+    const element = $(el);
+    const style = (element.attr("style") || "").replace(/\s+/g, "").toLowerCase();
 
-  for (const regex of messages) {
-    const match = text.match(regex);
-    if (match) {
-      return `DGII respondió que no fue posible validar la factura: ${match[0]}.`;
+    if (style.includes("display:none") || style.includes("visibility:hidden")) {
+      return;
     }
-  }
 
-  return null;
-}
-
-function detectBlockMessage(text: string) {
-  const messages = [
-    /acceso denegado/i,
-    /error 403/i,
-    /solicitud fue bloqueada/i,
-    /servicios de seguridad/i,
-  ];
-
-  for (const regex of messages) {
-    if (regex.test(text)) {
-      return "La DGII bloqueó temporalmente esta consulta con un error 403. Espera un poco y vuelve a intentar.";
+    const text = cleanText(element.text());
+    if (text && !notices.includes(text)) {
+      notices.push(text);
     }
+  });
+
+  if (notices.length === 0) {
+    return "La DGII no devolvió datos para ese comprobante. Verifica el RNC emisor, el e-NCF y el código de seguridad.";
   }
 
-  return null;
-}
-
-function normalizeDate(value: string) {
-  const normalized = value.replace(/\//g, "-").trim();
-  const isoMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (isoMatch) {
-    const [, year, month, day] = isoMatch;
-    return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
-  }
-
-  const localMatch = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (localMatch) {
-    const [, day, month, year] = localMatch;
-    return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
-  }
-
-  return normalized;
-}
-
-function normalizeDateTime(value: string) {
-  const [datePart, timePart] = value.split(/\s+/);
-  const normalizedDate = normalizeDate(datePart);
-  return timePart ? `${normalizedDate} ${timePart}` : normalizedDate;
-}
-
-function combineFechaFirma(fechaFirma: string, horaFirma?: string) {
-  const normalizedDate = normalizeDateTime(fechaFirma).split(" ")[0];
-  return horaFirma ? `${normalizedDate} ${horaFirma}` : normalizedDate;
+  return `DGII respondió: ${notices.join(" ")}`;
 }
 
 async function validateOrSweepTimbre({
-  context,
   input,
   extracted,
+  deadline,
 }: {
-  context: BrowserContext;
   input: DgiiEncfInput;
   extracted: DgiiEncfExtractedData;
-}) {
+  deadline: number;
+}): Promise<DgiiEncfValidation> {
   const baseFechaFirma = combineFechaFirma(extracted.fechaFirma, input.horaFirma);
   const baseUrl = buildTimbreUrl({
     rncEmisor: input.rncEmisor,
@@ -653,8 +290,8 @@ async function validateOrSweepTimbre({
   if (!input.horaFirma) {
     return {
       validated: false,
-      mode: "date_only" as const,
-      attempted: 1,
+      mode: "date_only",
+      attempted: 0,
       matchedOffsetSeconds: null,
       horaFirmaUsada: null,
       fechaFirma: extracted.fechaFirma,
@@ -670,28 +307,41 @@ async function validateOrSweepTimbre({
     DEFAULT_SWEEP_SECONDS
   );
 
-  for (let index = 0; index < candidates.length; index += 1) {
-    const candidate = candidates[index];
-    const candidateUrl = buildTimbreUrl({
-      rncEmisor: input.rncEmisor,
-      rncComprador: input.rncComprador,
-      encf: input.encf,
-      fechaEmision: extracted.fechaEmision,
-      montoTotal: extracted.montoTotal,
-      fechaFirma: candidate.fechaFirma,
-      codigoSeguridad: input.codigoSeguridad,
-    });
+  let attempted = 0;
 
-    const result = await validateTimbreUrl(context, candidateUrl);
-    if (result.valid) {
+  for (let start = 0; start < candidates.length; start += SWEEP_CONCURRENCY) {
+    if (Date.now() > deadline) {
+      break;
+    }
+
+    const batch = candidates.slice(start, start + SWEEP_CONCURRENCY);
+    const urls = batch.map((candidate) =>
+      buildTimbreUrl({
+        rncEmisor: input.rncEmisor,
+        rncComprador: input.rncComprador,
+        encf: input.encf,
+        fechaEmision: extracted.fechaEmision,
+        montoTotal: extracted.montoTotal,
+        fechaFirma: candidate.fechaFirma,
+        codigoSeguridad: input.codigoSeguridad,
+      })
+    );
+
+    const results = await Promise.all(urls.map((url) => isTimbreValid(url, input.encf)));
+    attempted += batch.length;
+
+    const hitIndex = results.findIndex(Boolean);
+    if (hitIndex !== -1) {
+      const candidate = batch[hitIndex];
+
       return {
         validated: true,
-        mode: "sweep" as const,
-        attempted: index + 1,
+        mode: "sweep",
+        attempted,
         matchedOffsetSeconds: candidate.offsetSeconds,
         horaFirmaUsada: candidate.hora,
         fechaFirma: candidate.fechaFirma,
-        checkedUrl: candidateUrl,
+        checkedUrl: urls[hitIndex],
         message:
           candidate.offsetSeconds === 0
             ? "El enlace fue validado con la hora base indicada."
@@ -700,16 +350,46 @@ async function validateOrSweepTimbre({
     }
   }
 
+  const incomplete = attempted < candidates.length;
+
   return {
     validated: false,
-    mode: "sweep" as const,
-    attempted: candidates.length,
+    mode: "sweep",
+    attempted,
     matchedOffsetSeconds: null,
     horaFirmaUsada: input.horaFirma,
     fechaFirma: baseFechaFirma,
     checkedUrl: baseUrl,
-    message: `No se validó el enlace con un barrido de ±${DEFAULT_SWEEP_SECONDS} segundos alrededor de la hora base.`,
+    message: incomplete
+      ? `Se agotó el tiempo disponible tras ${attempted} intentos sin validar el enlace. Verifica la hora de firma exacta.`
+      : `No se validó el enlace con un barrido de ±${DEFAULT_SWEEP_SECONDS} segundos alrededor de la hora base.`,
   };
+}
+
+// DGII devuelve HTTP 200 tanto para el timbre válido como para el inválido: hay que
+// mirar el contenido. La página de "no encontrada" nunca repite el e-NCF consultado
+// (verificado contra el sitio real), así que ese eco es la señal positiva más estable:
+// no depende de las etiquetas en español del panel de resultado, que pueden cambiar.
+async function isTimbreValid(url: string, encf: string) {
+  try {
+    const response = await dgiiFetch(url, {}, "la validación del timbre");
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const $ = cheerio.load(await response.text());
+    $("script, style").remove();
+    const text = cleanText($("body").text());
+
+    if (/No fue encontrada la factura/i.test(text)) {
+      return false;
+    }
+
+    return text.toUpperCase().includes(encf.toUpperCase());
+  } catch {
+    return false;
+  }
 }
 
 function buildSweepCandidates(fechaFirma: string, horaBase: string, rangeSeconds: number) {
@@ -729,33 +409,12 @@ function buildSweepCandidates(fechaFirma: string, horaBase: string, rangeSeconds
       }
 
       const hora = formatSecondsAsTime(total);
-      return {
-        offsetSeconds,
-        hora,
-        fechaFirma: `${normalizedDate} ${hora}`,
-      };
+      return { offsetSeconds, hora, fechaFirma: `${normalizedDate} ${hora}` };
     })
-    .filter((candidate): candidate is { offsetSeconds: number; hora: string; fechaFirma: string } => Boolean(candidate));
-}
-
-function parseTimeToSeconds(value: string) {
-  const [hours, minutes, seconds] = String(value).split(":").map(Number);
-  return hours * 3600 + minutes * 60 + seconds;
-}
-
-function formatSecondsAsTime(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
-}
-
-function formatOffset(offsetSeconds: number) {
-  return `${offsetSeconds > 0 ? "+" : ""}${offsetSeconds} segundos`;
-}
-
-function normalizeAmount(value: string) {
-  return value.replace(/,/g, "");
+    .filter(
+      (candidate): candidate is { offsetSeconds: number; hora: string; fechaFirma: string } =>
+        candidate !== null
+    );
 }
 
 function buildTimbreUrl(data: {
@@ -781,53 +440,87 @@ function buildTimbreUrl(data: {
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
     .join("&");
 
-  return `https://ecf.dgii.gov.do/ecf/ConsultaTimbre?${queryString}`;
+  return `${TIMBRE_URL}?${queryString}`;
 }
 
-async function validateTimbreUrl(context: BrowserContext, url: string) {
-  const page = await context.newPage();
+function cleanText(value: string) {
+  return String(value || "")
+    .replace(/ /g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  try {
-    await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 45_000,
-    });
+function normalizeCompact(value: unknown) {
+  return String(value || "").trim().replace(/\s+/g, "");
+}
 
-    const text = normalizeVisibleText(await page.locator("body").innerText().catch(() => ""));
+function normalizeTaxId(value: unknown) {
+  return String(value || "").replace(/\D/g, "");
+}
 
-    if (/No fue encontrada la factura \(e-CF\) con los valores suministrados\./i.test(text)) {
-      return { valid: false, reason: "not_found" };
-    }
-
-    if (
-      /Verificación e-NCF/i.test(text) &&
-      /RNC Emisor/i.test(text) &&
-      /e-NCF/i.test(text) &&
-      /Monto Total/i.test(text) &&
-      /Estado/i.test(text)
-    ) {
-      return { valid: true };
-    }
-
-    return { valid: false, reason: "unknown_response" };
-  } finally {
-    await page.close().catch(() => undefined);
+function normalizeTime(value: unknown) {
+  const compact = String(value || "").trim();
+  if (!compact) {
+    return "";
   }
+
+  if (/^\d{6}$/.test(compact)) {
+    return `${compact.slice(0, 2)}:${compact.slice(2, 4)}:${compact.slice(4, 6)}`;
+  }
+
+  const parts = compact.split(":");
+  if (parts.length === 3 && parts.every((part) => /^\d{1,2}$/.test(part))) {
+    return parts.map((part) => part.padStart(2, "0")).join(":");
+  }
+
+  return compact;
 }
 
-async function captureFailureScreenshot(page: Page) {
-  const fileName = `dgii-fallo-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
-  const fullPath = path.join(SCREENSHOT_DIR, fileName);
-  await page.screenshot({ path: fullPath, fullPage: true });
-  return fullPath;
+function normalizeDate(value: string) {
+  const normalized = value.replace(/\//g, "-").trim();
+
+  const isoMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
+  }
+
+  const localMatch = normalized.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (localMatch) {
+    const [, day, month, year] = localMatch;
+    return `${day.padStart(2, "0")}-${month.padStart(2, "0")}-${year}`;
+  }
+
+  return normalized;
 }
 
-function randomBetween(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function normalizeDateTime(value: string) {
+  const [datePart, timePart] = cleanText(value).split(" ");
+  const normalizedDate = normalizeDate(datePart);
+  return timePart ? `${normalizedDate} ${timePart}` : normalizedDate;
 }
 
-async function randomPause(min: number, max: number) {
-  await new Promise((resolve) => setTimeout(resolve, randomBetween(min, max)));
+function combineFechaFirma(fechaFirma: string, horaFirma?: string) {
+  const normalizedDate = normalizeDateTime(fechaFirma).split(" ")[0];
+  return horaFirma ? `${normalizedDate} ${horaFirma}` : normalizedDate;
 }
 
-export class FriendlyError extends Error {}
+function parseTimeToSeconds(value: string) {
+  const [hours, minutes, seconds] = String(value).split(":").map(Number);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+function formatSecondsAsTime(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
+}
+
+function formatOffset(offsetSeconds: number) {
+  return `${offsetSeconds > 0 ? "+" : ""}${offsetSeconds} segundos`;
+}
+
+function normalizeAmount(value: string) {
+  return cleanText(value).replace(/RD\$/gi, "").replace(/,/g, "").trim();
+}

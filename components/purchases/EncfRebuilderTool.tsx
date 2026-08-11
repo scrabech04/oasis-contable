@@ -23,6 +23,8 @@ interface EncfRebuildResponse {
     fechaEmision: string;
     montoTotal: string;
     fechaFirma: string;
+    estado?: string;
+    totalItbis?: string;
   };
   validation?: {
     validated: boolean;
@@ -32,6 +34,14 @@ interface EncfRebuildResponse {
     message: string;
   };
 }
+
+// El endpoint responde `{ ok, ...datos }`, pero se tolera además la forma heredada
+// `{ success, data: { ... } }` y las respuestas de error, que solo traen mensaje.
+type EncfRebuildEnvelope = Partial<EncfRebuildResponse> & {
+  success?: boolean;
+  error?: string;
+  data?: Partial<EncfRebuildResponse>;
+};
 
 const initialForm = (buyerTaxId: string) => ({
   rncEmisor: "",
@@ -78,24 +88,23 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
       });
 
       const raw = await response.text();
-      let data: any;
+      let data: EncfRebuildEnvelope;
       try {
-        data = JSON.parse(raw);
+        data = JSON.parse(raw) as EncfRebuildEnvelope;
       } catch {
-        setError(raw || "El servidor no devolviÃ³ una respuesta vÃ¡lida al consultar la DGII.");
+        setError(raw || "El servidor no devolvió una respuesta válida al consultar la DGII.");
         return;
       }
 
-      const payload = data.data && !data.timbreUrl
-        ? { ok: Boolean(data.success), ...data.data }
-        : data;
+      const payload: EncfRebuildEnvelope =
+        data.data && !data.timbreUrl ? { ok: Boolean(data.success), ...data.data } : data;
 
-      if (!response.ok || !payload.ok) {
+      if (!response.ok || !payload.ok || !payload.timbreUrl) {
         setError(payload.message || payload.error || "No fue posible reconstruir el timbre.");
         return;
       }
 
-      setResult(payload);
+      setResult(payload as EncfRebuildResponse);
     } catch {
       setError("No se pudo comunicar con el servidor para consultar la DGII.");
     } finally {
@@ -308,6 +317,20 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Monto Total</p>
                     <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">RD${result.extracted.montoTotal}</p>
                   </div>
+                  {result.extracted.estado ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Estado DGII</p>
+                      <p
+                        className={`mt-1 text-lg font-bold ${
+                          /aceptado/i.test(result.extracted.estado)
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-amber-600 dark:text-amber-400"
+                        }`}
+                      >
+                        {result.extracted.estado}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Fecha Firma</p>
                     <p className="mt-1 text-lg font-bold text-slate-900 dark:text-white">{result.validation?.horaFirmaUsada ? result.validation.fechaFirma : result.extracted.fechaFirma}</p>
