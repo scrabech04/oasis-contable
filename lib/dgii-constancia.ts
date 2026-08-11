@@ -17,6 +17,17 @@ const USER_AGENT =
 
 export class ConstanciaError extends Error {}
 
+/** Comprador real del comprobante: el perfil dueno de la compra. */
+export interface ConstanciaBuyer {
+  name: string;
+  taxId: string;
+}
+
+export interface ConstanciaOptions {
+  companyName?: string;
+  buyer?: ConstanciaBuyer;
+}
+
 export interface ConstanciaResult {
   fileName: string;
   mimeType: string;
@@ -37,7 +48,7 @@ export function isDgiiTimbreUrl(value: string) {
 
 export async function buildDgiiConstancia(
   timbreUrl: string,
-  options: { companyName?: string } = {}
+  options: ConstanciaOptions = {}
 ): Promise<ConstanciaResult> {
   if (!isDgiiTimbreUrl(timbreUrl)) {
     throw new ConstanciaError("El enlace del timbre no corresponde al portal de la DGII.");
@@ -52,9 +63,9 @@ export async function buildDgiiConstancia(
 export async function buildConstanciaFromHtml(
   html: string,
   timbreUrl: string,
-  options: { companyName?: string } = {}
+  options: ConstanciaOptions = {}
 ): Promise<ConstanciaResult> {
-  const { fields, encf, estado } = parseTimbrePage(html);
+  const { fields, encf, estado } = readConstanciaFields(html, options.buyer);
 
   const qrDataUrl = await QRCode.toDataURL(timbreUrl, {
     errorCorrectionLevel: "M",
@@ -132,6 +143,14 @@ async function fetchTimbrePage(url: string) {
   }
 }
 
+// Los datos que iran al PDF, ya resueltos. Exportado aparte del render para poder
+// inspeccionarlos sin generar el PDF.
+export function readConstanciaFields(html: string, buyer?: ConstanciaBuyer) {
+  const parsed = parseTimbrePage(html);
+  applyBuyerIdentity(parsed.fields, buyer);
+  return parsed;
+}
+
 function parseTimbrePage(html: string) {
   const $ = cheerio.load(html);
   $("script, style").remove();
@@ -199,6 +218,45 @@ function collectFields($: cheerio.CheerioAPI): ConstanciaField[] {
   }
 
   return fields.slice(0, MAX_FIELDS);
+}
+
+const BUYER_TAX_ID_LABEL = /(rnc|c[eé]dula|documento)[^a-z]*(comprador|receptor|cliente)|(comprador|receptor)[^a-z]*(rnc|c[eé]dula)/i;
+const BUYER_NAME_LABEL = /(raz[oó]n\s*social|nombre)[^a-z]*(comprador|receptor|cliente)/i;
+
+// Muchos emisores mandan "CLIENTE" (o el nombre del cajero) como razon social del
+// comprador, asi que la DGII devuelve eso aunque el e-CF si venga a nombre del perfil. Se
+// muestra la razon social real del perfil y se conserva lo declarado por el emisor como
+// nota, para que la constancia no aparente que la DGII respondio otra cosa.
+function applyBuyerIdentity(fields: ConstanciaField[], buyer?: ConstanciaBuyer) {
+  const buyerTaxId = onlyDigits(buyer?.taxId);
+  const buyerName = cleanText(buyer?.name || "");
+  if (!buyerTaxId || !buyerName) return;
+
+  // Sin el RNC del comprador en la pagina no hay como confirmar que el comprobante es de
+  // este perfil, y sin esa confirmacion no se toca nada de lo que devolvio la DGII.
+  const taxIdField = fields.find((field) => BUYER_TAX_ID_LABEL.test(field.label));
+  if (!taxIdField || onlyDigits(taxIdField.value) !== buyerTaxId) return;
+
+  const nameField = fields.find((field) => BUYER_NAME_LABEL.test(field.label));
+  if (!nameField) return;
+
+  const declared = nameField.value;
+  if (comparableName(declared) === comparableName(buyerName)) return;
+
+  nameField.value = buyerName;
+  nameField.note = `El emisor declaro "${declared}"`;
+}
+
+function onlyDigits(value: string | null | undefined) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function comparableName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
 }
 
 function humanizeId(value: string) {

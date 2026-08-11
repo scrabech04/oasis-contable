@@ -3,6 +3,8 @@ import { Document, Page, Text, View, StyleSheet, Image, Link } from "@react-pdf/
 export type ConstanciaField = {
     label: string;
     value: string;
+    /** Aclaracion bajo el valor, p. ej. lo que declaro el emisor cuando difiere del dato real. */
+    note?: string;
 };
 
 export type DgiiConstanciaData = {
@@ -129,9 +131,16 @@ const styles = StyleSheet.create({
         width: "55%",
         paddingVertical: 7,
         paddingHorizontal: 9,
+    },
+    cellValueText: {
         fontSize: 8,
         color: slate900,
         fontWeight: "bold",
+    },
+    cellNote: {
+        fontSize: 6.5,
+        color: slate500,
+        marginTop: 2,
     },
     qrPanel: {
         width: 150,
@@ -225,7 +234,12 @@ export function DgiiConstanciaPDF({ data }: { data: DgiiConstanciaData }) {
                                     style={index === data.fields.length - 1 ? styles.rowLast : styles.row}
                                 >
                                     <Text style={styles.cellLabel}>{field.label}</Text>
-                                    <Text style={styles.cellValue}>{field.value}</Text>
+                                    <View style={styles.cellValue}>
+                                        <Text style={styles.cellValueText}>{field.value}</Text>
+                                        {field.note ? (
+                                            <Text style={styles.cellNote}>{field.note}</Text>
+                                        ) : null}
+                                    </View>
                                 </View>
                             ))}
                         </View>

@@ -2767,13 +2767,22 @@ export async function attachDgiiConstancia(
     const profileId = explicitProfileId ?? (await getActiveProfileId());
     const purchase = await prisma.purchase.findFirst({
       where: { id: purchaseId, profileId },
-      select: { id: true },
+      select: {
+        id: true,
+        profile: {
+          select: { name: true, taxId: true, companySettings: { select: { name: true } } },
+        },
+      },
     });
     if (!purchase) return { success: false, error: "Compra no encontrada para el perfil activo." };
 
-    const settings = await getScopedCompanySettings();
+    // El comprador es el perfil dueno de la compra, no el perfil activo: al registrar desde
+    // un QR la compra puede caer en otro perfil.
+    const buyerName = purchase.profile?.companySettings?.name || purchase.profile?.name || "";
+    const buyerTaxId = purchase.profile?.taxId || "";
     const { encf: _encf, estado: _estado, ...attachment } = await buildDgiiConstancia(timbreUrl, {
-      companyName: settings?.name,
+      companyName: buyerName || undefined,
+      buyer: buyerName && buyerTaxId ? { name: buyerName, taxId: buyerTaxId } : undefined,
     });
 
     await prisma.$transaction([
