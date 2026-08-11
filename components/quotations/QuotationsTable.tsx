@@ -59,7 +59,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
     };
 
     const handleConvertInvoice = async (id: number) => {
-        if (!confirm("¿Estás seguro de convertir esta cotización en una factura?")) return;
+        if (!confirm("Se creará una factura con el siguiente NCF de tu numeración preferida. ¿Continuar?")) return;
 
         setSubmittingInvoice(id);
         try {

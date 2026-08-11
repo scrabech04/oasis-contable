@@ -12,11 +12,16 @@ export function ConvertProformaButton({ proformaId, disabled }: { proformaId: nu
 
   const convert = async () => {
     if (disabled || isConverting) return;
-    const ncf = prompt("NCF/e-NCF de la factura fiscal final. Puedes dejarlo vacio y asignarlo/editarlos despues.");
-    if (ncf === null) return;
+
+    // El NCF ya no se escribe a mano: lo emite la secuencia preferida, igual que en una
+    // factura nueva. Se confirma porque la conversion no tiene vuelta atras.
+    const confirmed = confirm(
+      "Se emitira la factura fiscal con el siguiente NCF de tu numeracion preferida. Esta prefactura quedara convertida. Continuar?",
+    );
+    if (!confirmed) return;
+
     setIsConverting(true);
     const formData = new FormData();
-    formData.set("ncf", ncf.trim());
     formData.set("date", new Date().toISOString().slice(0, 10));
     formData.set("dueDate", new Date().toISOString().slice(0, 10));
     formData.set("incomeType", "01");

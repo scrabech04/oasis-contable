@@ -2345,6 +2345,27 @@ export async function issueNextNcf(sequenceId: number, profileId: number, maxRet
   throw new Error("No fue posible asignar el siguiente NCF, intenta de nuevo.");
 }
 
+/**
+ * NCF para las conversiones (cotizacion o prefactura a factura), que no preguntan por
+ * numeracion: se usa la secuencia de facturas marcada como preferida, la misma que el
+ * formulario de factura nueva preselecciona. Si no hay ninguna preferida pero existe una
+ * sola secuencia, esa; con varias sin preferida no se adivina y la factura sale sin NCF,
+ * para asignarlo al editarla.
+ */
+async function issuePreferredNcf(profileId: number) {
+  const sequences = await prisma.numberingSequence.findMany({
+    where: { profileId, docType: "INVOICE" },
+    select: { id: true, isPreferred: true },
+    orderBy: { id: "asc" },
+  });
+
+  const chosen = sequences.find((sequence) => sequence.isPreferred)
+    || (sequences.length === 1 ? sequences[0] : null);
+  if (!chosen) return null;
+
+  return issueNextNcf(chosen.id, profileId);
+}
+
 export async function getNumberingSequences(docType = "INVOICE") {
   const profileId = await getActiveProfileId();
   return prisma.numberingSequence.findMany({
@@ -2730,13 +2751,22 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   if (!proforma) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
   if (proforma.status === "CONVERTED") return { success: false, error: "Esta prefactura ya fue convertida." };
   if ((proforma.paidAmount || 0) < proforma.total) return { success: false, error: "La prefactura debe estar pagada completa antes de emitir la factura fiscal." };
-  const ncf = formData ? optionalText(formData, "ncf") : null;
-  if (ncf) {
-    const clash = await findInvoiceWithNcf(profileId, ncf);
+  // Un NCF explicito sigue mandando; si no viene, lo emite la secuencia preferida.
+  const manualNcf = formData ? optionalText(formData, "ncf") : null;
+  if (manualNcf) {
+    const clash = await findInvoiceWithNcf(profileId, manualNcf);
     if (clash) {
-      return { success: false, error: `El NCF ${ncf} ya está usado en la factura ${clash.number}.` };
+      return { success: false, error: `El NCF ${manualNcf} ya está usado en la factura ${clash.number}.` };
     }
   }
+
+  let ncf: string | null;
+  try {
+    ncf = manualNcf || (await issuePreferredNcf(profileId));
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "No fue posible asignar el NCF." };
+  }
+
   const number = await getNextInvoiceNumber();
   const invoice = await prisma.$transaction(async (tx) => {
     const created = await tx.invoice.create({
@@ -2769,12 +2799,13 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
       data: { invoiceId: created.id },
     });
     await tx.proformaInvoice.update({ where: { id: proforma.id }, data: { status: "CONVERTED" } });
-    // Si el NCF escrito a mano pertenece a una secuencia, esta se adelanta a el en vez de
-    // exigir que el contador estuviera justo en ese numero: asi no lo vuelve a entregar.
-    const usedNumber = Number(ncf?.slice(3));
-    if (ncf && Number.isFinite(usedNumber)) {
+    // Solo para el NCF escrito a mano: si pertenece a una secuencia, esta se adelanta a el
+    // en vez de exigir que el contador estuviera justo en ese numero, asi no lo vuelve a
+    // entregar. El emitido por secuencia ya dejo el contador donde toca.
+    const usedNumber = Number(manualNcf?.slice(3));
+    if (manualNcf && Number.isFinite(usedNumber)) {
       await tx.numberingSequence.updateMany({
-        where: { profileId, prefix: ncf.slice(0, 3), nextNumber: { lte: usedNumber } },
+        where: { profileId, prefix: manualNcf.slice(0, 3), nextNumber: { lte: usedNumber } },
         data: { nextNumber: usedNumber + 1 },
       });
     }
@@ -3287,10 +3318,19 @@ export async function convertQuotationToInvoice(id: number) {
   const activeProfileId = await getActiveProfileId();
   const quote = await prisma.quotation.findFirst({ where: { id, profileId: activeProfileId }, include: { items: true } });
   if (!quote) return { success: false, error: "Cotización no encontrada" };
+
+  let ncf: string | null;
+  try {
+    ncf = await issuePreferredNcf(quote.profileId || activeProfileId);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "No fue posible asignar el NCF." };
+  }
+
   const number = await getNextInvoiceNumber();
   const invoice = await prisma.invoice.create({
     data: {
       number,
+      ncf,
       date: new Date(),
       dueDate: new Date(),
       contactId: quote.contactId,
