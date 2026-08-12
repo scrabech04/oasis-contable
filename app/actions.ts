@@ -2972,6 +2972,26 @@ export async function replacePurchaseAttachment(purchaseId: number, formData: Fo
   }
 }
 
+/**
+ * Quita un adjunto de una compra. Hasta ahora un soporte solo podia reemplazarse, asi que
+ * una constancia o una foto equivocada se quedaba ahi para siempre.
+ */
+export async function deletePurchaseAttachment(attachmentId: number): Promise<ActionResult> {
+  const profileId = await getActiveProfileId();
+  const attachment = await prisma.purchaseAttachment.findFirst({
+    where: { id: attachmentId, purchase: { profileId } },
+    select: { id: true, purchaseId: true },
+  });
+  if (!attachment) return { success: false, error: "Adjunto no encontrado para el perfil activo." };
+
+  await prisma.purchaseAttachment.delete({ where: { id: attachment.id } });
+
+  revalidatePath("/purchases");
+  revalidatePath(`/purchases/${attachment.purchaseId}`);
+  revalidatePath(`/purchases/${attachment.purchaseId}/edit`);
+  return { success: true, id: attachment.purchaseId };
+}
+
 export async function createPurchase(formData: FormData): Promise<ActionResult> {
   const profileId = await resolvePurchaseProfileId(formData);
   const items = parseItems(formData);

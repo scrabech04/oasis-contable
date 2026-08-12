@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
-import { AlertTriangle, ExternalLink, Paperclip, QrCode, ShieldCheck, Upload } from "lucide-react";
-import { attachDgiiConstancia, replacePurchaseAttachment } from "@/app/actions";
+import { AlertTriangle, ExternalLink, Paperclip, QrCode, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { attachDgiiConstancia, deletePurchaseAttachment, replacePurchaseAttachment } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { QRScannerDialog } from "./QRScannerDialog";
 
@@ -34,6 +34,7 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [timbreUrl, setTimbreUrl] = useState("");
   const [isVerifying, startVerifying] = useTransition();
+  const [isRemoving, setIsRemoving] = useState<number | null>(null);
   const hasLegacyAttachment = attachments.some((attachment) => !attachment.isInline);
   const hasConstancia = attachments.some((attachment) => attachment.type === DGII_CONSTANCIA_TYPE);
 
@@ -66,6 +67,24 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
     setMessage(null);
     setIsScannerOpen(false);
     runConstancia(String(data?.timbreUrl || ""));
+  };
+
+  const handleRemove = async (attachmentId: number, fileName: string) => {
+    if (!confirm(`Se quitará "${fileName}" de esta compra. Esta acción no se puede deshacer. ¿Continuar?`)) {
+      return;
+    }
+
+    setMessage(null);
+    setIsRemoving(attachmentId);
+
+    try {
+      const result = await deletePurchaseAttachment(attachmentId);
+      setMessage(result.success ? "Adjunto eliminado correctamente." : result.error);
+    } catch {
+      setMessage("No fue posible eliminar el adjunto.");
+    } finally {
+      setIsRemoving(null);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,25 +219,39 @@ export function PurchaseAttachmentManager({ purchaseId, attachments }: PurchaseA
 
       <div className="space-y-2">
         {attachments.map((attachment) => (
-          <Link
+          <div
             key={attachment.id}
-            href={`/api/purchases/attachments/${attachment.id}`}
-            target="_blank"
-            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="flex items-center gap-1 rounded-xl border border-slate-200 pr-1 dark:border-slate-800"
           >
-            <span className="flex min-w-0 items-center gap-2">
-              {attachment.type === DGII_CONSTANCIA_TYPE ? (
-                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-              ) : (
-                <Paperclip className="h-4 w-4 shrink-0 text-slate-400" />
-              )}
-              <span className="min-w-0 truncate">{attachment.fileName}</span>
-            </span>
-            <span className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
-              {fileSizeLabel(attachment.fileSize)}
-              <ExternalLink className="h-4 w-4" />
-            </span>
-          </Link>
+            <Link
+              href={`/api/purchases/attachments/${attachment.id}`}
+              target="_blank"
+              className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-l-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                {attachment.type === DGII_CONSTANCIA_TYPE ? (
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                ) : (
+                  <Paperclip className="h-4 w-4 shrink-0 text-slate-400" />
+                )}
+                <span className="min-w-0 truncate">{attachment.fileName}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2 text-xs text-slate-400">
+                {fileSizeLabel(attachment.fileSize)}
+                <ExternalLink className="h-4 w-4" />
+              </span>
+            </Link>
+            <button
+              type="button"
+              title="Quitar adjunto"
+              aria-label={`Quitar ${attachment.fileName}`}
+              disabled={isRemoving === attachment.id}
+              onClick={() => handleRemove(attachment.id, attachment.fileName)}
+              className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
         ))}
 
         {attachments.length === 0 && (
