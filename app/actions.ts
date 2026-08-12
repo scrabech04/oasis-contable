@@ -2898,11 +2898,17 @@ export async function attachDgiiConstancia(
 
     // El comprador es el perfil dueno de la compra, no el perfil activo: al registrar desde
     // un QR la compra puede caer en otro perfil.
-    const buyerName = purchase.profile?.companySettings?.name || purchase.profile?.name || "";
+    //
+    // Como razon social del comprador va el nombre del PERFIL, que es quien responde por
+    // ese RNC. El de CompanySettings es la marca con la que se emiten los documentos y
+    // puede ser otra -en un perfil personal puede estar el nombre de la empresa-, asi que
+    // usarla ahi falsearia de quien es la factura.
+    const legalName = purchase.profile?.name || "";
+    const brandName = purchase.profile?.companySettings?.name || legalName;
     const buyerTaxId = purchase.profile?.taxId || "";
     const { encf: _encf, estado: _estado, ...attachment } = await buildDgiiConstancia(timbreUrl, {
-      companyName: buyerName || undefined,
-      buyer: buyerName && buyerTaxId ? { name: buyerName, taxId: buyerTaxId } : undefined,
+      companyName: brandName || undefined,
+      buyer: legalName && buyerTaxId ? { name: legalName, taxId: buyerTaxId } : undefined,
     });
 
     await prisma.$transaction([
