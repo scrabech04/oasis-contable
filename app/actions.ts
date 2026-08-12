@@ -12,7 +12,7 @@ import {
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
-import { likeTerm, parseAmountTerm } from "@/lib/list-search";
+import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber } from "@/lib/ncf";
 import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
@@ -2524,7 +2524,7 @@ export async function getInvoices(options?: { search?: string; sortBy?: string; 
               { ncf: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -2708,7 +2708,7 @@ export async function getProformas(options?: { search?: string; sortBy?: string;
               { number: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -2920,7 +2920,7 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
               { notes: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -3294,7 +3294,7 @@ export async function getSubscriptions(options?: PeriodParams & { search?: strin
               { provider: likeTerm(search) },
               { description: likeTerm(search) },
               { notes: likeTerm(search) },
-              ...(amount !== null ? [{ amount }] : []),
+              ...(amount !== null ? [{ amount: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -3408,7 +3408,7 @@ export async function getExpenses(options?: PeriodParams & { profileId?: number;
               { supplierName: likeTerm(search) },
               { notes: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -3443,7 +3443,7 @@ export async function getQuotations(options?: { search?: string; sortBy?: string
               { number: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -3739,7 +3739,7 @@ export async function getReceivables(options?: PeriodParams & { search?: string;
               { number: likeTerm(search) },
               { ncf: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),
@@ -3771,7 +3771,7 @@ export async function getPayables(options?: PeriodParams & { search?: string; so
               { ncf: likeTerm(search) },
               { supplierName: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
-              ...(amount !== null ? [{ total: amount }] : []),
+              ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
             ],
           }
         : {}),

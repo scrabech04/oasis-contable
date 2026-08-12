@@ -35,6 +35,18 @@ export function parseAmountTerm(search?: string): number | null {
 }
 
 /**
+ * Los importes se guardan como Float, y un total que sale de sumar subtotal + impuesto
+ * puede arrastrar resto binario: una compra que se muestra como RD$5,625.00 puede valer
+ * 5625.000000000001 y no coincidir con una igualdad exacta contra 5625.
+ *
+ * Por eso se compara contra una ventana de medio centavo: encuentra todo lo que se
+ * redondea al importe que el usuario ve en pantalla, que es lo que tecleo.
+ */
+export function amountFilter(amount: number) {
+  return { gte: amount - 0.005, lte: amount + 0.005 };
+}
+
+/**
  * Normaliza lo que llega por la URL: un termino vacio o de solo espacios equivale a no
  * buscar, para no meter un `contains: ""` que hace de comodin en toda la tabla.
  */

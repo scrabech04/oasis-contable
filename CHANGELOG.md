@@ -17,6 +17,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Ordenamiento por proveedor y por monto en compras, y criterios equivalentes en gastos, proyectos, suscripciones y cuentas por pagar/cobrar, que antes tenian un orden fijo.
 
 ### Corregido
+- Buscar por monto fallaba en las compras cuyo total arrastra resto binario. Los importes son `Float` y un total que se muestra como `RD$5,625.00` puede valer `5625.000000000001`, asi que la igualdad exacta no lo encontraba. Ahora se compara contra una ventana de medio centavo, en los ocho listados que buscan por importe.
 - Las busquedas de texto ya no distinguen mayusculas. En PostgreSQL `contains` es sensible por defecto, asi que buscar `claro` no encontraba `CLARO`.
 - En contactos, buscar mientras habia un filtro por tipo activo descartaba ese filtro: ambos usaban `OR` en el mismo nivel y el segundo pisaba al primero.
 
