@@ -223,10 +223,42 @@ function collectFields($: cheerio.CheerioAPI): ConstanciaField[] {
 const BUYER_TAX_ID_LABEL = /(rnc|c[eé]dula|documento)[^a-z]*(comprador|receptor|cliente)|(comprador|receptor)[^a-z]*(rnc|c[eé]dula)/i;
 const BUYER_NAME_LABEL = /(raz[oó]n\s*social|nombre)[^a-z]*(comprador|receptor|cliente)/i;
 
-// Muchos emisores mandan "CLIENTE" (o el nombre del cajero) como razon social del
-// comprador, asi que la DGII devuelve eso aunque el e-CF si venga a nombre del perfil. Se
-// muestra la razon social real del perfil y se conserva lo declarado por el emisor como
-// nota, para que la constancia no aparente que la DGII respondio otra cosa.
+/**
+ * Nombres con los que un emisor rotula al comprador cuando no puso a nadie: no
+ * identifican a la empresa ni a la persona, solo ocupan el campo. Solo estos se
+ * reemplazan. La lista es de coincidencia exacta a proposito: un nombre real, aunque este
+ * abreviado o mal escrito, es informacion del comprobante y no se toca.
+ */
+const PLACEHOLDER_BUYER_NAMES = new Set([
+  "CLIENTE",
+  "CLIENTECONTADO",
+  "CLIENTEGENERICO",
+  "CLIENTEFINAL",
+  "CLIENTEVARIOS",
+  "CONSUMIDOR",
+  "CONSUMIDORFINAL",
+  "PUBLICOENGENERAL",
+  "GENERICO",
+  "GENERICA",
+  "CONTADO",
+  "VARIOS",
+  "NA",
+  "ND",
+  "NOAPLICA",
+  "SINNOMBRE",
+  "SINIDENTIFICAR",
+  "NOIDENTIFICADO",
+]);
+
+/**
+ * Cuando el emisor no rotulo al comprador -mando "CLIENTE", "CONSUMIDOR FINAL" o similar-
+ * la constancia queda sin decir de quien es la factura. En ese caso, y solo en ese caso,
+ * se pone la razon social del perfil dueno del RNC comprador que devolvio la DGII, con lo
+ * declarado por el emisor como nota.
+ *
+ * Si el emisor si escribio un nombre, se respeta tal cual aunque no coincida con el del
+ * perfil: es lo que dice el comprobante, y cambiarlo seria falsear la constancia.
+ */
 function applyBuyerIdentity(fields: ConstanciaField[], buyer?: ConstanciaBuyer) {
   const buyerTaxId = onlyDigits(buyer?.taxId);
   const buyerName = cleanText(buyer?.name || "");
@@ -241,10 +273,15 @@ function applyBuyerIdentity(fields: ConstanciaField[], buyer?: ConstanciaBuyer) 
   if (!nameField) return;
 
   const declared = nameField.value;
-  if (comparableName(declared) === comparableName(buyerName)) return;
+  if (!isPlaceholderBuyerName(declared)) return;
 
   nameField.value = buyerName;
   nameField.note = `El emisor declaro "${declared}"`;
+}
+
+function isPlaceholderBuyerName(declared: string) {
+  const key = comparableName(declared);
+  return !key || PLACEHOLDER_BUYER_NAMES.has(key);
 }
 
 function onlyDigits(value: string | null | undefined) {
