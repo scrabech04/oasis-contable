@@ -3,15 +3,19 @@ import { Receipt } from "lucide-react";
 import { getExpenses } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
 import { primaryActionClass } from "@/lib/ui-styles";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 
 export default async function ExpensesPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
     const searchParams = await props.searchParams;
+    const search = normalizeSearchTerm(searchParams.search);
+    const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "date";
+    const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
     const period = getPeriodParams(searchParams);
-    const expenses = await getExpenses(period);
+    const expenses = await getExpenses({ search, sortBy, sortOrder, ...period });
 
     return (
         <div className="flex flex-col gap-6">
@@ -23,7 +27,21 @@ export default async function ExpensesPage(props: {
                 </Link>
             </div>
 
-            <ListPeriodFilter basePath="/expenses" searchParams={searchParams} total={expenses.length} itemSingular="gasto registrado" itemPlural="gastos registrados" />
+            <ListToolbar
+                basePath="/expenses"
+                searchParams={searchParams}
+                total={expenses.length}
+                itemSingular="registro"
+                itemPlural="registros"
+                search={search}
+                searchPlaceholder="Buscar gasto, proveedor o monto..."
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                sortOptions={[
+                    { key: "date", label: "Fecha" },
+                    { key: "total", label: "Monto" },
+                ]}
+            />
 
             <div className="rounded-md border">
                 {expenses.length === 0 ? (

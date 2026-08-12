@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { getQuotations } from "@/app/actions";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
-import { ListSearchSortBar } from "@/components/listing/ListSearchSortBar";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { QuotationsTable } from "@/components/quotations/QuotationsTable";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 import { primaryActionClass } from "@/lib/ui-styles";
 
 export default async function QuotationsPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
+  const search = normalizeSearchTerm(searchParams.search);
   const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "date";
   const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
   const period = getPeriodParams(searchParams);
@@ -29,13 +29,14 @@ export default async function QuotationsPage(props: {
         </Link>
       </header>
 
-      <ListPeriodFilter basePath="/quotations" searchParams={searchParams} total={quotations.length} itemSingular="cotizacion registrada" itemPlural="cotizaciones registradas" />
-
-      <ListSearchSortBar
+      <ListToolbar
         basePath="/quotations"
         searchParams={searchParams}
+        total={quotations.length}
+        itemSingular="registro"
+        itemPlural="registros"
         search={search}
-        searchPlaceholder="Buscar por cliente o numero..."
+        searchPlaceholder="Buscar cliente, numero o monto..."
         sortBy={sortBy}
         sortOrder={sortOrder}
         sortOptions={[

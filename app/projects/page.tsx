@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { deleteProject, getProjects } from "@/app/actions";
 import { DeleteButton } from "@/components/DeleteButton";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { formatCurrency } from "@/lib/format";
 import { getActiveProfile } from "@/lib/account-profiles";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 import { primaryActionClass } from "@/lib/ui-styles";
 
 export default async function ProjectsPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
+  const search = normalizeSearchTerm(searchParams.search);
+  const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "updatedAt";
+  const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
   const period = getPeriodParams(searchParams);
   const [projects, activeProfile] = await Promise.all([
-    getProjects(period),
+    getProjects({ search, sortBy, sortOrder, ...period }),
     getActiveProfile(),
   ]);
 
@@ -37,7 +41,22 @@ export default async function ProjectsPage(props: {
         </Link>
       </header>
 
-      <ListPeriodFilter basePath="/projects" searchParams={searchParams} total={projects.length} itemSingular="proyecto registrado" itemPlural="proyectos registrados" />
+      <ListToolbar
+        basePath="/projects"
+        searchParams={searchParams}
+        total={projects.length}
+        itemSingular="registro"
+        itemPlural="registros"
+        search={search}
+        searchPlaceholder="Buscar proyecto, codigo o cliente..."
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        sortOptions={[
+          { key: "updatedAt", label: "Ultima actividad" },
+          { key: "name", label: "Nombre" },
+          { key: "startDate", label: "Fecha de inicio" },
+        ]}
+      />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Proyectos activos" value={String(activeProjects)} />

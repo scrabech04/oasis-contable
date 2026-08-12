@@ -3,16 +3,16 @@ import { Repeat } from "lucide-react";
 import { getInvoices, processRecurringInvoices } from "@/app/actions";
 import { InvoicesTable } from "@/components/invoices/InvoicesTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
-import { ListSearchSortBar } from "@/components/listing/ListSearchSortBar";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 import { primaryActionClass } from "@/lib/ui-styles";
 
 export default async function InvoicesPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
+  const search = normalizeSearchTerm(searchParams.search);
   const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "date";
   const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
   const period = getPeriodParams(searchParams);
@@ -52,13 +52,14 @@ export default async function InvoicesPage(props: {
         </Alert>
       ) : null}
 
-      <ListPeriodFilter basePath="/invoices" searchParams={searchParams} total={invoices.length} itemSingular="factura registrada" itemPlural="facturas registradas" />
-
-      <ListSearchSortBar
+      <ListToolbar
         basePath="/invoices"
         searchParams={searchParams}
+        total={invoices.length}
+        itemSingular="registro"
+        itemPlural="registros"
         search={search}
-        searchPlaceholder="Buscar por cliente, NCF o numero..."
+        searchPlaceholder="Buscar cliente, NCF, numero o monto..."
         sortBy={sortBy}
         sortOrder={sortOrder}
         sortOptions={[

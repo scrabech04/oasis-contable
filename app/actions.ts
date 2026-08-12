@@ -12,6 +12,7 @@ import {
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
+import { likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber } from "@/lib/ncf";
 import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
@@ -1941,8 +1942,22 @@ export async function getContacts(options?: { search?: string; sortBy?: string; 
       profileId,
       ...typeFilter,
       ...(period.gte ? { createdAt: period } : {}),
+      // Va dentro de un AND porque `typeFilter` ya ocupa el OR de este nivel: si la
+      // busqueda pusiera otro OR aqui, el spread borraria el filtro por tipo.
       ...(options?.search
-        ? { name: { contains: options.search } }
+        ? {
+            AND: [
+              {
+                OR: [
+                  { name: likeTerm(options.search) },
+                  { taxId: likeTerm(options.search) },
+                  { email: likeTerm(options.search) },
+                  { phone: likeTerm(options.search) },
+                  { city: likeTerm(options.search) },
+                ],
+              },
+            ],
+          }
         : {}),
     },
     include: { contactPersons: true },
@@ -2086,19 +2101,45 @@ export async function deleteContact(id: number) {
   return { success: true };
 }
 
-export async function getProjects(options?: PeriodParams & { profileId?: number }) {
+export async function getProjects(options?: PeriodParams & { profileId?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
   const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
+  const search = options?.search?.trim();
+  const sortOrder = options?.sortOrder || "desc";
+  const orderBy =
+    options?.sortBy === "name"
+      ? { name: sortOrder }
+      : options?.sortBy === "startDate"
+        ? { startDate: sortOrder }
+        : { updatedAt: sortOrder };
+
   return prisma.project.findMany({
     where: {
       ...(period.gte ? { startDate: period } : {}),
+      // El OR de nivel superior decide a que perfil pertenece el proyecto, asi que la
+      // busqueda va dentro de un AND para no mezclarse con esa condicion.
       OR: [
         { profileId },
         { sharedWith: { some: { profileId } } },
       ],
+      ...(search
+        ? {
+            AND: [
+              {
+                OR: [
+                  { name: likeTerm(search) },
+                  { code: likeTerm(search) },
+                  { description: likeTerm(search) },
+                  { responsible: likeTerm(search) },
+                  { contact: { name: likeTerm(search) } },
+                ],
+              },
+            ],
+          }
+        : {}),
     },
     include: { contact: true, profile: true, sharedWith: { include: { profile: true } }, invoices: true, purchases: true, quotations: true },
-    orderBy: { updatedAt: "desc" },
+    orderBy: orderBy as Prisma.ProjectOrderByWithRelationInput,
   });
 }
 
@@ -2465,7 +2506,8 @@ export async function deleteNumberingSequence(id: number) {
 
 export async function getInvoices(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
   const profileId = await resolveReadProfileId(options?.profileId);
-  const search = options?.search;
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
   const period = getPeriodDateRange(options || {});
   const orderBy =
     options?.sortBy === "client"
@@ -2478,9 +2520,11 @@ export async function getInvoices(options?: { search?: string; sortBy?: string; 
       ...(search
         ? {
             OR: [
-              { number: { contains: search } },
-              { ncf: { contains: search } },
-              { contact: { name: { contains: search } } },
+              { number: likeTerm(search) },
+              { ncf: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              { contact: { taxId: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
             ],
           }
         : {}),
@@ -2647,7 +2691,8 @@ export async function duplicateInvoice(id: number) {
 
 export async function getProformas(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
   const profileId = await getActiveProfileId();
-  const search = options?.search;
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
   const period = getPeriodDateRange(options || {});
   const orderBy =
     options?.sortBy === "client"
@@ -2660,8 +2705,10 @@ export async function getProformas(options?: { search?: string; sortBy?: string;
       ...(search
         ? {
             OR: [
-              { number: { contains: search } },
-              { contact: { name: { contains: search } } },
+              { number: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              { contact: { taxId: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
             ],
           }
         : {}),
@@ -2846,13 +2893,40 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   return { success: true, id: invoice.id, invoiceId: invoice.id };
 }
 
-export async function getPurchases(options?: { sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
+export async function getPurchases(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
   const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
+  const sortOrder = options?.sortOrder || "desc";
+  const orderBy =
+    options?.sortBy === "supplier"
+      ? { contact: { name: sortOrder } }
+      : { [options?.sortBy === "createdAt" ? "createdAt" : options?.sortBy === "total" ? "total" : "date"]: sortOrder };
+
   return prisma.purchase.findMany({
-    where: { profileId, ...(period.gte ? { date: period } : {}) },
+    where: {
+      profileId,
+      ...(period.gte ? { date: period } : {}),
+      // El proveedor puede venir de un contacto o escrito a mano en la compra, asi que se
+      // buscan ambos. El monto solo entra al OR cuando el termino parece un numero.
+      ...(search
+        ? {
+            OR: [
+              { ncf: likeTerm(search) },
+              { number: likeTerm(search) },
+              { supplierName: likeTerm(search) },
+              { supplierTaxId: likeTerm(search) },
+              { notes: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              { contact: { taxId: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
+            ],
+          }
+        : {}),
+    },
     include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: true } } },
-    orderBy: { [options?.sortBy === "createdAt" ? "createdAt" : "date"]: options?.sortOrder || "desc" } as any,
+    orderBy: orderBy as Prisma.PurchaseOrderByWithRelationInput,
   });
 }
 
@@ -3197,17 +3271,36 @@ export async function deletePurchase(id: number) {
   return { success: true };
 }
 
-export async function getSubscriptions(options?: PeriodParams) {
+export async function getSubscriptions(options?: PeriodParams & { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
   const profileId = await getActiveProfileId();
   const period = getPeriodDateRange(options || {});
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
+  const sortOrder = options?.sortOrder || "asc";
+  // Por defecto se agrupan las activas primero y luego por proximo cobro; elegir un
+  // criterio en la barra lo sustituye por completo.
+  const orderBy = options?.sortBy
+    ? [{ [options.sortBy === "amount" ? "amount" : options.sortBy === "name" ? "name" : "nextBillingDate"]: sortOrder }]
+    : [{ status: "asc" as const }, { nextBillingDate: "asc" as const }, { name: "asc" as const }];
+
   return prisma.subscription.findMany({
-    where: { profileId, ...(period.gte ? { createdAt: period } : {}) },
+    where: {
+      profileId,
+      ...(period.gte ? { createdAt: period } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: likeTerm(search) },
+              { provider: likeTerm(search) },
+              { description: likeTerm(search) },
+              { notes: likeTerm(search) },
+              ...(amount !== null ? [{ amount }] : []),
+            ],
+          }
+        : {}),
+    },
     include: { project: true },
-    orderBy: [
-      { status: "asc" },
-      { nextBillingDate: "asc" },
-      { name: "asc" },
-    ],
+    orderBy: orderBy as Prisma.SubscriptionOrderByWithRelationInput[],
   });
 }
 
@@ -3296,13 +3389,32 @@ export async function createExpense(formData: FormData) {
   return createPurchase(formData);
 }
 
-export async function getExpenses(options?: PeriodParams & { profileId?: number }) {
+export async function getExpenses(options?: PeriodParams & { profileId?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
   const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
+  const sortOrder = options?.sortOrder || "desc";
+
   return prisma.purchase.findMany({
-    where: { profileId, type: "INFORMAL", ...(period.gte ? { date: period } : {}) },
+    where: {
+      profileId,
+      type: "INFORMAL",
+      ...(period.gte ? { date: period } : {}),
+      ...(search
+        ? {
+            OR: [
+              { number: likeTerm(search) },
+              { supplierName: likeTerm(search) },
+              { notes: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
+            ],
+          }
+        : {}),
+    },
     include: { contact: true, items: true, attachments: true },
-    orderBy: { date: "desc" },
+    orderBy: { [options?.sortBy === "total" ? "total" : "date"]: sortOrder } as Prisma.PurchaseOrderByWithRelationInput,
   });
 }
 
@@ -3314,7 +3426,8 @@ export async function getNextQuotationNumber() {
 
 export async function getQuotations(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
   const profileId = await getActiveProfileId();
-  const search = options?.search;
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
   const period = getPeriodDateRange(options || {});
   const orderBy =
     options?.sortBy === "client"
@@ -3327,8 +3440,10 @@ export async function getQuotations(options?: { search?: string; sortBy?: string
       ...(search
         ? {
             OR: [
-              { number: { contains: search } },
-              { contact: { name: { contains: search } } },
+              { number: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              { contact: { taxId: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
             ],
           }
         : {}),
@@ -3604,30 +3719,65 @@ async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE" | "PROFORM
   }
 }
 
-export async function getReceivables(options?: PeriodParams) {
+export async function getReceivables(options?: PeriodParams & { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
   const profileId = await getActiveProfileId();
   const dueDateRange = getPeriodDateRange(options || {});
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
+  const sortOrder = options?.sortOrder || "asc";
+  const orderBy =
+    options?.sortBy === "client"
+      ? { contact: { name: sortOrder } }
+      : { [options?.sortBy === "total" ? "total" : "dueDate"]: sortOrder };
   const invoices = await prisma.invoice.findMany({
     where: {
       profileId,
       ...(Object.keys(dueDateRange).length ? { dueDate: dueDateRange } : {}),
+      ...(search
+        ? {
+            OR: [
+              { number: likeTerm(search) },
+              { ncf: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
+            ],
+          }
+        : {}),
     },
     include: { contact: true },
-    orderBy: { dueDate: "asc" },
+    orderBy: orderBy as Prisma.InvoiceOrderByWithRelationInput,
   });
   return invoices.filter((invoice) => invoice.total > invoice.paidAmount).map((invoice) => ({ ...invoice, client: invoice.contact }));
 }
 
-export async function getPayables(options?: PeriodParams) {
+export async function getPayables(options?: PeriodParams & { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {
   const profileId = await getActiveProfileId();
   const dateRange = getPeriodDateRange(options || {});
+  const search = options?.search?.trim();
+  const amount = parseAmountTerm(search);
+  const sortOrder = options?.sortOrder || "asc";
+  const orderBy =
+    options?.sortBy === "supplier"
+      ? { contact: { name: sortOrder } }
+      : { [options?.sortBy === "total" ? "total" : "dueDate"]: sortOrder };
   const purchases = await prisma.purchase.findMany({
     where: {
       profileId,
       ...(Object.keys(dateRange).length ? { date: dateRange } : {}),
+      ...(search
+        ? {
+            OR: [
+              { number: likeTerm(search) },
+              { ncf: likeTerm(search) },
+              { supplierName: likeTerm(search) },
+              { contact: { name: likeTerm(search) } },
+              ...(amount !== null ? [{ total: amount }] : []),
+            ],
+          }
+        : {}),
     },
     include: { contact: true },
-    orderBy: { dueDate: "asc" },
+    orderBy: orderBy as Prisma.PurchaseOrderByWithRelationInput,
   });
   return purchases.filter((purchase) => purchase.total > purchase.paidAmount);
 }

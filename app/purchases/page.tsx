@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { getPurchases } from "@/app/actions";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
-import { ListSearchSortBar } from "@/components/listing/ListSearchSortBar";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { PurchasesActions } from "@/components/purchases/PurchasesActions";
 import { PurchasesTable } from "@/components/purchases/PurchasesTable";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 import { primaryActionClass } from "@/lib/ui-styles";
 
 export default async function PurchasesPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const sortBy = searchParams.sortBy === "createdAt" ? "createdAt" : "date";
+  const search = normalizeSearchTerm(searchParams.search);
+  const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "date";
   const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
   const autoOpenQR = searchParams.scan === "qr";
   const period = getPeriodParams(searchParams);
-  const purchases = await getPurchases({ sortBy, sortOrder, ...period });
+  const purchases = await getPurchases({ search, sortBy, sortOrder, ...period });
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -33,16 +34,21 @@ export default async function PurchasesPage(props: {
         </div>
       </header>
 
-      <ListPeriodFilter basePath="/purchases" searchParams={searchParams} total={purchases.length} itemSingular="compra registrada" itemPlural="compras registradas" />
-
-      <ListSearchSortBar
+      <ListToolbar
         basePath="/purchases"
         searchParams={searchParams}
+        total={purchases.length}
+        itemSingular="registro"
+        itemPlural="registros"
+        search={search}
+        searchPlaceholder="Buscar proveedor, NCF o monto..."
         sortBy={sortBy}
         sortOrder={sortOrder}
         sortOptions={[
           { key: "date", label: "Fecha factura" },
           { key: "createdAt", label: "Recien anadida" },
+          { key: "supplier", label: "Proveedor" },
+          { key: "total", label: "Monto" },
         ]}
       />
 

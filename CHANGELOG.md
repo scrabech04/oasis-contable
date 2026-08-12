@@ -2,6 +2,42 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-12 - Barra unica en todos los listados
+
+### Cambiado
+- Los listados pasan de dos barras apiladas (una de periodo y otra de busqueda/orden) a una sola: buscador a la izquierda y, a la derecha, contador de registros, filtro de ano, filtro de mes y menu `Ordenar por`.
+- La barra vive en `components/listing/ListToolbar.tsx` y reemplaza a `ListPeriodFilter` y `ListSearchSortBar`, que se eliminaron.
+- Los filtros de ano y mes se aplican al cambiarlos; ya no hace falta el boton `Filtrar`.
+- En contactos, el filtro por tipo (Todos/Clientes/Proveedores) deja de ser una tercera barra y pasa a ser un select mas dentro de la barra.
+- Aplicada en compras, facturacion, cotizaciones, prefacturas, contactos, proyectos, suscripciones, gastos, cuentas por pagar y cuentas por cobrar.
+
+### Agregado
+- Buscador en los diez listados. Compras busca por proveedor (contacto o nombre escrito a mano), RNC, NCF, numero, notas y monto.
+- La busqueda acepta montos: `RD$1,180.00`, `1,180` y `1180` encuentran el mismo registro.
+- Ordenamiento por proveedor y por monto en compras, y criterios equivalentes en gastos, proyectos, suscripciones y cuentas por pagar/cobrar, que antes tenian un orden fijo.
+
+### Corregido
+- Las busquedas de texto ya no distinguen mayusculas. En PostgreSQL `contains` es sensible por defecto, asi que buscar `claro` no encontraba `CLARO`.
+- En contactos, buscar mientras habia un filtro por tipo activo descartaba ese filtro: ambos usaban `OR` en el mismo nivel y el segundo pisaba al primero.
+
+### Pendiente de prueba
+- Revisar la barra en pantalla en compras y en otro listado, con la busqueda por proveedor y por monto. No se pudo verificar en local: `DATABASE_URL` del `.env` apunta a SQLite (`file:./dev.db`) y el esquema es PostgreSQL.
+
+## 2026-08-12 - Validacion del timbre DGII al reconstruir e-NCF
+
+### Mejorado
+- `Reconstruir e-NCF / QR` prueba primero la hora de firma que devuelve la propia DGII en la consulta. Antes se descartaba y solo se usaba la fecha, asi que el barrido nunca probaba la hora correcta aunque estuviera a mano.
+- La hora de firma ahora acepta `HH:mm` ademas de `HH:mm:ss`. Con `HH:mm` se recorren los 60 segundos de ese minuto; con `HH:mm:ss` se mantiene el barrido de +-15 segundos.
+- Cuando la DGII da la hora exacta, esa consulta va sola en la primera tanda: el caso normal se resuelve en 1 peticion en vez de 6.
+- Los mensajes de resultado dicen que se probo realmente (hora de DGII, minuto completo o barrido) en vez de mencionar siempre los +-15 segundos.
+
+### Corregido
+- Escribir la hora al minuto con `:00` en los segundos (por ejemplo `19:00:00`) solo cubria de `18:59:45` a `19:00:15`. Si la firma caia entre los segundos 16 y 59 nunca validaba.
+
+### Pendiente de prueba
+- Reconstruir una factura dejando la hora vacia y confirmar que valida en 1 intento con la hora que devuelve la DGII.
+- Reconstruir una factura escribiendo solo `HH:mm` y confirmar que encuentra el segundo correcto dentro del minuto.
+
 ## 2026-06-11 - Ajustes de compras y calculos de proyectos
 
 ### Mejorado

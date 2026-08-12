@@ -1,15 +1,19 @@
 import { getPayables } from "@/app/actions";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { PayablesList } from "@/components/payables/PayablesList";
 import { formatCurrency } from "@/lib/format";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 
 export default async function PayablesPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
+  const search = normalizeSearchTerm(searchParams.search);
+  const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "dueDate";
+  const sortOrder = searchParams.sortOrder === "desc" ? "desc" : "asc";
   const period = getPeriodParams(searchParams);
-  const payables = await getPayables(period);
+  const payables = await getPayables({ search, sortBy, sortOrder, ...period });
   const totalPending = payables.reduce((sum, item) => sum + Math.max(item.total - item.paidAmount, 0), 0);
 
   return (
@@ -30,7 +34,22 @@ export default async function PayablesPage(props: {
         </div>
       </header>
 
-      <ListPeriodFilter basePath="/payables" searchParams={searchParams} total={payables.length} itemSingular="cuenta por pagar" itemPlural="cuentas por pagar" />
+      <ListToolbar
+        basePath="/payables"
+        searchParams={searchParams}
+        total={payables.length}
+        itemSingular="registro"
+        itemPlural="registros"
+        search={search}
+        searchPlaceholder="Buscar proveedor, NCF o monto..."
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        sortOptions={[
+          { key: "dueDate", label: "Vencimiento" },
+          { key: "supplier", label: "Proveedor" },
+          { key: "total", label: "Monto" },
+        ]}
+      />
 
       <PayablesList payables={payables} />
     </div>

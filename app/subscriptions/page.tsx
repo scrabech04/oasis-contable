@@ -4,8 +4,9 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { primaryActionClass } from "@/lib/ui-styles";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, CreditCard, Edit3, ExternalLink, Pause, Plus, Save, Trash2, XCircle } from "lucide-react";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 import { NewSubscriptionPanel } from "@/components/subscriptions/NewSubscriptionPanel";
 
 const categoryLabels: Record<string, string> = {
@@ -67,9 +68,12 @@ export default async function SubscriptionsPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
+  const search = normalizeSearchTerm(searchParams.search);
+  const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : undefined;
+  const sortOrder = searchParams.sortOrder === "desc" ? "desc" : "asc";
   const period = getPeriodParams(searchParams);
   const [subscriptions, projects] = await Promise.all([
-    getSubscriptions(period),
+    getSubscriptions({ search, sortBy, sortOrder, ...period }),
     getProjects(),
   ]);
 
@@ -115,7 +119,22 @@ export default async function SubscriptionsPage(props: {
         </div>
       </header>
 
-      <ListPeriodFilter basePath="/subscriptions" searchParams={searchParams} total={subscriptions.length} itemSingular="suscripcion registrada" itemPlural="suscripciones registradas" />
+      <ListToolbar
+        basePath="/subscriptions"
+        searchParams={searchParams}
+        total={subscriptions.length}
+        itemSingular="registro"
+        itemPlural="registros"
+        search={search}
+        searchPlaceholder="Buscar servicio, proveedor o monto..."
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        sortOptions={[
+          { key: "nextBillingDate", label: "Proximo cobro" },
+          { key: "name", label: "Nombre" },
+          { key: "amount", label: "Monto" },
+        ]}
+      />
 
       <NewSubscriptionPanel>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">

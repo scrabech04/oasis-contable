@@ -1,15 +1,19 @@
 import { getReceivables } from "@/app/actions";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { ReceivablesList } from "@/components/receivables/ReceivablesList";
 import { formatCurrency } from "@/lib/format";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 
 export default async function ReceivablesPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
+  const search = normalizeSearchTerm(searchParams.search);
+  const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "dueDate";
+  const sortOrder = searchParams.sortOrder === "desc" ? "desc" : "asc";
   const period = getPeriodParams(searchParams);
-  const receivables = await getReceivables(period);
+  const receivables = await getReceivables({ search, sortBy, sortOrder, ...period });
   const totalPending = receivables.reduce((sum, item) => sum + Math.max(item.total - item.paidAmount, 0), 0);
 
   return (
@@ -30,7 +34,22 @@ export default async function ReceivablesPage(props: {
         </div>
       </header>
 
-      <ListPeriodFilter basePath="/receivables" searchParams={searchParams} total={receivables.length} itemSingular="cuenta por cobrar" itemPlural="cuentas por cobrar" />
+      <ListToolbar
+        basePath="/receivables"
+        searchParams={searchParams}
+        total={receivables.length}
+        itemSingular="registro"
+        itemPlural="registros"
+        search={search}
+        searchPlaceholder="Buscar cliente, NCF o monto..."
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        sortOptions={[
+          { key: "dueDate", label: "Vencimiento" },
+          { key: "client", label: "Cliente" },
+          { key: "total", label: "Monto" },
+        ]}
+      />
 
       <ReceivablesList receivables={receivables} />
     </div>

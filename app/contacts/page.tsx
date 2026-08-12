@@ -2,19 +2,21 @@ import Link from "next/link";
 import { getContacts } from "@/app/actions";
 import { ContactsTable } from "@/components/contacts/ContactsTable";
 import { primaryActionClass } from "@/lib/ui-styles";
-import { ListPeriodFilter } from "@/components/ListPeriodFilter";
+import { ListToolbar } from "@/components/listing/ListToolbar";
 import { getPeriodParams } from "@/lib/list-period";
+import { normalizeSearchTerm } from "@/lib/list-search";
 
 export default async function ContactsPage(props: {
     searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
     const searchParams = await props.searchParams;
+    const search = normalizeSearchTerm(searchParams.search);
     const sortBy = (searchParams.sortBy as string) || 'name';
     const sortOrder = (searchParams.sortOrder as 'asc' | 'desc') || 'asc';
     const type = searchParams.type as string | undefined;
     const period = getPeriodParams(searchParams);
 
-    const contacts = await getContacts({ sortBy, sortOrder, type: type as any, ...period });
+    const contacts = await getContacts({ search, sortBy, sortOrder, type: type as any, ...period });
 
     return (
         <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -34,32 +36,32 @@ export default async function ContactsPage(props: {
                 </div>
             </header>
 
-            <ListPeriodFilter basePath="/contacts" searchParams={searchParams} total={contacts.length} itemSingular="contacto registrado" itemPlural="contactos registrados" />
-
-            <div className="flex flex-wrap gap-2 items-center text-sm font-medium bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <span className="text-slate-400 px-3 py-1 flex items-center gap-1.5">
-                    <span className="material-icons-round text-sm">filter_alt</span>
-                    Tipo:
-                </span>
-                <Link
-                    href="/contacts"
-                    className={`px-4 py-2 rounded-lg text-xs transition-all ${!type ? 'bg-blue-50/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-100 dark:border-blue-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                    Todos
-                </Link>
-                <Link
-                    href="/contacts?type=CLIENT"
-                    className={`px-4 py-2 rounded-lg text-xs transition-all ${type === 'CLIENT' ? 'bg-blue-50/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-100 dark:border-blue-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                    Clientes
-                </Link>
-                <Link
-                    href="/contacts?type=SUPPLIER"
-                    className={`px-4 py-2 rounded-lg text-xs transition-all ${type === 'SUPPLIER' ? 'bg-blue-50/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold border border-blue-100 dark:border-blue-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                    Proveedores
-                </Link>
-            </div>
+            <ListToolbar
+                basePath="/contacts"
+                searchParams={searchParams}
+                total={contacts.length}
+                itemSingular="registro"
+                itemPlural="registros"
+                search={search}
+                searchPlaceholder="Buscar nombre, RNC, correo o telefono..."
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                sortOptions={[
+                    { key: "name", label: "Nombre" },
+                    { key: "createdAt", label: "Recien anadido" },
+                ]}
+                filters={[
+                    {
+                        param: "type",
+                        allLabel: "Todos los tipos",
+                        value: type,
+                        options: [
+                            { value: "CLIENT", label: "Clientes" },
+                            { value: "SUPPLIER", label: "Proveedores" },
+                        ],
+                    },
+                ]}
+            />
 
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
                 {contacts.length === 0 ? (
