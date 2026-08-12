@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { deleteProject } from "@/app/actions";
+import { useToast } from "@/components/ui/toast";
 
 export function ProjectDeleteButton({ id, redirectTo = "/projects", compact = false }: { id: number; redirectTo?: string; compact?: boolean }) {
     const router = useRouter();
+    const toast = useToast();
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleDelete = async () => {
@@ -16,7 +18,7 @@ export function ProjectDeleteButton({ id, redirectTo = "/projects", compact = fa
         setIsDeleting(true);
         const result = await deleteProject(id);
         if (!result.success) {
-            alert(result.error || "No fue posible eliminar el proyecto.");
+            toast.error("No se pudo eliminar el proyecto", result.error);
             setIsDeleting(false);
             return;
         }

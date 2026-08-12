@@ -9,9 +9,11 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { deleteInvoice, duplicateInvoice } from "@/app/actions";
 import { PaymentDialog } from "@/components/payments/PaymentDialog";
 import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurringButton";
+import { useToast } from "@/components/ui/toast";
 
 export function InvoicesTable({ invoices }: { invoices: any[] }) {
     const router = useRouter();
+    const toast = useToast();
     const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
     const [duplicatingId, setDuplicatingId] = useState<number | null>(null);
 
@@ -27,11 +29,11 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
             if (result.success) {
                 router.push(`/invoices/${result.newId}/edit`);
             } else {
-                alert(result.error || "Error al duplicar la factura");
+                toast.error("No se pudo duplicar la factura", result.error);
             }
         } catch (error) {
             console.error("Error duplicating invoice:", error);
-            alert("Error inesperado al duplicar");
+            toast.error("No se pudo duplicar la factura", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setDuplicatingId(null);
         }

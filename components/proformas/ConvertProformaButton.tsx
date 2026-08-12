@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { convertProformaToInvoice } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { FileCheck2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 export function ConvertProformaButton({ proformaId, disabled }: { proformaId: number; disabled?: boolean }) {
   const router = useRouter();
+  const toast = useToast();
   const [isConverting, setIsConverting] = useState(false);
 
   const convert = async () => {
@@ -28,9 +30,11 @@ export function ConvertProformaButton({ proformaId, disabled }: { proformaId: nu
     const result = await convertProformaToInvoice(proformaId, formData);
     setIsConverting(false);
     if (!result.success) {
-      alert(result.error);
+      toast.error("No se pudo convertir la prefactura", result.error);
       return;
     }
+
+    toast.success("Factura fiscal emitida");
     router.push(`/invoices/${result.invoiceId || result.id}`);
     router.refresh();
   };

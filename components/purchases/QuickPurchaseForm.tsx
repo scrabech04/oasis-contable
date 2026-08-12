@@ -16,6 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 
 interface QuickPurchaseFormProps {
     projects?: { id: number; name: string }[];
@@ -24,6 +25,7 @@ interface QuickPurchaseFormProps {
 
 export function QuickPurchaseForm({ projects = [], initialData }: QuickPurchaseFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [description, setDescription] = useState("");
     const [amount, setAmount] = useState("");
     const [category, setCategory] = useState("General");
@@ -72,11 +74,14 @@ export function QuickPurchaseForm({ projects = [], initialData }: QuickPurchaseF
             }
 
             if (result.success) {
+                toast.success(initialData ? "Gasto actualizado" : "Gasto guardado");
                 router.push("/purchases");
+            } else if ("error" in result) {
+                toast.error("No se pudo guardar el gasto", result.error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al guardar el gasto");
+            toast.error("No se pudo guardar el gasto", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }

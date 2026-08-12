@@ -15,6 +15,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 
 interface ContactFormProps {
     initialData?: any;
@@ -22,6 +23,7 @@ interface ContactFormProps {
 
 export function ContactForm({ initialData }: ContactFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
 
     const [name, setName] = useState(initialData?.name || "");
@@ -86,10 +88,11 @@ export function ContactForm({ initialData }: ContactFormProps) {
             : await createContact(formData);
 
         if (result.success) {
+            toast.success(initialData ? "Contacto actualizado" : "Contacto guardado", name || undefined);
             router.push("/contacts");
             router.refresh();
         } else {
-            alert(result.error || "Ocurrió un error al guardar el contacto");
+            toast.error("No se pudo guardar el contacto", result.error);
             setSubmitting(false);
         }
     };

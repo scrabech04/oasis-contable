@@ -27,6 +27,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 
 interface Contact {
     id: number;
@@ -87,6 +88,7 @@ function normalizeTaxRate(value: unknown) {
 
 export function InvoiceForm({ contacts, projects = [], initialData, numberingSequences = [], defaultProjectId = "", defaultContactId = "", successRedirect }: InvoiceFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [items, setItems] = useState<Item[]>([
         { description: "", quantity: 1, price: 0, taxRate: 18, itemType: "ITEM" },
     ]);
@@ -130,7 +132,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                 const nextNcf = await getNextNcf(parseInt(sequenceId));
                 setNcf(nextNcf);
             } catch (error: any) {
-                alert(error.message);
+                toast.error("No se pudo tomar el NCF", error.message);
                 setNcf("");
             }
         } else {
@@ -246,14 +248,15 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
             }
 
             if (result.success) {
+                toast.success(initialData ? "Factura actualizada" : "Factura guardada", ncf || undefined);
                 router.push(successRedirect || "/invoices");
             } else if ("error" in result) {
-                alert(result.error);
+                toast.error("No se pudo guardar la factura", result.error);
             }
         } catch (error) {
             console.error(error);
-            const message = error instanceof Error ? error.message : "Error al guardar la factura";
-            alert(message);
+            const message = error instanceof Error ? error.message : "Revisa tu conexion e intenta de nuevo.";
+            toast.error("No se pudo guardar la factura", message);
         } finally {
             setSubmitting(false);
         }

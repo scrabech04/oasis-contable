@@ -27,6 +27,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 
 interface Contact {
     id: number;
@@ -49,6 +50,7 @@ interface Item {
 
 export function RecurringInvoiceForm({ contacts, projects = [], numberingSequences = [] }: RecurringInvoiceFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [items, setItems] = useState<Item[]>([
         { description: "", quantity: 1, price: 0, taxRate: 18, itemType: "ITEM" },
     ]);
@@ -115,9 +117,13 @@ export function RecurringInvoiceForm({ contacts, projects = [], numberingSequenc
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!contactId) return alert("Por favor seleccione un contacto");
+        if (!contactId) {
+            toast.error("Falta el contacto", "Selecciona a quien se le factura.");
+            return;
+        }
         if (items.some(item => !item.description || (item.itemType === "ITEM" && item.price <= 0))) {
-            return alert("Por favor complete todos los items correctamente");
+            toast.error("Revisa los items", "Cada item necesita descripcion y precio.");
+            return;
         }
 
         setSubmitting(true);
@@ -148,7 +154,7 @@ export function RecurringInvoiceForm({ contacts, projects = [], numberingSequenc
             router.push("/invoices/recurring");
         } catch (error) {
             console.error(error);
-            alert("Error al crear la factura recurrente");
+            toast.error("No se pudo crear la factura recurrente", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }

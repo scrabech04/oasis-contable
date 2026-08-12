@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, X as CloseIcon, Trash2, Receipt, User, CreditCard, Paperclip } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 const WITHHOLDING_TYPES = [
     { label: "Retención ITBIS - 30%", value: "ITBIS_30" },
@@ -58,6 +59,7 @@ export function PaymentDialog({
     const [method, setMethod] = useState("BANK_TRANSFER");
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [submitting, setSubmitting] = useState(false);
+    const toast = useToast();
     const [withholdings, setWithholdings] = useState<{ type: string, amount: string }[]>([]);
     const [proofFile, setProofFile] = useState<File | null>(null);
 
@@ -160,11 +162,12 @@ export function PaymentDialog({
             } else {
                 await recordPayment(targetId, targetType, formData);
             }
+            toast.success(initialPaymentData ? "Pago actualizado" : "Pago registrado");
             onSuccess();
             onClose();
         } catch (error) {
             console.error("Error recording payment:", error);
-            alert("Error al registrar el pago");
+            toast.error("No se pudo registrar el pago", "Revisa los datos e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }

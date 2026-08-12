@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 interface DeleteButtonProps {
     id: number;
@@ -20,6 +21,7 @@ interface DeleteButtonProps {
 export function DeleteButton({ id, action, label, variant = "default", redirectTo }: DeleteButtonProps) {
     const [isDeleting, setIsDeleting] = useState(false);
     const router = useRouter();
+    const toast = useToast();
 
     const handleDelete = async () => {
         if (!confirm(`¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.`)) {
@@ -30,10 +32,12 @@ export function DeleteButton({ id, action, label, variant = "default", redirectT
         try {
             const result = await action(id);
             if (!result.success) {
-                alert(result.error || "Error al eliminar");
+                toast.error("No se pudo eliminar", result.error);
                 setIsDeleting(false);
                 return;
             }
+
+            toast.success("Registro eliminado");
 
             if (redirectTo) {
                 router.push(redirectTo);
@@ -41,7 +45,7 @@ export function DeleteButton({ id, action, label, variant = "default", redirectT
             }
         } catch (error) {
             console.error(error);
-            alert("Error de conexión");
+            toast.error("No se pudo eliminar", "Revisa tu conexion e intenta de nuevo.");
             setIsDeleting(false);
         }
     };

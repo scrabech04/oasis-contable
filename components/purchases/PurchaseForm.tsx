@@ -25,6 +25,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 
 interface Contact {
     id: number;
@@ -134,6 +135,7 @@ function findImportedSupplierContact(contacts: Contact[], supplierName: string, 
 
 export function PurchaseForm({ contacts, projects = [], initialData, defaultProjectId = "", successRedirect }: PurchaseFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [items, setItems] = useState([
         { description: "", quantity: 1, price: 0, taxRate: 18 },
     ]);
@@ -438,13 +440,14 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
             }
 
             if (result.success) {
+                toast.success(initialData ? "Compra actualizada" : "Compra guardada", effectiveContactName || undefined);
                 router.push(successRedirect || "/purchases");
             } else if ("error" in result) {
-                alert(result.error);
+                toast.error("No se pudo guardar la compra", result.error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al guardar la compra");
+            toast.error("No se pudo guardar la compra", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }

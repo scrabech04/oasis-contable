@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
 
 interface ProjectFormProps {
     project?: any;
@@ -20,6 +21,7 @@ interface ProjectFormProps {
 
 export function ProjectForm({ project, contacts, profiles = [], activeProfileId, onSuccess }: ProjectFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [loading, setLoading] = useState(false);
     const [selectedContactId, setSelectedContactId] = useState(project?.contactId?.toString() || "");
     const [contactName, setContactName] = useState("");
@@ -86,6 +88,7 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
             }
 
             if (result.success) {
+                toast.success(project ? "Proyecto actualizado" : "Proyecto creado");
                 if (onSuccess) {
                     onSuccess();
                 } else {
@@ -93,12 +96,12 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
                     router.refresh();
                 }
             } else {
-                alert((result as any).error || "Error al guardar el proyecto");
+                toast.error("No se pudo guardar el proyecto", (result as any).error);
             }
         } catch (error) {
             console.error("Error saving project:", error);
-            const message = error instanceof Error ? error.message : "Ocurrio un error inesperado al guardar el proyecto";
-            alert(message);
+            const message = error instanceof Error ? error.message : "Revisa tu conexion e intenta de nuevo.";
+            toast.error("No se pudo guardar el proyecto", message);
         } finally {
             setLoading(false);
         }

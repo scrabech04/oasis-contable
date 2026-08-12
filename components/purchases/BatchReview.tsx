@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createPurchase } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
+import { useToast } from "@/components/ui/toast";
 
 interface BatchReviewProps {
     invoices: any[];
@@ -15,6 +16,7 @@ interface BatchReviewProps {
 
 export function BatchReview({ invoices: initialInvoices, onComplete, onCancel }: BatchReviewProps) {
     const [invoices, setInvoices] = useState(initialInvoices);
+    const toast = useToast();
     const [isSaving, setIsSaving] = useState(false);
 
     const handleRemove = (index: number) => {
@@ -90,7 +92,7 @@ export function BatchReview({ invoices: initialInvoices, onComplete, onCancel }:
         } catch (error) {
             console.error("Error saving purchases:", error);
             const message = error instanceof Error ? error.message : "Error al guardar algunas facturas";
-            alert(message);
+            toast.error("No se pudieron guardar todas las compras", message);
         } finally {
             setIsSaving(false);
         }

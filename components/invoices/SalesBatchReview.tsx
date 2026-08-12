@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createInvoice } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
+import { useToast } from "@/components/ui/toast";
 
 interface SalesBatchReviewProps {
     invoices: any[];
@@ -21,6 +22,7 @@ function normalizeTaxRate(value: unknown) {
 
 export function SalesBatchReview({ invoices: initialInvoices, onComplete, onCancel }: SalesBatchReviewProps) {
     const [invoices, setInvoices] = useState(initialInvoices);
+    const toast = useToast();
     const [isSaving, setIsSaving] = useState(false);
 
     const handleRemove = (index: number) => {
@@ -50,7 +52,7 @@ export function SalesBatchReview({ invoices: initialInvoices, onComplete, onCanc
             onComplete();
         } catch (error) {
             const message = error instanceof Error ? error.message : "Error al guardar algunas facturas";
-            alert(message);
+            toast.error("No se pudieron guardar todas las facturas", message);
         } finally {
             setIsSaving(false);
         }

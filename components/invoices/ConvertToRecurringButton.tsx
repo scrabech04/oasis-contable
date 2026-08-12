@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { Repeat } from "lucide-react";
 import { createRecurringInvoiceFromInvoice } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 interface ConvertToRecurringButtonProps {
     invoiceId: number;
@@ -14,6 +15,7 @@ interface ConvertToRecurringButtonProps {
 
 export function ConvertToRecurringButton({ invoiceId, mode = "button" }: ConvertToRecurringButtonProps) {
     const router = useRouter();
+    const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
 
     const handleConvert = async (event: React.MouseEvent) => {
@@ -33,11 +35,11 @@ export function ConvertToRecurringButton({ invoiceId, mode = "button" }: Convert
                 router.push("/invoices/recurring");
                 router.refresh();
             } else {
-                alert(result.error || "No se pudo convertir la factura en recurrente.");
+                toast.error("No se pudo convertir en recurrente", result.error);
             }
         } catch (error) {
             console.error("Error converting invoice to recurring:", error);
-            alert("Error inesperado al convertir la factura.");
+            toast.error("No se pudo convertir en recurrente", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }

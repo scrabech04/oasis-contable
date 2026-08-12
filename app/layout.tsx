@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { ThemeProvider } from "@/components/theme-provider";
+import { ToastProvider } from "@/components/ui/toast";
 import { PwaRegister } from "@/components/PwaRegister";
 import { AUTH_SESSION_COOKIE, getAuthSecret, verifySessionToken } from "@/lib/auth";
 
@@ -64,8 +65,10 @@ export default async function RootLayout({
         </head>
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            {children}
-            <PwaRegister />
+            <ToastProvider>
+              {children}
+              <PwaRegister />
+            </ToastProvider>
           </ThemeProvider>
         </body>
       </html>
@@ -90,6 +93,7 @@ export default async function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <ToastProvider>
           <div className="flex h-screen w-full overflow-hidden bg-background print:h-auto print:block print:overflow-visible dark:bg-[#0b0f15]">
             <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r bg-white transition-colors duration-200 dark:border-[#2a3442] dark:bg-[#151b23] md:flex">
               <Sidebar profiles={profiles} activeProfileId={activeProfile.id} />
@@ -102,6 +106,7 @@ export default async function RootLayout({
             <MobileBottomNav profiles={profiles} activeProfileId={activeProfile.id} />
             <PwaRegister />
           </div>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

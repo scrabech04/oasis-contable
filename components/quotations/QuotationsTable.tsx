@@ -7,6 +7,7 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { deleteQuotation, convertQuotationToInvoice, convertQuotationToProject, duplicateQuotation } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { useToast } from "@/components/ui/toast";
 
 function quotationStatusLabel(status: string) {
     return status === "SENT" ? "Enviada" :
@@ -32,6 +33,7 @@ function quotationStatusClass(status: string) {
 
 export function QuotationsTable({ quotations }: { quotations: any[] }) {
     const router = useRouter();
+    const toast = useToast();
     const [submittingInvoice, setSubmittingInvoice] = useState<number | null>(null);
     const [submittingProject, setSubmittingProject] = useState<number | null>(null);
     const [duplicatingId, setDuplicatingId] = useState<number | null>(null);
@@ -48,11 +50,11 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
             if (result.success) {
                 router.push(`/quotations/${result.newId}/edit`);
             } else {
-                alert(result.error || "Error al duplicar la cotización");
+                toast.error("No se pudo duplicar la cotizacion", result.error);
             }
         } catch (error) {
             console.error("Error duplicating quotation:", error);
-            alert("Error inesperado al duplicar");
+            toast.error("No se pudo duplicar la cotizacion", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setDuplicatingId(null);
         }
@@ -67,11 +69,11 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
             if (result.success) {
                 router.push(`/invoices/${result.invoiceId}/edit`);
             } else {
-                alert(result.error);
+                toast.error("No se pudo convertir a factura", result.error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al convertir a factura");
+            toast.error("No se pudo convertir a factura", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmittingInvoice(null);
         }
@@ -86,11 +88,11 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
             if (result.success) {
                 router.push(`/projects/${result.projectId}/edit`);
             } else {
-                alert(result.error);
+                toast.error("No se pudo crear el proyecto", result.error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al crear el proyecto");
+            toast.error("No se pudo crear el proyecto", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmittingProject(null);
         }

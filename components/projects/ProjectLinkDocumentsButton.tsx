@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/format";
+import { useToast } from "@/components/ui/toast";
 
 type Candidate = {
   id: number;
@@ -42,6 +43,7 @@ function DocumentRow({
   onLinked: () => void;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const linked = doc.projectId === projectId;
   const label = doc.number || doc.ncf || `${type === "invoice" ? "Factura" : "Compra"} #${doc.id}`;
@@ -51,7 +53,7 @@ function DocumentRow({
     startTransition(async () => {
       const result = await setProjectDocumentLink(projectId, type, doc.id, !linked);
       if (!result.success) {
-        alert(result.error);
+        toast.error("No se pudieron vincular los documentos", result.error);
         return;
       }
       onLinked();
@@ -87,6 +89,7 @@ function DocumentRow({
 }
 
 export function ProjectLinkDocumentsButton({ projectId }: { projectId: number }) {
+  const toast = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"invoice" | "purchase">("invoice");
@@ -99,7 +102,7 @@ export function ProjectLinkDocumentsButton({ projectId }: { projectId: number })
     try {
       const result = await getProjectLinkCandidates(projectId);
       if (!result) {
-        alert("No se pudo cargar el proyecto.");
+        toast.error("No se pudo cargar el proyecto", "Revisa tu conexion e intenta de nuevo.");
         setIsOpen(false);
         return;
       }

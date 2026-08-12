@@ -2,6 +2,7 @@
 
 import { FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 interface ExportButtonProps {
     type: "606" | "607";
@@ -164,9 +165,10 @@ function getIsrRetentionType(payments: any[]) {
 }
 
 export function ExportButton({ type, data, period, companyTaxId }: ExportButtonProps) {
+const toast = useToast();
     const handleExport = () => {
         if (data.length === 0) {
-            alert("No hay datos para exportar en este periodo.");
+            toast.error("No hay datos para exportar", "Cambia el periodo e intenta de nuevo.");
             return;
         }
 

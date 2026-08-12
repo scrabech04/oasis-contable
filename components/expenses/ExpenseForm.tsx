@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { createExpense } from "@/app/actions";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
 
 export function ExpenseForm() {
     const router = useRouter();
+    const toast = useToast();
     const [description, setDescription] = useState("");
     const [amount, setAmount] = useState("");
     const [category, setCategory] = useState("General");
@@ -23,11 +25,14 @@ export function ExpenseForm() {
         try {
             const result = await createExpense(formData);
             if (result.success) {
+                toast.success("Gasto guardado", description || undefined);
                 router.push("/expenses");
+            } else if ("error" in result) {
+                toast.error("No se pudo guardar el gasto", result.error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al guardar el gasto");
+            toast.error("No se pudo guardar el gasto", "Revisa tu conexion e intenta de nuevo.");
         }
     };
 

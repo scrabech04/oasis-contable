@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
 
 export function SequenceForm({ initialData, onClose }: { initialData?: any, onClose: () => void }) {
     const router = useRouter();
+    const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
     const [isPreferred, setIsPreferred] = useState(initialData?.isPreferred || false);
 
@@ -25,11 +27,12 @@ export function SequenceForm({ initialData, onClose }: { initialData?: any, onCl
             } else {
                 await createNumberingSequence(formData);
             }
+            toast.success(initialData ? "Numeracion actualizada" : "Numeracion creada");
             onClose();
             router.refresh();
         } catch (error) {
             console.error(error);
-            alert("Error al guardar la secuencia");
+            toast.error("No se pudo guardar la numeracion", "Revisa los datos e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }

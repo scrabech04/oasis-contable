@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createProforma, updateProforma } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
 import { Plus, Save, Trash2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 type ProformaFormProps = {
   contacts: any[];
@@ -22,6 +23,7 @@ const defaultItem = { description: "", quantity: 1, price: 0, taxRate: 18 };
 
 export function ProformaForm({ contacts, projects, initialData }: ProformaFormProps) {
   const router = useRouter();
+  const toast = useToast();
   const [contactId, setContactId] = useState(initialData?.contactId ? String(initialData.contactId) : contacts[0]?.id ? String(contacts[0].id) : "new");
   const [contactName, setContactName] = useState(initialData?.contact?.name || "");
   const [projectId, setProjectId] = useState(initialData?.projectId ? String(initialData.projectId) : "");
@@ -76,8 +78,10 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
     setIsSubmitting(false);
     if (!result.success) {
       setError(result.error);
+      toast.error("No se pudo guardar la prefactura", result.error);
       return;
     }
+    toast.success(initialData?.id ? "Prefactura actualizada" : "Prefactura guardada");
     router.push(`/proformas/${result.id}`);
     router.refresh();
   };

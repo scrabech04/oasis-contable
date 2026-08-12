@@ -11,6 +11,7 @@ import clsx from "clsx";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 
 interface Contact {
     id: number;
@@ -35,6 +36,7 @@ interface QuotationItem {
 
 export function QuotationForm({ contacts, projects = [], initialData }: QuotationFormProps) {
     const router = useRouter();
+    const toast = useToast();
     const [items, setItems] = useState<QuotationItem[]>([
         { description: "", itemType: "ITEM", quantity: 1, price: 0, taxRate: 18 },
     ]);
@@ -154,14 +156,15 @@ export function QuotationForm({ contacts, projects = [], initialData }: Quotatio
             }
 
             if (result.success) {
+                toast.success(initialData ? "Cotizacion actualizada" : "Cotizacion guardada");
                 router.push("/quotations");
                 router.refresh();
             } else if ((result as any).error) {
-                alert((result as any).error);
+                toast.error("No se pudo guardar la cotizacion", (result as any).error);
             }
         } catch (error) {
             console.error(error);
-            alert("Error al guardar la cotización");
+            toast.error("No se pudo guardar la cotizacion", "Revisa tu conexion e intenta de nuevo.");
         } finally {
             setSubmitting(false);
         }
