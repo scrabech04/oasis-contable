@@ -56,6 +56,16 @@ export function PurchasesActions({ autoOpenQR = false }: { autoOpenQR?: boolean 
                 </button>
 
                 <Link
+                    href="/purchases/quick"
+                    title="Compra rápida"
+                    aria-label="Compra rápida"
+                    className={`${compactActionClass} border-sky-100 bg-sky-50 text-sky-600 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-400 dark:hover:bg-sky-900/50`}
+                >
+                    <span className="material-icons-round text-[22px]">bolt</span>
+                    <span className="sr-only">Compra rápida</span>
+                </Link>
+
+                <Link
                     href="/purchases/ai-import"
                     title="Importar con IA"
                     aria-label="Importar con IA"

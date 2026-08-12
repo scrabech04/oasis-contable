@@ -14,6 +14,7 @@ const links = [
   { name: "Cotizaciones", href: "/quotations", icon: "request_quote" },
   { name: "Por Cobrar", href: "/receivables", icon: "account_balance" },
   { name: "Compras", href: "/purchases", icon: "shopping_cart" },
+  { name: "Gastos", href: "/expenses", icon: "receipt" },
   { name: "Por Pagar", href: "/payables", icon: "payments" },
   { name: "Suscripciones", href: "/subscriptions", icon: "subscriptions" },
   { name: "Proyectos", href: "/projects", icon: "folder_special" },

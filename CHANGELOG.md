@@ -2,6 +2,26 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-12 - Gastos y compras personales
+
+### Corregido
+- Los formularios de gasto rapido guardaban la compra con total 0. Enviaban `amount`, `description` y `category`, pero `createPurchase` calcula el total solo desde `items` y ninguno de los dos mandaba lineas. Ahora, cuando no vienen `items` pero si un importe, se arma una linea unica con ese monto y esa descripcion.
+- Las compras informales guardaban las notas vacias, asi que la tabla de compras (que en las informales muestra las notas en vez del proveedor) las dejaba en blanco. Ahora se arma `"Categoria: descripcion"` cuando el formulario no manda notas.
+- La tabla de Gastos pintaba `description`, `category` y `amount`, tres campos que no existen en el modelo `Purchase`, asi que salia vacia. Ahora lee el concepto de las notas y el importe de `total`.
+
+### Agregado
+- El formulario completo de compras tiene selector `Formal / Personal`. Antes el tipo se fijaba en FORMAL al crear y no habia forma de cambiarlo, ni al crear ni al editar. Marcar `Personal` arrastra la clasificacion fiscal a `Gasto local sin credito fiscal`.
+- `Compra rapida` aparece como cuarto icono en la cabecera de Compras y Gastos. Hasta ahora esa pantalla solo era accesible desde el menu del movil.
+- `Gastos` entra al menu lateral. La pantalla existia pero no la enlazaba nadie.
+- Al editar una compra personal hay un enlace a `Editar en el formulario completo` (`?full=1`), para poder devolverla a formal: el formulario rapido no tiene selector de tipo y sin esa salida el cambio no tendria vuelta atras.
+
+### Cambiado
+- Se retira el formulario `/expenses/new`, que duplicaba a `/purchases/quick` con menos campos. El boton `Registrar Gasto` ahora abre la compra rapida. La accion `createExpense` se mantiene porque la usa la ruta MCP.
+
+### Pendiente de prueba
+- Registrar un gasto desde `Compra rapida` y confirmar que guarda el importe y el concepto, y que aparece en Gastos.
+- Convertir a `Personal` una de las compras formales sin comprobante y confirmar que pierde el aviso de datos incompletos y sigue fuera del 606.
+
 ## 2026-08-12 - Barra unica en todos los listados
 
 ### Cambiado

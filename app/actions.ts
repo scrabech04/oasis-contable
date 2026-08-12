@@ -70,6 +70,57 @@ function parseItems(formData: FormData) {
   }
 }
 
+/**
+ * Los formularios de gasto rapido no arman lineas: mandan un importe suelto y una
+ * descripcion. Sin esto `parseItems` devolveria [] y la compra se guardaria con total 0,
+ * perdiendo justo el dato que el usuario escribio.
+ *
+ * Vive aparte de `parseItems` porque ese lo comparten facturas, cotizaciones y
+ * prefacturas, y ahi un campo `amount` suelto no significa lo mismo.
+ */
+function parsePurchaseItems(formData: FormData) {
+  const items = parseItems(formData);
+  if (items.length > 0) {
+    return items;
+  }
+
+  const amount = numberValue(formData, "amount");
+  if (!amount) {
+    return items;
+  }
+
+  // La forma tiene que coincidir con PurchaseItem: el create hace spread de estas claves.
+  return [
+    {
+      description: text(formData, "description") || "Gasto",
+      quantity: 1,
+      price: amount,
+      taxRate: 0,
+    },
+  ];
+}
+
+/**
+ * En las compras informales la tabla no muestra proveedor sino las notas, con el formato
+ * "Categoria: descripcion" (ver PurchasesTable). Si el formulario mando categoria y
+ * descripcion pero no notas, se arma aqui para que la fila no salga vacia.
+ */
+function purchaseNotes(formData: FormData) {
+  const notes = optionalText(formData, "notes");
+  if (notes) {
+    return notes;
+  }
+
+  const category = text(formData, "category");
+  const description = text(formData, "description");
+
+  if (!category && !description) {
+    return null;
+  }
+
+  return category && description ? `${category}: ${description}` : category || description;
+}
+
 function normalizeTaxRateValue(value: unknown) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
@@ -3068,7 +3119,7 @@ export async function deletePurchaseAttachment(attachmentId: number): Promise<Ac
 
 export async function createPurchase(formData: FormData): Promise<ActionResult> {
   const profileId = await resolvePurchaseProfileId(formData);
-  const items = parseItems(formData);
+  const items = parsePurchaseItems(formData);
   const { currency, exchangeRate } = moneyContext(formData);
   const sourceTotal = totals(items);
   const accountingItems = convertItemsToDop(items, exchangeRate);
@@ -3113,7 +3164,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       total: total.total,
       costType: text(formData, "costType", "02"),
       ...taxClassification,
-      notes: optionalText(formData, "notes"),
+      notes: purchaseNotes(formData),
       profileId,
       items: { create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
       ...(attachment ? { attachments: { create: attachment } } : {}),
@@ -3137,7 +3188,7 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const existing = await prisma.purchase.findFirst({ where: { id, profileId }, select: { paidAmount: true } });
   if (!existing) return { success: false, error: "Compra no encontrada para el perfil activo." };
-  const items = parseItems(formData);
+  const items = parsePurchaseItems(formData);
   const { currency, exchangeRate } = moneyContext(formData);
   const sourceTotal = totals(items);
   const accountingItems = convertItemsToDop(items, exchangeRate);
@@ -3178,7 +3229,7 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       status: statusFor(total.total, existing?.paidAmount || 0),
       costType: text(formData, "costType", "02"),
       ...taxClassification,
-      notes: optionalText(formData, "notes"),
+      notes: purchaseNotes(formData),
       items: { deleteMany: {}, create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
     },
   });

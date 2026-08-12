@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PurchaseForm } from "@/components/purchases/PurchaseForm";
 import { QuickPurchaseForm } from "@/components/purchases/QuickPurchaseForm";
 import { getContacts, getPurchase, getProjects } from "@/app/actions";
@@ -5,9 +6,10 @@ import { notFound } from "next/navigation";
 
 interface EditPurchasePageProps {
     params: Promise<{ id: string }>;
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function EditPurchasePage({ params }: EditPurchasePageProps) {
+export default async function EditPurchasePage({ params, searchParams }: EditPurchasePageProps) {
     const { id } = await params;
     const purchaseId = parseInt(id);
 
@@ -15,22 +17,39 @@ export default async function EditPurchasePage({ params }: EditPurchasePageProps
         notFound();
     }
 
-    const [purchase, contacts, projects] = await Promise.all([
+    const [purchase, contacts, projects, query] = await Promise.all([
         getPurchase(purchaseId),
         getContacts({ type: 'SUPPLIER' as any }),
-        getProjects()
+        getProjects(),
+        searchParams,
     ]);
 
     if (!purchase) {
         notFound();
     }
 
+    // Las compras personales se editan en el formulario rapido, que es mas corto. Pero ese
+    // no deja cambiar el tipo, asi que `?full=1` permite volver al formulario completo y
+    // devolverlas a formal: sin esta salida, marcar una compra como personal no tendria
+    // vuelta atras.
+    const useFullForm = purchase.type === "FORMAL" || query.full === "1";
+
     return (
         <div className="animate-in fade-in duration-500">
-            {purchase.type === "FORMAL" ? (
+            {useFullForm ? (
                 <PurchaseForm contacts={contacts} projects={projects} initialData={purchase} />
             ) : (
-                <QuickPurchaseForm projects={projects} initialData={purchase} />
+                <>
+                    <QuickPurchaseForm projects={projects} initialData={purchase} />
+                    <div className="mx-auto mt-4 max-w-3xl text-center">
+                        <Link
+                            href={`/purchases/${purchaseId}/edit?full=1`}
+                            className="text-sm font-bold text-blue-600 underline-offset-4 hover:underline dark:text-blue-400"
+                        >
+                            Editar en el formulario completo
+                        </Link>
+                    </div>
+                </>
             )}
         </div>
     );

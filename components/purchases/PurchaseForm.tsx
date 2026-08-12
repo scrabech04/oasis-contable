@@ -174,6 +174,17 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
         setItems((current) => current.map((item) => ({ ...item, taxRate: 0 })));
     };
 
+    // Una compra personal no tiene comprobante que respalde el credito, asi que al
+    // marcarla se arrastra la clasificacion fiscal al mismo criterio que usa el resto del
+    // sistema para las informales. Volver a formal no toca nada: la clasificacion la
+    // decide el usuario.
+    const applyPurchaseType = (value: string) => {
+        setPurchaseType(value);
+        if (value === "INFORMAL" && taxTreatment === "LOCAL_CREDIT") {
+            applyTaxTreatment("LOCAL_NO_CREDIT");
+        }
+    };
+
     const isForeignPurchase =
         taxTreatment === "FOREIGN_EXPENSE" ||
         taxTreatment === "IMPORT_GOODS" ||
@@ -608,6 +619,25 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tipo de compra</label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-blue-600 focus:border-blue-600 transition-all appearance-none py-2.5 pl-3 pr-10"
+                                            value={purchaseType}
+                                            onChange={(e) => applyPurchaseType(e.target.value)}
+                                        >
+                                            <option value="FORMAL">Formal (con comprobante fiscal)</option>
+                                            <option value="INFORMAL">Personal (gasto sin comprobante)</option>
+                                        </select>
+                                        <span className="material-icons-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">expand_more</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">
+                                        {purchaseType === "FORMAL"
+                                            ? "Se espera NCF y RNC del proveedor; si faltan, la compra sale marcada como incompleta."
+                                            : "No pide NCF ni RNC y aparece en Gastos. El concepto se guarda en las notas."}
+                                    </p>
+                                </div>
                                 <div className="space-y-1.5">
                                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Clasificación Fiscal</label>
                                     <div className="relative">
