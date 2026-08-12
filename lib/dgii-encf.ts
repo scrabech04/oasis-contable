@@ -24,6 +24,9 @@ export interface DgiiEncfInput {
   rncComprador: string;
   codigoSeguridad: string;
   horaFirma?: string;
+  // "second" cuando la hora vino completa (17:17:01) y "minute" cuando la factura
+  // solo mostraba hora y minutos (17:17). Decide qué tan ancho es el barrido.
+  horaFirmaPrecision?: "second" | "minute";
 }
 
 export interface DgiiEncfExtractedData {
@@ -36,7 +39,7 @@ export interface DgiiEncfExtractedData {
 
 export interface DgiiEncfValidation {
   validated: boolean;
-  mode: "date_only" | "sweep";
+  mode: "date_only" | "dgii_hour" | "sweep" | "minute_sweep";
   attempted: number;
   matchedOffsetSeconds: number | null;
   horaFirmaUsada: string | null;
@@ -74,11 +77,16 @@ export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
     };
   }
 
-  if (data.horaFirma && !/^([0-1]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(data.horaFirma)) {
-    return {
-      ok: false as const,
-      message: "La hora de firma debe tener formato HH:mm:ss, por ejemplo 17:17:01.",
-    };
+  if (data.horaFirma) {
+    if (!/^([0-1]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(data.horaFirma)) {
+      return {
+        ok: false as const,
+        message:
+          "La hora de firma debe tener formato HH:mm:ss (17:17:01) o HH:mm (17:17) si la factura no muestra los segundos.",
+      };
+    }
+
+    data.horaFirmaPrecision = data.horaFirma.length === 5 ? "minute" : "second";
   }
 
   return { ok: true as const, data };
@@ -276,7 +284,13 @@ async function validateOrSweepTimbre({
   extracted: DgiiEncfExtractedData;
   deadline: number;
 }): Promise<DgiiEncfValidation> {
-  const baseFechaFirma = combineFechaFirma(extracted.fechaFirma, input.horaFirma);
+  const minuteOnly = input.horaFirmaPrecision === "minute";
+  const horaBase = expandHora(input.horaFirma);
+  const horaDgii = extractHoraFirmaDgii(extracted.fechaFirma);
+  const baseFechaFirma = combineFechaFirma(
+    extracted.fechaFirma,
+    horaBase || expandHora(horaDgii?.hora)
+  );
   const baseUrl = buildTimbreUrl({
     rncEmisor: input.rncEmisor,
     rncComprador: input.rncComprador,
@@ -287,7 +301,15 @@ async function validateOrSweepTimbre({
     codigoSeguridad: input.codigoSeguridad,
   });
 
-  if (!input.horaFirma) {
+  const candidates = buildSweepCandidates({
+    fechaFirma: extracted.fechaFirma,
+    horaDgii,
+    horaBase,
+    rangeSeconds: DEFAULT_SWEEP_SECONDS,
+    minuteOnly,
+  });
+
+  if (candidates.length === 0) {
     return {
       validated: false,
       mode: "date_only",
@@ -297,24 +319,23 @@ async function validateOrSweepTimbre({
       fechaFirma: extracted.fechaFirma,
       checkedUrl: baseUrl,
       message:
-        "Se generó el enlace con la fecha de firma de DGII, pero no se pudo validar porque no se indicó una hora base.",
+        "Se generó el enlace con la fecha de firma de DGII, pero no se pudo validar: la DGII no devolvió la hora de la firma y tampoco se indicó una.",
     };
   }
 
-  const candidates = buildSweepCandidates(
-    extracted.fechaFirma,
-    input.horaFirma,
-    DEFAULT_SWEEP_SECONDS
-  );
+  const mode: DgiiEncfValidation["mode"] = horaBase
+    ? minuteOnly
+      ? "minute_sweep"
+      : "sweep"
+    : "dgii_hour";
 
   let attempted = 0;
 
-  for (let start = 0; start < candidates.length; start += SWEEP_CONCURRENCY) {
+  for (const batch of buildBatches(candidates, Boolean(horaDgii?.hasSeconds))) {
     if (Date.now() > deadline) {
       break;
     }
 
-    const batch = candidates.slice(start, start + SWEEP_CONCURRENCY);
     const urls = batch.map((candidate) =>
       buildTimbreUrl({
         rncEmisor: input.rncEmisor,
@@ -336,16 +357,13 @@ async function validateOrSweepTimbre({
 
       return {
         validated: true,
-        mode: "sweep",
+        mode,
         attempted,
         matchedOffsetSeconds: candidate.offsetSeconds,
         horaFirmaUsada: candidate.hora,
         fechaFirma: candidate.fechaFirma,
         checkedUrl: urls[hitIndex],
-        message:
-          candidate.offsetSeconds === 0
-            ? "El enlace fue validado con la hora base indicada."
-            : `El enlace fue validado ajustando ${formatOffset(candidate.offsetSeconds)} respecto a la hora base.`,
+        message: describeHit(candidate, minuteOnly),
       };
     }
   }
@@ -354,16 +372,82 @@ async function validateOrSweepTimbre({
 
   return {
     validated: false,
-    mode: "sweep",
+    mode,
     attempted,
     matchedOffsetSeconds: null,
-    horaFirmaUsada: input.horaFirma,
+    horaFirmaUsada: horaBase || horaDgii?.hora || null,
     fechaFirma: baseFechaFirma,
     checkedUrl: baseUrl,
     message: incomplete
       ? `Se agotó el tiempo disponible tras ${attempted} intentos sin validar el enlace. Verifica la hora de firma exacta.`
-      : `No se validó el enlace con un barrido de ±${DEFAULT_SWEEP_SECONDS} segundos alrededor de la hora base.`,
+      : describeMiss({ horaDgii, horaBase, horaEscrita: input.horaFirma, minuteOnly }),
   };
+}
+
+// Cuando la DGII dio la hora exacta, esa candidata va sola en la primera tanda: casi
+// siempre acierta y no tiene sentido lanzarle cinco consultas más en paralelo para
+// terminar descartándolas. El resto sí va en tandas de SWEEP_CONCURRENCY.
+function buildBatches(candidates: SweepCandidate[], leadAlone: boolean) {
+  const batches: SweepCandidate[][] = [];
+  const rest = leadAlone ? candidates.slice(1) : candidates;
+
+  if (leadAlone) {
+    batches.push([candidates[0]]);
+  }
+
+  for (let start = 0; start < rest.length; start += SWEEP_CONCURRENCY) {
+    batches.push(rest.slice(start, start + SWEEP_CONCURRENCY));
+  }
+
+  return batches;
+}
+
+function describeHit(candidate: SweepCandidate, minuteOnly: boolean) {
+  if (candidate.source === "dgii") {
+    return `El enlace fue validado con la hora de firma que devolvió la DGII (${candidate.hora}).`;
+  }
+
+  if (minuteOnly) {
+    return `El enlace fue validado con la hora ${candidate.hora}: la firma cayó en el segundo ${String(
+      candidate.offsetSeconds
+    ).padStart(2, "0")} del minuto indicado.`;
+  }
+
+  return candidate.offsetSeconds === 0
+    ? "El enlace fue validado con la hora base indicada."
+    : `El enlace fue validado ajustando ${formatOffset(candidate.offsetSeconds ?? 0)} respecto a la hora base.`;
+}
+
+function describeMiss({
+  horaDgii,
+  horaBase,
+  horaEscrita,
+  minuteOnly,
+}: {
+  horaDgii: HoraFirmaDgii | null;
+  horaBase: string;
+  horaEscrita?: string;
+  minuteOnly: boolean;
+}) {
+  const intentos: string[] = [];
+
+  if (horaDgii) {
+    intentos.push(
+      horaDgii.hasSeconds
+        ? `la hora de firma que devolvió la DGII (${horaDgii.hora})`
+        : `los 60 segundos del minuto ${horaDgii.hora} que devolvió la DGII`
+    );
+  }
+
+  if (horaBase) {
+    intentos.push(
+      minuteOnly
+        ? `los 60 segundos del minuto ${horaEscrita}`
+        : `un barrido de ±${DEFAULT_SWEEP_SECONDS} segundos alrededor de ${horaBase}`
+    );
+  }
+
+  return `No se validó el enlace probando ${intentos.join(" y ")}.`;
 }
 
 // DGII devuelve HTTP 200 tanto para el timbre válido como para el inválido: hay que
@@ -392,29 +476,116 @@ async function isTimbreValid(url: string, encf: string) {
   }
 }
 
-function buildSweepCandidates(fechaFirma: string, horaBase: string, rangeSeconds: number) {
-  const normalizedDate = normalizeDateTime(fechaFirma).split(" ")[0];
-  const base = parseTimeToSeconds(horaBase);
-  const offsets = [0];
+interface SweepCandidate {
+  hora: string;
+  fechaFirma: string;
+  // Segundos de ajuste respecto a la hora escrita por el usuario; null cuando la hora
+  // salió de la propia DGII y no de un ajuste.
+  offsetSeconds: number | null;
+  source: "dgii" | "base";
+}
 
-  for (let step = 1; step <= rangeSeconds; step += 1) {
-    offsets.push(step, -step);
+interface HoraFirmaDgii {
+  hora: string;
+  hasSeconds: boolean;
+}
+
+// La consulta de DGII normalmente devuelve la fecha de firma con su hora ("13-05-2025
+// 17:17:01"). Esa hora sale del XML firmado, así que es la candidata con más
+// probabilidad de validar y conviene probarla antes que cualquier ajuste manual.
+function extractHoraFirmaDgii(fechaFirma: string): HoraFirmaDgii | null {
+  const text = cleanText(fechaFirma);
+  // La fecha viene como DD-MM-YYYY, sin dos puntos, así que el primer match es la hora.
+  const match = text.match(/(\d{1,2}):([0-5]\d)(?::([0-5]\d))?/);
+
+  if (!match) {
+    return null;
   }
 
-  return offsets
-    .map((offsetSeconds) => {
-      const total = base + offsetSeconds;
-      if (total < 0 || total > 86_399) {
-        return null;
-      }
+  let hours = Number(match[1]);
 
-      const hora = formatSecondsAsTime(total);
-      return { offsetSeconds, hora, fechaFirma: `${normalizedDate} ${hora}` };
-    })
-    .filter(
-      (candidate): candidate is { offsetSeconds: number; hora: string; fechaFirma: string } =>
-        candidate !== null
-    );
+  if (/p\.?\s?m\.?/i.test(text) && hours < 12) {
+    hours += 12;
+  } else if (/a\.?\s?m\.?/i.test(text) && hours === 12) {
+    hours = 0;
+  }
+
+  if (hours > 23) {
+    return null;
+  }
+
+  const hhmm = `${String(hours).padStart(2, "0")}:${match[2]}`;
+
+  return match[3]
+    ? { hora: `${hhmm}:${match[3]}`, hasSeconds: true }
+    : { hora: hhmm, hasSeconds: false };
+}
+
+// Orden de prueba: primero la hora que dio la DGII (suele acertar al primer intento) y
+// después la hora escrita por el usuario. Con hora al segundo se abre en abanico a su
+// alrededor; con hora al minuto (la factura solo imprimió 17:17) el segundo es
+// desconocido y se recorre el minuto entero, porque barrer ±rangeSeconds desde :00
+// dejaría fuera más de media vuelta del reloj.
+function buildSweepCandidates({
+  fechaFirma,
+  horaDgii,
+  horaBase,
+  rangeSeconds,
+  minuteOnly,
+}: {
+  fechaFirma: string;
+  horaDgii: HoraFirmaDgii | null;
+  horaBase: string;
+  rangeSeconds: number;
+  minuteOnly: boolean;
+}) {
+  const normalizedDate = normalizeDateTime(fechaFirma).split(" ")[0];
+  const candidates: SweepCandidate[] = [];
+  const seen = new Set<string>();
+
+  const add = (hora: string, source: SweepCandidate["source"], offsetSeconds: number | null) => {
+    if (seen.has(hora)) {
+      return;
+    }
+
+    seen.add(hora);
+    candidates.push({ hora, source, offsetSeconds, fechaFirma: `${normalizedDate} ${hora}` });
+  };
+
+  if (horaDgii?.hasSeconds) {
+    add(horaDgii.hora, "dgii", null);
+  } else if (horaDgii) {
+    for (let second = 0; second < 60; second += 1) {
+      add(`${horaDgii.hora}:${String(second).padStart(2, "0")}`, "dgii", null);
+    }
+  }
+
+  if (horaBase) {
+    const base = parseTimeToSeconds(horaBase);
+    const offsets: number[] = [];
+
+    if (minuteOnly) {
+      for (let second = 0; second < 60; second += 1) {
+        offsets.push(second);
+      }
+    } else {
+      offsets.push(0);
+
+      for (let step = 1; step <= rangeSeconds; step += 1) {
+        offsets.push(step, -step);
+      }
+    }
+
+    for (const offsetSeconds of offsets) {
+      const total = base + offsetSeconds;
+
+      if (total >= 0 && total <= 86_399) {
+        add(formatSecondsAsTime(total), "base", offsetSeconds);
+      }
+    }
+  }
+
+  return candidates;
 }
 
 function buildTimbreUrl(data: {
@@ -468,8 +639,15 @@ function normalizeTime(value: unknown) {
     return `${compact.slice(0, 2)}:${compact.slice(2, 4)}:${compact.slice(4, 6)}`;
   }
 
+  if (/^\d{4}$/.test(compact)) {
+    return `${compact.slice(0, 2)}:${compact.slice(2, 4)}`;
+  }
+
   const parts = compact.split(":");
-  if (parts.length === 3 && parts.every((part) => /^\d{1,2}$/.test(part))) {
+  if (
+    (parts.length === 3 || parts.length === 2) &&
+    parts.every((part) => /^\d{1,2}$/.test(part))
+  ) {
     return parts.map((part) => part.padStart(2, "0")).join(":");
   }
 
@@ -498,6 +676,16 @@ function normalizeDateTime(value: string) {
   const [datePart, timePart] = cleanText(value).split(" ");
   const normalizedDate = normalizeDate(datePart);
   return timePart ? `${normalizedDate} ${timePart}` : normalizedDate;
+}
+
+// "17:17" describe un minuto entero; para armar una URL concreta hace falta un segundo,
+// y el minuto siempre empieza en :00.
+function expandHora(horaFirma?: string) {
+  if (!horaFirma) {
+    return "";
+  }
+
+  return horaFirma.length === 5 ? `${horaFirma}:00` : horaFirma;
 }
 
 function combineFechaFirma(fechaFirma: string, horaFirma?: string) {

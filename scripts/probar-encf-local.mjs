@@ -11,6 +11,9 @@
  *                  --rnc 130463417 --encf E310000014390 \
  *                  --comprador 40200448476 --codigo RpmbNr [--hora 17:17:01]
  *
+ * --hora acepta HH:mm:ss cuando se conoce el segundo exacto (barrido de +-15s) y HH:mm
+ * cuando la factura solo imprime hora y minutos (barrido de los 60 segundos del minuto).
+ *
  * Con --cookie imprime la cookie para pegarla en el navegador (DevTools > Console)
  * y poder abrir la interfaz en /purchases/rebuild-encf.
  */

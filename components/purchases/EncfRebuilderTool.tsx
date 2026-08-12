@@ -226,11 +226,11 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
                     id="horaFirma"
                     value={form.horaFirma}
                     onChange={handleChange("horaFirma")}
-                    placeholder="19:00:45"
+                    placeholder="19:00:45 o 19:00"
                     autoComplete="off"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Si la sabes, ponla completa. Si no, deja solo los demás datos y el sistema intentará reconstruir el enlace con la fecha de firma encontrada.
+                    Opcional: la DGII casi siempre devuelve la hora de firma y esa se prueba primero. Llénala solo si hace falta: completa con segundos (19:00:45), o solo hora y minutos (19:00) y el sistema probará los 60 segundos de ese minuto.
                   </p>
                 </div>
               </div>
