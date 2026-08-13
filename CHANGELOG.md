@@ -2,6 +2,12 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-13 - El sitio web del proveedor ya no exige escribir https://
+
+### Cambiado
+- Los dos campos de sitio web del formulario de compras eran `type="url"`, asi que el navegador rechazaba `proveedor.com` y obligaba a teclear el esquema. Ahora aceptan el dominio tal como aparece en la factura.
+- Al guardar se completa a `https://` si falta, de modo que el enlace guardado sigue abriendo bien desde cualquier pantalla. Aplica tambien al sitio que se copia al contacto.
+
 ## 2026-08-13 - No perder lo leido por la IA cuando falla el guardado
 
 ### Corregido

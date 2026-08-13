@@ -24,6 +24,17 @@ function text(formData: FormData, key: string, fallback = "") {
   return typeof value === "string" ? value.trim() : fallback;
 }
 
+/**
+ * El formulario acepta el sitio tal como se lee en la factura ("proveedor.com"), sin
+ * obligar a teclear el esquema. Se completa aqui para que el enlace guardado abra bien
+ * desde cualquier pantalla.
+ */
+function normalizeWebsiteUrl(value: string | null | undefined) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return null;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 function optionalText(formData: FormData, key: string) {
   const value = text(formData, key);
   return value || null;
@@ -305,7 +316,7 @@ async function resolveContact(formData: FormData, profileId: number, fallbackTyp
   const taxId = optionalText(formData, "contactTaxId");
   const email = optionalText(formData, "contactEmail");
   const phone = optionalText(formData, "contactPhone");
-  const website = optionalText(formData, "contactWebsiteUrl") || optionalText(formData, "supplierWebsiteUrl");
+  const website = normalizeWebsiteUrl(optionalText(formData, "contactWebsiteUrl") || optionalText(formData, "supplierWebsiteUrl"));
 
   const existing = await findExistingContact(profileId, name, taxId);
   if (existing) {
@@ -3155,7 +3166,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       type: text(formData, "type", "FORMAL"),
       supplierName: optionalText(formData, "contactName"),
       supplierTaxId,
-      supplierWebsiteUrl: optionalText(formData, "supplierWebsiteUrl"),
+      supplierWebsiteUrl: normalizeWebsiteUrl(optionalText(formData, "supplierWebsiteUrl")),
       currency,
       exchangeRate,
       sourceSubtotal: sourceTotal.subtotal,
@@ -3219,7 +3230,7 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       dueDate: optionalDate(formData, "dueDate"),
       supplierName: optionalText(formData, "contactName"),
       supplierTaxId,
-      supplierWebsiteUrl: optionalText(formData, "supplierWebsiteUrl"),
+      supplierWebsiteUrl: normalizeWebsiteUrl(optionalText(formData, "supplierWebsiteUrl")),
       currency,
       exchangeRate,
       sourceSubtotal: sourceTotal.subtotal,

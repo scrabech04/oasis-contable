@@ -597,8 +597,9 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                                         <div className="space-y-2">
                                             <Label className="text-[10px] font-bold uppercase text-orange-600">Sitio web oficial</Label>
                                             <Input
-                                                type="url"
-                                                placeholder="https://proveedor.com"
+                                                type="text"
+                                                inputMode="url"
+                                                placeholder="proveedor.com"
                                                 className="h-10 rounded-xl bg-white dark:bg-slate-900"
                                                 value={supplierWebsiteUrl}
                                                 onChange={(e) => setSupplierWebsiteUrl(e.target.value)}
@@ -689,8 +690,9 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Sitio web oficial del proveedor</label>
                                         <input
                                             className="w-full border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900 text-sm focus:ring-blue-600 focus:border-blue-600 transition-all placeholder:text-slate-400 py-2.5 px-3"
-                                            placeholder="https://proveedor.com"
-                                            type="url"
+                                            placeholder="proveedor.com"
+                                            type="text"
+                                            inputMode="url"
                                             value={supplierWebsiteUrl}
                                             onChange={(e) => setSupplierWebsiteUrl(e.target.value)}
                                         />
