@@ -84,7 +84,7 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                         </div>
                         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
                             <span className="text-xs font-medium text-slate-500">
-                                {new Date(invoice.date).toLocaleDateString()}
+                                {new Date(invoice.date).toLocaleDateString(undefined, { timeZone: "UTC" })}
                             </span>
                             <div className="flex items-center gap-1 text-slate-400" onClick={(e) => e.stopPropagation()}>
                                 <a href={`/api/invoices/${invoice.id}/pdf`} target="_blank" rel="noopener noreferrer" className="rounded-lg p-2 hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-800" title="Exportar PDF">
@@ -161,7 +161,7 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                     </div>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden md:table-cell">
-                                    <span className="text-sm text-slate-600 dark:text-slate-400 font-numeric">{new Date(invoice.date).toLocaleDateString()}</span>
+                                    <span className="text-sm text-slate-600 dark:text-slate-400 font-numeric">{new Date(invoice.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</span>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden sm:table-cell">
                                     <span className={clsx(

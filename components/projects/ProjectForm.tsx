@@ -420,7 +420,7 @@ export function ProjectForm({ project, contacts, profiles = [], activeProfileId,
                                                     {inv.number}
                                                 </td>
                                                 <td className="px-6 py-3 text-slate-500 dark:text-slate-400">
-                                                    {new Date(inv.date).toLocaleDateString()}
+                                                    {new Date(inv.date).toLocaleDateString(undefined, { timeZone: "UTC" })}
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">
                                                     RD$ {formatCurrency(inv.total)}

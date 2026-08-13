@@ -54,7 +54,7 @@ export function ReceivablesList({ receivables }: { receivables: any[] }) {
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                       <span className={clsx("inline-flex items-center gap-1", isOverdue && "text-red-600 dark:text-red-300")}>
                         <span className="material-icons-round text-sm">calendar_today</span>
-                        Vence {new Date(inv.dueDate).toLocaleDateString()}
+                        Vence {new Date(inv.dueDate).toLocaleDateString(undefined, { timeZone: "UTC" })}
                       </span>
                       <span className={clsx(
                         "rounded-full px-2 py-0.5 text-[10px] font-black uppercase",
@@ -130,7 +130,7 @@ export function ReceivablesList({ receivables }: { receivables: any[] }) {
                     </td>
                     <td className="px-6 py-4">
                       <span className={clsx("text-xs font-numeric", new Date(inv.dueDate) < new Date() ? "font-bold text-red-600" : "text-slate-600 dark:text-slate-400")}>
-                        {new Date(inv.dueDate).toLocaleDateString()}
+                        {new Date(inv.dueDate).toLocaleDateString(undefined, { timeZone: "UTC" })}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right font-numeric text-slate-600 dark:text-slate-400">RD${formatCurrency(inv.total)}</td>

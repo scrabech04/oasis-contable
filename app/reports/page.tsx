@@ -123,7 +123,7 @@ export default async function ReportsPage(props: {
                                                     </span>
                                                 </td>
                                                 <td className="px-4 md:px-6 py-4 font-numeric text-[11px] text-slate-500 tracking-wider uppercase font-bold hidden xs:table-cell">{p.ncf || '-'}</td>
-                                                <td className="px-4 md:px-6 py-4 font-numeric text-slate-400 text-xs hidden md:table-cell">{new Date(p.date).toLocaleDateString('en-GB').split('/').reverse().join('')}</td>
+                                                <td className="px-4 md:px-6 py-4 font-numeric text-slate-400 text-xs hidden md:table-cell">{new Date(p.date).toLocaleDateString('en-GB', { timeZone: "UTC" }).split('/').reverse().join('')}</td>
                                                 <td className="px-4 md:px-6 py-4 hidden lg:table-cell">
                                                     <span className={`text-[10px] px-2 py-0.5 rounded-md font-black border uppercase tracking-wider ${p.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300' :
                                                         p.status === 'PARTIAL' ? 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-900/40 dark:text-orange-300' :
@@ -154,7 +154,7 @@ export default async function ReportsPage(props: {
                                                     </div>
                                                 </td>
                                                 <td className="px-4 md:px-6 py-4 font-numeric text-[11px] text-slate-500 tracking-wider uppercase font-bold hidden sm:table-cell">{inv.ncf || '-'}</td>
-                                                <td className="px-4 md:px-6 py-4 font-numeric text-slate-400 text-xs hidden md:table-cell">{new Date(inv.date).toLocaleDateString('en-GB').split('/').reverse().join('')}</td>
+                                                <td className="px-4 md:px-6 py-4 font-numeric text-slate-400 text-xs hidden md:table-cell">{new Date(inv.date).toLocaleDateString('en-GB', { timeZone: "UTC" }).split('/').reverse().join('')}</td>
                                                 <td className="px-4 md:px-6 py-4 hidden lg:table-cell">
                                                     <span className={`text-[10px] px-2 py-0.5 rounded-md font-black border uppercase tracking-wider ${inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300' :
                                                         inv.status === 'PARTIAL' ? 'bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-900/40 dark:text-orange-300' :

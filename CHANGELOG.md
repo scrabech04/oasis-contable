@@ -2,6 +2,18 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-13 - Fechas corridas un dia y descripcion en las transacciones del proyecto
+
+### Corregido
+- Las fechas se mostraban un dia antes en 19 lugares de la aplicacion. Se guardan como medianoche UTC y se formateaban en hora local; como Republica Dominicana es UTC-4, el 2 de agosto salia como el 1. Afectaba a las transacciones del proyecto, los listados de facturas, prefacturas, cotizaciones, cuentas por pagar y cobrar, gastos, contactos, suscripciones y **la pantalla de reportes 606/607**, donde la fecha es dato fiscal.
+- `formatDate` en `lib/format.ts` tambien tenia el problema, asi que todo lo que pasaba por ahi salia corrido.
+
+### Agregado
+- La tabla de `Transacciones Asociadas` del proyecto muestra una columna `Descripcion` entre el documento y el monto. Sale de los items del documento y, si no los tiene, de las notas; en las compras personales se muestra la parte de la descripcion del formato `"Categoria: descripcion"`. En movil aparece bajo el numero del documento.
+
+### Pendiente de prueba
+- Abrir el proyecto DUM290726 y confirmar que las dos transacciones ahora dicen 2 de agosto y 30 de julio.
+
 ## 2026-08-13 - El tipo de compra se guarda al editar
 
 ### Corregido

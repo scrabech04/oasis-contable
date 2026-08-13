@@ -72,7 +72,7 @@ export default async function ExpensesPage(props: {
 
                                 return (
                                     <tr key={expense.id} className="border-b transition-colors hover:bg-muted/50">
-                                        <td className="p-4 align-middle">{new Date(expense.date).toLocaleDateString()}</td>
+                                        <td className="p-4 align-middle">{new Date(expense.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</td>
                                         <td className="p-4 align-middle">{label}</td>
                                         <td className="p-4 align-middle">
                                             {category ? (

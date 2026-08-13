@@ -128,7 +128,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
                             <div className="min-w-0">
                                 <p className="font-mono text-sm font-black uppercase text-slate-900 dark:text-white">#{quote.number}</p>
                                 <p className="mt-1 truncate text-xs font-medium text-slate-500">{quote.contact?.name ?? "Sin cliente"}</p>
-                                <p className="mt-1 text-[10px] text-slate-400">{new Date(quote.date).toLocaleDateString()}</p>
+                                <p className="mt-1 text-[10px] text-slate-400">{new Date(quote.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</p>
                             </div>
                             <div className="text-right">
                                 <p className="font-mono text-sm font-black text-slate-900 dark:text-white">RD${formatCurrency(quote.total)}</p>
@@ -196,7 +196,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
                                     </div>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden md:table-cell">
-                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">{new Date(quote.date).toLocaleDateString()}</span>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">{new Date(quote.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</span>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden sm:table-cell">
                                     <span className={quotationStatusClass(quote.status)}>

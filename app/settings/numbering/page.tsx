@@ -118,7 +118,7 @@ export default function NumberingSettingsPage() {
                                     </td>
                                     <td className="px-6 py-5 text-center">
                                         <span className="text-xs font-medium text-slate-500">
-                                            {seq.expiryDate ? new Date(seq.expiryDate).toLocaleDateString() : 'No vence'}
+                                            {seq.expiryDate ? new Date(seq.expiryDate).toLocaleDateString(undefined, { timeZone: "UTC" }) : 'No vence'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-5 text-right">

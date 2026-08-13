@@ -109,10 +109,35 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
     ];
 
     const COLORS = ["#3b82f6", "#ef4444"];
+
+    const transactionDescription = (doc: {
+        items?: { description?: string | null }[];
+        notes?: string | null;
+    }) => {
+        const fromItems = (doc.items || [])
+            .map((item) => String(item.description || "").trim())
+            .filter(Boolean)
+            .join(", ");
+
+        if (fromItems) return fromItems;
+
+        const notes = String(doc.notes || "").trim();
+        if (!notes) return "";
+
+        // Las compras personales guardan el concepto como "Categoria: descripcion".
+        const [head, ...rest] = notes.split(":");
+        return rest.join(":").trim() || head.trim();
+    };
+
     const transactions = [
         ...project.invoices.map((inv: any) => ({ ...inv, docType: "Venta", detailHref: `/invoices/${inv.id}` })),
         ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra", detailHref: `/purchases/${pur.id}/edit` }))
     ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // La fecha se guarda como medianoche UTC; formatearla en hora local la corre un dia
+    // hacia atras en Republica Dominicana (UTC-4).
+    const shortDate = (value: string | Date) =>
+        new Intl.DateTimeFormat("es-DO", { timeZone: "UTC", day: "2-digit", month: "short" }).format(new Date(value));
 
     const chartTooltipStyle = {
         borderRadius: "12px",
@@ -434,11 +459,16 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                                     </span>
                                                     <div className="min-w-0">
                                                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                                                            {new Date(doc.date).toLocaleDateString("es-DO", { day: "2-digit", month: "short" })}
+                                                            {shortDate(doc.date)}
                                                         </p>
                                                         <p className="mt-0.5 truncate text-sm font-black text-slate-900 dark:text-white">
                                                             {doc.number || doc.ncf || "S/N"}
                                                         </p>
+                                                        {transactionDescription(doc) ? (
+                                                            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                                                                {transactionDescription(doc)}
+                                                            </p>
+                                                        ) : null}
                                                     </div>
                                                 </div>
                                             </div>
@@ -483,6 +513,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                     <TableHead className="text-[10px] uppercase font-bold">Fecha</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold">Tipo</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold">Documento</TableHead>
+                                    <TableHead className="text-[10px] uppercase font-bold">Descripción</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold text-right">Monto</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold text-right">Liquidado/Pagado</TableHead>
                                     <TableHead className="text-[10px] uppercase font-bold text-center">Estado</TableHead>
@@ -502,8 +533,8 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                             }
                                         }}
                                     >
-                                        <TableCell className="text-xs text-slate-500 dark:text-slate-400">
-                                            {new Date(doc.date).toLocaleDateString('es-DO', { day: '2-digit', month: 'short' })}
+                                        <TableCell className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                            {shortDate(doc.date)}
                                         </TableCell>
                                         <TableCell>
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${doc.docType === 'Venta' ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300' : 'text-orange-600 bg-orange-50 dark:bg-orange-900/30 dark:text-orange-300'}`}>
@@ -515,6 +546,15 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                                 {doc.number || doc.ncf || "S/N"}
                                                 <span className="material-icons-outlined text-[14px] opacity-0 transition-opacity group-hover:opacity-100">open_in_new</span>
                                             </span>
+                                        </TableCell>
+                                        <TableCell className="max-w-[260px] text-xs text-slate-600 dark:text-slate-400">
+                                            {transactionDescription(doc) ? (
+                                                <span className="block truncate" title={transactionDescription(doc)}>
+                                                    {transactionDescription(doc)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300 dark:text-slate-600">-</span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-xs font-mono text-right font-medium text-slate-800 dark:text-slate-200">
                                             RD$ {formatCurrency(doc.total)}
@@ -531,7 +571,7 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
                                 ))}
                                 {project.invoices.length === 0 && project.purchases.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-10 text-slate-400 text-sm italic">
+                                        <TableCell colSpan={7} className="text-center py-10 text-slate-400 text-sm italic">
                                             No hay transacciones asociadas a este proyecto.
                                         </TableCell>
                                     </TableRow>

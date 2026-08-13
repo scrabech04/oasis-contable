@@ -46,7 +46,7 @@ export function ProformasTable({ proformas }: { proformas: any[] }) {
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-              <span className="text-xs text-slate-500">{new Date(proforma.date).toLocaleDateString("es-DO")}</span>
+              <span className="text-xs text-slate-500">{new Date(proforma.date).toLocaleDateString("es-DO", { timeZone: "UTC" })}</span>
               <div onClick={(event) => event.stopPropagation()} className="flex items-center gap-1 text-slate-400">
                 <Link href={`/proformas/${proforma.id}`} className="rounded-lg p-2 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800">
                   <span className="material-icons-round text-[20px]">visibility</span>
@@ -80,7 +80,7 @@ export function ProformasTable({ proformas }: { proformas: any[] }) {
               <tr key={proforma.id} onClick={() => router.push(`/proformas/${proforma.id}`)} className="cursor-pointer transition hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
                 <td className="px-6 py-5 font-black text-slate-900 dark:text-white">{proforma.number}</td>
                 <td className="px-6 py-5 text-slate-600 dark:text-slate-300">{proforma.contact?.name || "Sin cliente"}</td>
-                <td className="px-6 py-5 text-slate-500">{new Date(proforma.date).toLocaleDateString("es-DO")}</td>
+                <td className="px-6 py-5 text-slate-500">{new Date(proforma.date).toLocaleDateString("es-DO", { timeZone: "UTC" })}</td>
                 <td className="px-6 py-5"><span className={statusClass(proforma.status)}>{labels[proforma.status] || proforma.status}</span></td>
                 <td className="px-6 py-5 text-right">
                   <p className="font-mono font-black text-slate-900 dark:text-white">RD$ {formatCurrency(proforma.total)}</p>

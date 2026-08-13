@@ -28,7 +28,7 @@ type Candidate = {
 };
 
 function formatDate(value: Date | string) {
-  return new Date(value).toLocaleDateString("es-DO", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(value).toLocaleDateString("es-DO", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" });
 }
 
 function DocumentRow({

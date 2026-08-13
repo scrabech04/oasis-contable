@@ -2208,8 +2208,9 @@ export async function getProject(id: number) {
       contact: true,
       profile: true,
       sharedWith: { include: { profile: true } },
-      invoices: { include: { contact: true, payments: { include: { withholdings: true } } } },
-      purchases: { include: { contact: true, payments: { include: { withholdings: true } } } },
+      // Los items alimentan la columna Descripcion de "Transacciones Asociadas".
+      invoices: { include: { contact: true, items: true, payments: { include: { withholdings: true } } } },
+      purchases: { include: { contact: true, items: true, payments: { include: { withholdings: true } } } },
       quotations: true,
     },
   });

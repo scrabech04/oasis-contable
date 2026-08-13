@@ -44,7 +44,7 @@ export function PayablesList({ payables }: { payables: any[] }) {
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                       <span className="inline-flex items-center gap-1">
                         <span className="material-icons-round text-sm">calendar_today</span>
-                        {new Date(purchase.date).toLocaleDateString()}
+                        {new Date(purchase.date).toLocaleDateString(undefined, { timeZone: "UTC" })}
                       </span>
                       <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase text-slate-500 dark:bg-slate-800">
                         {purchase.status === "PAID" ? "Saldada" : purchase.status === "PARTIAL" ? "Parcial" : "Pendiente"}
@@ -117,7 +117,7 @@ export function PayablesList({ payables }: { payables: any[] }) {
                           {supplierName}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-xs font-numeric text-slate-600 dark:text-slate-400">{new Date(purchase.date).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-xs font-numeric text-slate-600 dark:text-slate-400">{new Date(purchase.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</td>
                       <td className="px-6 py-4 text-right font-numeric text-slate-600 dark:text-slate-400">RD${formatCurrency(purchase.total)}</td>
                       <td className="px-6 py-4 text-right font-numeric text-emerald-600 dark:text-emerald-400">RD${formatCurrency(purchase.paidAmount)}</td>
                       <td className="px-6 py-4 text-right font-numeric font-bold text-slate-900 dark:text-white">RD${formatCurrency(purchase.total - purchase.paidAmount)}</td>

@@ -144,8 +144,7 @@ export default async function DashboardPage() {
                       {item.amount > 0 ? "+" : ""}RD${formatCurrency(Math.abs(item.amount))}
                     </p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
-                      {new Date(item.date).toLocaleDateString("es-ES", {
-                        day: "2-digit",
+                      {new Date(item.date).toLocaleDateString("es-ES", { timeZone: "UTC", day: "2-digit",
                         month: "2-digit",
                       })}
                     </p>

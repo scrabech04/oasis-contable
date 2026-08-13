@@ -85,7 +85,7 @@ export function InvoicePaymentsManager({ invoice }: InvoicePaymentsManagerProps)
                             {payments.map((payment: Payment) => (
                                 <tr key={payment.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                                     <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">
-                                        {new Date(payment.date).toLocaleDateString()}
+                                        {new Date(payment.date).toLocaleDateString(undefined, { timeZone: "UTC" })}
                                     </td>
                                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
                                         {payment.method}
