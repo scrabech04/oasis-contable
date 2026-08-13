@@ -129,9 +129,13 @@ export function ProjectDashboard({ project, taxSettings }: ProjectDashboardProps
         return rest.join(":").trim() || head.trim();
     };
 
+    // Al guardar una transaccion editada desde aqui, el formulario debe devolver al
+    // proyecto y no al listado de compras, que es de donde no se venia.
+    const backToProject = `?returnTo=${encodeURIComponent(`/projects/${project.id}`)}`;
+
     const transactions = [
         ...project.invoices.map((inv: any) => ({ ...inv, docType: "Venta", detailHref: `/invoices/${inv.id}` })),
-        ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra", detailHref: `/purchases/${pur.id}/edit` }))
+        ...project.purchases.map((pur: any) => ({ ...pur, docType: "Compra", detailHref: `/purchases/${pur.id}/edit${backToProject}` }))
     ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // La fecha se guarda como medianoche UTC; formatearla en hora local la corre un dia

@@ -21,9 +21,11 @@ import { useToast } from "@/components/ui/toast";
 interface QuickPurchaseFormProps {
     projects?: { id: number; name: string }[];
     initialData?: any;
+    /** Ruta a la que volver tras guardar; por defecto el listado de compras. */
+    successRedirect?: string;
 }
 
-export function QuickPurchaseForm({ projects = [], initialData }: QuickPurchaseFormProps) {
+export function QuickPurchaseForm({ projects = [], initialData, successRedirect }: QuickPurchaseFormProps) {
     const router = useRouter();
     const toast = useToast();
     const [description, setDescription] = useState("");
@@ -75,7 +77,7 @@ export function QuickPurchaseForm({ projects = [], initialData }: QuickPurchaseF
 
             if (result.success) {
                 toast.success(initialData ? "Gasto actualizado" : "Gasto guardado");
-                router.push("/purchases");
+                router.push(successRedirect || "/purchases");
             } else if ("error" in result) {
                 toast.error("No se pudo guardar el gasto", result.error);
             }

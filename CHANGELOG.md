@@ -2,6 +2,12 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-13 - Volver al proyecto tras editar una transaccion
+
+### Corregido
+- Editar una transaccion desde el detalle de un proyecto y guardarla dejaba al usuario en el listado de compras, no en el proyecto del que venia. Ahora el enlace lleva un `returnTo` y el formulario devuelve ahi. Cancelar ya funcionaba, porque usa el historial del navegador.
+- `returnTo` no se validaba en `/purchases/new`, asi que un enlace con `?returnTo=https://otro-sitio` habria sacado al usuario de la aplicacion justo despues de guardar. Ahora solo se aceptan rutas internas (`lib/return-to.ts`), rechazando URLs absolutas y las disfrazadas de ruta (`//host`, `/\host`).
+
 ## 2026-08-13 - Fechas corridas un dia y descripcion en las transacciones del proyecto
 
 ### Corregido

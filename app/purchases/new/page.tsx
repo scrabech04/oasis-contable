@@ -1,12 +1,13 @@
 import { PurchaseForm } from "@/components/purchases/PurchaseForm";
 import { getContacts, getProjects } from "@/app/actions";
+import { safeReturnTo } from "@/lib/return-to";
 
 export default async function NewPurchasePage(props: {
     searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
     const searchParams = props.searchParams ? await props.searchParams : {};
     const defaultProjectId = typeof searchParams.projectId === "string" ? searchParams.projectId : "";
-    const successRedirect = typeof searchParams.returnTo === "string" ? searchParams.returnTo : undefined;
+    const successRedirect = safeReturnTo(searchParams.returnTo);
     const [contacts, projects] = await Promise.all([
         getContacts({ type: 'SUPPLIER' as any }),
         getProjects()

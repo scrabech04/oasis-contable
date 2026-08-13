@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PurchaseForm } from "@/components/purchases/PurchaseForm";
 import { QuickPurchaseForm } from "@/components/purchases/QuickPurchaseForm";
 import { getContacts, getPurchase, getProjects } from "@/app/actions";
+import { safeReturnTo } from "@/lib/return-to";
 import { notFound } from "next/navigation";
 
 interface EditPurchasePageProps {
@@ -34,16 +35,23 @@ export default async function EditPurchasePage({ params, searchParams }: EditPur
     // vuelta atras.
     const useFullForm = purchase.type === "FORMAL" || query.full === "1";
 
+    // Se llego aqui desde otra pantalla (el detalle de un proyecto, por ejemplo): al
+    // guardar hay que devolver el usuario ahi y no al listado de compras.
+    const successRedirect = safeReturnTo(query.returnTo);
+    const fullFormHref = successRedirect
+        ? `/purchases/${purchaseId}/edit?full=1&returnTo=${encodeURIComponent(successRedirect)}`
+        : `/purchases/${purchaseId}/edit?full=1`;
+
     return (
         <div className="animate-in fade-in duration-500">
             {useFullForm ? (
-                <PurchaseForm contacts={contacts} projects={projects} initialData={purchase} />
+                <PurchaseForm contacts={contacts} projects={projects} initialData={purchase} successRedirect={successRedirect} />
             ) : (
                 <>
-                    <QuickPurchaseForm projects={projects} initialData={purchase} />
+                    <QuickPurchaseForm projects={projects} initialData={purchase} successRedirect={successRedirect} />
                     <div className="mx-auto mt-4 max-w-3xl text-center">
                         <Link
-                            href={`/purchases/${purchaseId}/edit?full=1`}
+                            href={fullFormHref}
                             className="text-sm font-bold text-blue-600 underline-offset-4 hover:underline dark:text-blue-400"
                         >
                             Editar en el formulario completo
