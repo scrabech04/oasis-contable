@@ -2,6 +2,11 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-13 - El tipo de compra se guarda al editar
+
+### Corregido
+- `updatePurchase` nunca escribia el campo `type`, asi que cambiar una compra de Formal a Personal en el formulario no tenia efecto: se guardaba todo lo demas y el tipo se quedaba igual. Con esto el selector agregado ayer sirve tambien para convertir compras ya registradas. El valor de respaldo es el que ya tiene la compra, no `FORMAL`, porque las rutas MCP de actualizacion no mandan `type` y convertirian los gastos en formales.
+
 ## 2026-08-12 - Gastos y compras personales
 
 ### Corregido

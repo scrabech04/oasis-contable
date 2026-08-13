@@ -3186,7 +3186,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
 
 export async function updatePurchase(id: number, formData: FormData): Promise<ActionResult> {
   const profileId = await resolveExplicitOrActiveProfileId(formData);
-  const existing = await prisma.purchase.findFirst({ where: { id, profileId }, select: { paidAmount: true } });
+  const existing = await prisma.purchase.findFirst({ where: { id, profileId }, select: { paidAmount: true, type: true } });
   if (!existing) return { success: false, error: "Compra no encontrada para el perfil activo." };
   const items = parsePurchaseItems(formData);
   const { currency, exchangeRate } = moneyContext(formData);
@@ -3228,6 +3228,10 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       total: total.total,
       status: statusFor(total.total, existing?.paidAmount || 0),
       costType: text(formData, "costType", "02"),
+      // Sin esto el tipo se quedaba congelado: el formulario podia mandar INFORMAL pero la
+      // actualizacion nunca lo escribia. El respaldo es el valor actual, no "FORMAL",
+      // porque las rutas MCP no mandan `type` y convertirian los gastos en formales.
+      type: text(formData, "type", existing.type),
       ...taxClassification,
       notes: purchaseNotes(formData),
       items: { deleteMany: {}, create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
