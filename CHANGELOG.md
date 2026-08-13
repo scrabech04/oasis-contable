@@ -2,6 +2,12 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-13 - Concepto de las compras personales
+
+### Corregido
+- En el listado de compras, una compra personal sin notas salia con el concepto en blanco. La columna muestra las notas cuando la compra no tiene proveedor, y una compra convertida desde el formulario formal no las tiene: el concepto real esta en la descripcion de sus items. Ahora se usa esa como respaldo.
+- Buscar por concepto no encontraba nada: la busqueda miraba NCF, numero, proveedor, RNC, notas y monto, pero no las descripciones de los items. Teclear `Chichos` no devolvia la compra cuyo item se llama asi. Ahora tambien se busca ahi, en compras, gastos, facturas, prefacturas, cotizaciones y cuentas por pagar y cobrar.
+
 ## 2026-08-13 - Volver al proyecto tras editar una transaccion
 
 ### Corregido

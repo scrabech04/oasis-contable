@@ -2577,6 +2577,7 @@ export async function getInvoices(options?: { search?: string; sortBy?: string; 
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),
@@ -2761,6 +2762,7 @@ export async function getProformas(options?: { search?: string; sortBy?: string;
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),
@@ -2973,6 +2975,7 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),
@@ -3465,6 +3468,7 @@ export async function getExpenses(options?: PeriodParams & { profileId?: number;
               { notes: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),
@@ -3500,6 +3504,7 @@ export async function getQuotations(options?: { search?: string; sortBy?: string
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),
@@ -3796,6 +3801,7 @@ export async function getReceivables(options?: PeriodParams & { search?: string;
               { ncf: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),
@@ -3828,6 +3834,7 @@ export async function getPayables(options?: PeriodParams & { search?: string; so
               { supplierName: likeTerm(search) },
               { contact: { name: likeTerm(search) } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
+              { items: { some: { description: likeTerm(search) } } },
             ],
           }
         : {}),

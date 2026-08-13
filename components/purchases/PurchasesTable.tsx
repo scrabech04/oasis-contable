@@ -17,6 +17,31 @@ function formatPurchaseDate(value: string | Date) {
     }).format(new Date(value));
 }
 
+/**
+ * En las compras personales no hay proveedor que mostrar, asi que la columna lleva el
+ * concepto. Vive en las notas como "Categoria: descripcion", pero una compra convertida
+ * desde el formulario formal puede no tener notas: en ese caso el concepto real esta en
+ * la descripcion de los items, y sin este respaldo la fila salia vacia.
+ */
+function purchaseConcept(purchase: {
+    notes?: string | null;
+    items?: { description?: string | null }[];
+}) {
+    const notes = String(purchase.notes || "").trim();
+
+    if (notes) {
+        const [head, ...rest] = notes.split(":");
+        return rest.join(":").trim() || head.trim();
+    }
+
+    const fromItems = (purchase.items || [])
+        .map((item) => String(item.description || "").trim())
+        .filter(Boolean)
+        .join(", ");
+
+    return fromItems || "Gasto sin concepto";
+}
+
 function statusLabel(status: string) {
     return status === "PAID" ? "Saldada" : status === "PARTIAL" ? "Parcial" : "Pend.";
 }
@@ -74,7 +99,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
                                         <p className="truncate text-sm font-black text-slate-900 dark:text-white">
-                                            {purchase.type === "FORMAL" ? supplierName || "Proveedor sin nombre" : purchase.notes?.split(":")[1] || purchase.notes}
+                                            {purchase.type === "FORMAL" ? supplierName || "Proveedor sin nombre" : purchaseConcept(purchase)}
                                         </p>
                                         {isMissingData && (
                                             <span className="material-icons-round text-sm text-amber-500" title="Faltan datos fiscales">warning</span>
@@ -188,8 +213,8 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                     <td className="px-4 md:px-6 py-4">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[120px] md:max-w-[200px]" title={purchase.type === "FORMAL" ? supplierName : purchase.notes}>
-                                                    {purchase.type === "FORMAL" ? supplierName || "Proveedor sin nombre" : purchase.notes?.split(":")[1] || purchase.notes}
+                                                <span className="font-bold text-slate-900 dark:text-white truncate max-w-[120px] md:max-w-[200px]" title={purchase.type === "FORMAL" ? supplierName : purchaseConcept(purchase)}>
+                                                    {purchase.type === "FORMAL" ? supplierName || "Proveedor sin nombre" : purchaseConcept(purchase)}
                                                 </span>
                                                 {isMissingData && (
                                                     <span className="material-icons-round text-amber-500 text-sm animate-pulse" title="Faltan datos fiscales (RNC o NCF)">warning</span>
