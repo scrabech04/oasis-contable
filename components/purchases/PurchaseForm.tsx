@@ -313,9 +313,16 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                     };
                 }));
             }
+            // Se conserva en sessionStorage hasta que la compra se guarde: si el guardado
+            // falla y hay que recargar la pagina, lo leido del PDF sigue ahi y no toca
+            // volver a subirlo. Se remarca la hora para que el limite de arriba cuente
+            // desde esta carga y una recarga inmediata no lo descarte.
+            sessionStorage.setItem(
+                "ai_imported_purchase",
+                JSON.stringify({ ...imported, importedAt: now })
+            );
         } catch (error) {
             console.error("Error loading AI imported purchase", error);
-        } finally {
             sessionStorage.removeItem("ai_imported_purchase");
         }
     }, [contacts]);
@@ -454,6 +461,8 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
             }
 
             if (result.success) {
+                // Ya esta guardada: lo que leyo la IA del PDF deja de hacer falta.
+                sessionStorage.removeItem("ai_imported_purchase");
                 toast.success(initialData ? "Compra actualizada" : "Compra guardada", effectiveContactName || undefined);
                 router.push(successRedirect || "/purchases");
             } else if ("error" in result) {
@@ -461,7 +470,14 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
             }
         } catch (error) {
             console.error(error);
-            toast.error("No se pudo guardar la compra", "Revisa tu conexion e intenta de nuevo.");
+            // La causa mas habitual no es la red: si la aplicacion se actualizo mientras
+            // esta pagina estaba abierta, el servidor ya no reconoce la accion de guardado
+            // y responde 404 ("Failed to find Server Action"). Se recupera recargando, y
+            // lo leido del PDF sigue guardado para no tener que subirlo otra vez.
+            toast.error(
+                "No se pudo guardar la compra",
+                "Si la aplicacion se actualizo hace poco, recarga la pagina (Ctrl+Shift+R) y vuelve a guardar: los datos leidos del PDF se conservan. Si no, revisa tu conexion."
+            );
         } finally {
             setSubmitting(false);
         }

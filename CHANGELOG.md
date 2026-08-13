@@ -2,6 +2,15 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-13 - No perder lo leido por la IA cuando falla el guardado
+
+### Corregido
+- Al importar una compra con IA, lo extraido del PDF se borraba de `sessionStorage` nada mas cargarlo en el formulario. Si el guardado fallaba habia que recargar, y con la recarga se perdia la extraccion entera: tocaba volver a subir el PDF. Ahora se conserva hasta que la compra se guarda de verdad, y la hora se remarca en cada carga para que el limite de 5 minutos cuente desde ahi.
+- El error de guardado decia siempre "revisa tu conexion". La causa mas habitual es otra: si se despliega una version nueva mientras la pagina esta abierta, el servidor deja de reconocer la accion de guardado y responde 404 (`Failed to find Server Action`). El mensaje ahora explica eso y dice como recuperarse.
+
+### Nota de operacion
+- Desplegar con usuarios trabajando les rompe el guardado hasta que recargan. Conviene agrupar despliegues fuera de horas de uso.
+
 ## 2026-08-13 - Concepto de las compras personales
 
 ### Corregido
