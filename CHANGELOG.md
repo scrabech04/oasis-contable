@@ -5,6 +5,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 ## 2026-08-13 - Volver al proyecto tras editar una transaccion
 
 ### Corregido
+- **El formulario de compras desvinculaba la compra de su proyecto al editarla.** Al cargar los datos rellenaba todo menos el selector de proyecto, que arrancaba en `Sin proyecto`; guardar escribia ese vacio y la compra desaparecia del proyecto sin aviso. Solo afectaba al formulario completo: facturas, cotizaciones, prefacturas, el formulario rapido y las rutas MCP si cargaban el proyecto. Conviene revisar los proyectos por si alguna compra editada antes de hoy quedo suelta.
 - Editar una transaccion desde el detalle de un proyecto y guardarla dejaba al usuario en el listado de compras, no en el proyecto del que venia. Ahora el enlace lleva un `returnTo` y el formulario devuelve ahi. Cancelar ya funcionaba, porque usa el historial del navegador.
 - `returnTo` no se validaba en `/purchases/new`, asi que un enlace con `?returnTo=https://otro-sitio` habria sacado al usuario de la aplicacion justo despues de guardar. Ahora solo se aceptan rutas internas (`lib/return-to.ts`), rechazando URLs absolutas y las disfrazadas de ruta (`//host`, `/\host`).
 

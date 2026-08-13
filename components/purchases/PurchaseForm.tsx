@@ -337,6 +337,9 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
             setDate(new Date(initialData.date).toISOString().split('T')[0]);
             setDueDate(initialData.dueDate ? new Date(initialData.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
             setNotes(initialData.notes || "");
+            // Sin esto el selector arrancaba en "Sin proyecto" aunque la compra estuviera
+            // vinculada, y guardar la desvinculaba en silencio.
+            setProjectId(initialData.projectId ? String(initialData.projectId) : "");
             setCostType(initialData.costType || "02");
             setTaxTreatment(initialData.taxTreatment || (initialData.type === "INFORMAL" ? "LOCAL_NO_CREDIT" : "LOCAL_CREDIT"));
             setPurchaseType(initialData.type || "FORMAL");
