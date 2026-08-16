@@ -16,9 +16,14 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - `recordPayment` y `convertProformaToInvoice` resolvian el perfil solo por la cookie. Ahora aceptan el explicito, igual que el resto de las rutas MCP.
 - `recomputePaid` recibe el perfil por parametro. Sin eso, un pago hecho por MCP se guardaba pero el recalculo no encontraba el documento: quedaba el pago registrado sin mover el saldo ni el estado.
 
+### Probado
+- En aislado: el lector de archivos (`loadAttachment` rechaza inexistente, vacio, directorio y mayor al tope) y el validador del servidor (`fileFromMcpAttachment` rechaza base64 invalido, falta de contenido y exceso de tamano; sin nombre ni mime cae en `comprobante-pago` / `application/octet-stream`).
+- Ya desplegado, contra datos reales: `add_contact_person` agrego a Joyce Reyes al cliente DUMA GROUP SRL, que no tenia ninguna persona. Reintentarlo se rechaza, y tambien escribiendo el nombre distinto (`JOYCE  REYES`), asi que la comparacion normalizada hace su trabajo. Pedir el mismo contacto desde otro perfil responde que no existe: el aislamiento por perfil se sostiene.
+- Las validaciones de `/api/mcp/payments` responden en produccion (`targetType` fuera de la lista, `confirm` ausente).
+
 ### Pendiente de prueba
-- Igual que la entrada anterior, no se pudo probar contra datos reales por la falta de base local. Se verifico que las tres rutas responden 401 sin clave y llegan a la capa de datos con ella, y se probaron en aislado el lector de archivos (`loadAttachment`: rechaza inexistente, vacio, directorio y mayor al tope) y el validador del servidor (`fileFromMcpAttachment`: rechaza base64 invalido, falta de contenido y exceso de tamano).
-- Al desplegar, probar el flujo entero: registrar un abono con captura de transferencia y confirmar que el comprobante queda visible en el documento, y convertir una prefactura pagada.
+- Falta el flujo completo de pago con soporte: registrar un abono real con una captura de transferencia y confirmar que el comprobante se ve despues en el documento, y convertir una prefactura pagada en factura fiscal. Las dos cosas mueven dinero o consumen un NCF, asi que conviene hacerlas a mano y mirando.
+- El servidor MCP local corre desde `mcp-server/dist` y carga las herramientas al arrancar: las nuevas no aparecen hasta reiniciar la sesion que lo levanta, aunque el `dist` ya este reconstruido.
 
 ## 2026-08-15 - El MCP ya maneja cotizaciones y prefacturas
 
@@ -35,7 +40,7 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - `updateQuotation` escribia `number` con lo que viniera en el formulario y sin respaldo: una edicion que no mandara ese campo dejaba la cotizacion sin numero, y la siguiente que hiciera lo mismo chocaba contra el indice unico. Ahora conserva el numero actual.
 
 ### Pendiente de prueba
-- No se pudo probar contra datos reales: el `.env` local apunta a `file:./dev.db` (SQLite) y el schema es PostgreSQL, asi que no hay base local que levantar. Se verifico que las rutas responden 401 sin clave y llegan hasta la capa de datos con ella. Falta desplegar y crear una cotizacion y una prefactura de prueba desde el MCP, revisando que caigan en el perfil correcto.
+- No se pudo probar contra datos reales en local: el `.env` de esta maquina apunta a `file:./dev.db` (SQLite) y el schema es PostgreSQL, asi que ahi no hay base que levantar y toda ruta que toque Prisma responde 500. Se verifico que las rutas responden 401 sin clave y llegan hasta la capa de datos con ella. Falta crear una cotizacion y una prefactura de prueba desde el MCP, revisando que caigan en el perfil correcto.
 
 ## 2026-08-13 - El sitio web del proveedor ya no exige escribir https://
 
