@@ -55,3 +55,8 @@ ui-facturas-extracted/
 ui-proyecto-extracted/
 ui-proyecto.zip
 prisma/dev.db
+
+# Archivos que se arrastran para que Claude los lea. La carpeta y su LEEME si van al
+# repositorio; lo que se deje dentro (facturas, comprobantes) no.
+entrada/*
+!entrada/LEEME.md
