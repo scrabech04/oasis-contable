@@ -68,6 +68,38 @@ export function registerReadTools(server: McpServer) {
   );
 
   server.registerTool(
+    "list_quotations",
+    {
+      title: "List quotations",
+      description: "List quotations (cotizaciones) for a profile, optionally filtered by month/year or a text search on number/client name/item description.",
+      inputSchema: {
+        profileId: profileIdSchema.optional(),
+        month: z.number().int().min(1).max(12).optional(),
+        year: z.number().int().optional(),
+        search: z.string().optional(),
+      },
+    },
+    async ({ profileId, month, year, search }) =>
+      asText(await oasisGet("/api/mcp/quotations", { profileId: profileId ?? defaultProfileId(), month, year, search }))
+  );
+
+  server.registerTool(
+    "list_proformas",
+    {
+      title: "List proforma invoices",
+      description: "List proforma invoices (prefacturas) for a profile, optionally filtered by month/year or a text search on number/client name/item description. A proforma carries no NCF - it is the non-fiscal document that can later be converted into a sales invoice.",
+      inputSchema: {
+        profileId: profileIdSchema.optional(),
+        month: z.number().int().min(1).max(12).optional(),
+        year: z.number().int().optional(),
+        search: z.string().optional(),
+      },
+    },
+    async ({ profileId, month, year, search }) =>
+      asText(await oasisGet("/api/mcp/proformas", { profileId: profileId ?? defaultProfileId(), month, year, search }))
+  );
+
+  server.registerTool(
     "list_contacts",
     {
       title: "List contacts",

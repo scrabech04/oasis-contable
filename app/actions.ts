@@ -2155,6 +2155,58 @@ export async function updateContact(id: number, formData: FormData): Promise<Act
   return { success: true, id };
 }
 
+/**
+ * Agrega UNA persona a un contacto ya existente sin tocar las demas.
+ *
+ * `updateContact` no sirve para esto: reemplaza la lista entera (`deleteMany` + `create`),
+ * asi que un llamador que solo quiera sumar a alguien tendria que reenviar a todos los
+ * demas, y si se le olvida uno lo borra sin aviso. El formulario web siempre manda la
+ * lista completa, pero los llamadores MCP mandan solo lo que el usuario dijo.
+ */
+export async function addContactPerson(contactId: number, formData: FormData): Promise<ActionResult> {
+  const profileId = await resolveExplicitOrActiveProfileId(formData);
+  const contact = await prisma.contact.findFirst({
+    where: { id: contactId, profileId },
+    include: { contactPersons: true },
+  });
+  if (!contact) return { success: false, error: "Contacto no encontrado para el perfil activo." };
+
+  const name = text(formData, "name").trim();
+  if (!name) return { success: false, error: "La persona necesita un nombre." };
+
+  const duplicate = contact.contactPersons.find(
+    (person) => normalizeContactName(person.name) === normalizeContactName(name)
+  );
+  if (duplicate) {
+    return {
+      success: false,
+      error: `"${duplicate.name}" ya esta registrada en ${contact.name}. Editala en la ficha del contacto en vez de agregarla otra vez.`,
+    };
+  }
+
+  const isMain = checkboxValue(formData, "isMain");
+  const person = await prisma.$transaction(async (tx) => {
+    // Solo puede haber una principal: si esta lo es, las demas dejan de serlo.
+    if (isMain) {
+      await tx.contactPerson.updateMany({ where: { contactId }, data: { isMain: false } });
+    }
+    return tx.contactPerson.create({
+      data: {
+        contactId,
+        name,
+        phone: optionalText(formData, "phone"),
+        email: optionalText(formData, "email"),
+        position: optionalText(formData, "position"),
+        isMain,
+      },
+    });
+  });
+
+  revalidatePath("/contacts");
+  revalidatePath(`/contacts/${contactId}`);
+  return { success: true, id: person.id };
+}
+
 export async function deleteContact(id: number) {
   const profileId = await getActiveProfileId();
   const result = await prisma.contact.deleteMany({ where: { id, profileId } });
@@ -2753,8 +2805,8 @@ export async function duplicateInvoice(id: number) {
   return { success: true, id: created.id, newId: created.id };
 }
 
-export async function getProformas(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getProformas(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const search = options?.search?.trim();
   const amount = parseAmountTerm(search);
   const period = getPeriodDateRange(options || {});
@@ -2799,7 +2851,7 @@ export async function getProforma(id: number) {
 
 export async function createProforma(formData: FormData): Promise<ActionResult> {
   try {
-    const profileId = await getActiveProfileId();
+    const profileId = await resolveExplicitOrActiveProfileId(formData);
     const items = parseItems(formData);
     const total = totals(items);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
@@ -2836,7 +2888,7 @@ export async function createProforma(formData: FormData): Promise<ActionResult> 
 
 export async function updateProforma(id: number, formData: FormData): Promise<ActionResult> {
   try {
-    const profileId = await getActiveProfileId();
+    const profileId = await resolveExplicitOrActiveProfileId(formData);
     const existing = await prisma.proformaInvoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true, status: true } });
     if (!existing) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
     if (existing.status === "CONVERTED") return { success: false, error: "No se puede editar una prefactura ya convertida a factura fiscal." };
@@ -2885,7 +2937,7 @@ export async function deleteProforma(id: number) {
 }
 
 export async function convertProformaToInvoice(id: number, formData?: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
+  const profileId = formData ? await resolveExplicitOrActiveProfileId(formData) : await getActiveProfileId();
   const proforma = await prisma.proformaInvoice.findFirst({
     where: { id, profileId },
     include: { items: true, payments: { include: { withholdings: true, attachments: true } } },
@@ -3489,14 +3541,20 @@ export async function getExpenses(options?: PeriodParams & { profileId?: number;
   });
 }
 
-export async function getNextQuotationNumber() {
-  const profileId = await getActiveProfileId();
+// El formulario web pide el numero antes de guardar y lo manda en el submit; los
+// llamadores MCP no lo hacen, asi que createQuotation necesita generarlo por su cuenta
+// con el perfil ya resuelto (que no siempre es el de la cookie).
+async function nextQuotationNumber(profileId: number) {
   const last = await prisma.quotation.findFirst({ where: { profileId }, orderBy: { id: "desc" } });
   return `COT-${String((last?.id || 0) + 1).padStart(4, "0")}`;
 }
 
-export async function getQuotations(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc" } & PeriodParams) {
-  const profileId = await getActiveProfileId();
+export async function getNextQuotationNumber() {
+  return nextQuotationNumber(await getActiveProfileId());
+}
+
+export async function getQuotations(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
+  const profileId = await resolveReadProfileId(options?.profileId);
   const search = options?.search?.trim();
   const amount = parseAmountTerm(search);
   const period = getPeriodDateRange(options || {});
@@ -3534,14 +3592,14 @@ export async function getQuotation(id: number) {
 }
 
 export async function createQuotation(formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
+  const profileId = await resolveExplicitOrActiveProfileId(formData);
   const items = parseItems(formData);
   const total = totals(items);
   const contactId = await resolveContact(formData, profileId, "CLIENT");
   const projectId = await resolveProject(formData, profileId, contactId);
   const quotation = await prisma.quotation.create({
     data: {
-      number: text(formData, "number"),
+      number: text(formData, "number") || (await nextQuotationNumber(profileId)),
       date: dateValue(formData, "date"),
       validUntil: optionalDate(formData, "validUntil"),
       status: text(formData, "status", "DRAFT"),
@@ -3565,8 +3623,8 @@ export async function createQuotation(formData: FormData): Promise<ActionResult>
 }
 
 export async function updateQuotation(id: number, formData: FormData): Promise<ActionResult> {
-  const profileId = await getActiveProfileId();
-  const existing = await prisma.quotation.findFirst({ where: { id, profileId }, select: { id: true } });
+  const profileId = await resolveExplicitOrActiveProfileId(formData);
+  const existing = await prisma.quotation.findFirst({ where: { id, profileId }, select: { id: true, number: true } });
   if (!existing) return { success: false, error: "Cotización no encontrada para el perfil activo." };
   const items = parseItems(formData);
   const total = totals(items);
@@ -3575,7 +3633,9 @@ export async function updateQuotation(id: number, formData: FormData): Promise<A
   await prisma.quotation.update({
     where: { id },
     data: {
-      number: text(formData, "number"),
+      // Sin el respaldo, un update que no mande `number` (los MCP no lo mandan) dejaria
+      // la cotizacion con el numero en blanco y chocaria con la siguiente que hiciera igual.
+      number: text(formData, "number") || existing.number,
       date: dateValue(formData, "date"),
       validUntil: optionalDate(formData, "validUntil"),
       status: text(formData, "status", "DRAFT"),
@@ -3693,7 +3753,7 @@ export async function convertQuotationToProject(id: number) {
 }
 
 export async function recordPayment(targetId: number, targetType: "INVOICE" | "PURCHASE" | "PROFORMA", formData: FormData) {
-  const profileId = await getActiveProfileId();
+  const profileId = await resolveExplicitOrActiveProfileId(formData);
   const target =
     targetType === "INVOICE"
       ? await prisma.invoice.findFirst({ where: { id: targetId, profileId }, select: { id: true } })
@@ -3721,7 +3781,7 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
       ...(attachment ? { attachments: { create: attachment } } : {}),
     },
   });
-  await recomputePaid(targetId, targetType);
+  await recomputePaid(targetId, targetType, profileId);
   revalidatePath(targetType === "INVOICE" ? "/invoices" : targetType === "PURCHASE" ? "/purchases" : "/proformas");
   return { success: true, id: payment.id };
 }
@@ -3771,8 +3831,11 @@ export async function deletePayment(id: number) {
   return { success: true };
 }
 
-async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE" | "PROFORMA") {
-  const profileId = await getActiveProfileId();
+// El perfil llega explicito desde recordPayment, que puede venir de un llamador MCP sin
+// cookie: sin eso el recalculo no encontraria el documento y el pago quedaria registrado
+// pero sin mover el saldo ni el estado.
+async function recomputePaid(id: number, type: "INVOICE" | "PURCHASE" | "PROFORMA", explicitProfileId?: number) {
+  const profileId = explicitProfileId ?? (await getActiveProfileId());
   const where = type === "INVOICE" ? { invoiceId: id } : type === "PURCHASE" ? { purchaseId: id } : { proformaInvoiceId: id };
   const payments = await prisma.payment.findMany({
     where,

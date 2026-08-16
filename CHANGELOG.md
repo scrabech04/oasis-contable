@@ -2,6 +2,41 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-15 - Pagos con su soporte, conversion de prefacturas y personas de contacto por MCP
+
+### Agregado
+- `record_payment`: registra un pago o abono contra una factura, una prefactura o una compra, y **adjunta el comprobante que lo respalda**. La idea es que la IA lea el archivo (captura de transferencia, PDF del banco), saque de ahi monto, fecha, metodo y referencia, y que ese mismo archivo quede guardado como soporte del pago. Acepta retenciones. Despues del registro se recalcula el saldo y el estado del documento.
+  - El comprobante viaja como ruta local: la herramienta le pasa la ruta al servidor MCP, que lee el archivo del disco y lo manda en base64 (`mcp-server/src/attachment.ts`). Asi el modelo no tiene que escupir megabytes de base64 en la conversacion. Tope de 8 MB, comprobado en los dos lados, porque el comprobante se guarda como data: URI dentro de la fila.
+- `convert_proforma_to_invoice`: convierte una prefactura pagada completa en factura fiscal con NCF. La descripcion de la herramienta avisa de que es irreversible y de que el NCF se consume de la secuencia.
+- `add_contact_person`: agrega una persona (nombre, telefono, correo, cargo) a un cliente o proveedor ya existente. Existia en la aplicacion pero no en el MCP.
+- `addContactPerson` en `app/actions.ts`. Hacia falta una accion propia: `updateContact` reemplaza la lista entera de personas (`deleteMany` + `create`), asi que un llamador que solo quisiera sumar a alguien tendria que reenviar a todos los demas y, si se le olvidaba uno, lo borraba sin aviso. La nueva solo agrega, rechaza un nombre que ya este en ese contacto en vez de duplicarlo, y si la marcan como principal le quita la marca a la anterior.
+- Rutas nuevas `/api/mcp/payments`, `/api/mcp/proformas/[id]/convert` y `/api/mcp/contacts/[id]/persons`.
+
+### Cambiado
+- `recordPayment` y `convertProformaToInvoice` resolvian el perfil solo por la cookie. Ahora aceptan el explicito, igual que el resto de las rutas MCP.
+- `recomputePaid` recibe el perfil por parametro. Sin eso, un pago hecho por MCP se guardaba pero el recalculo no encontraba el documento: quedaba el pago registrado sin mover el saldo ni el estado.
+
+### Pendiente de prueba
+- Igual que la entrada anterior, no se pudo probar contra datos reales por la falta de base local. Se verifico que las tres rutas responden 401 sin clave y llegan a la capa de datos con ella, y se probaron en aislado el lector de archivos (`loadAttachment`: rechaza inexistente, vacio, directorio y mayor al tope) y el validador del servidor (`fileFromMcpAttachment`: rechaza base64 invalido, falta de contenido y exceso de tamano).
+- Al desplegar, probar el flujo entero: registrar un abono con captura de transferencia y confirmar que el comprobante queda visible en el documento, y convertir una prefactura pagada.
+
+## 2026-08-15 - El MCP ya maneja cotizaciones y prefacturas
+
+### Agregado
+- El servidor MCP cubria facturas, compras formales y gastos, pero no cotizaciones ni prefacturas: no habia forma de crearlas, editarlas ni listarlas desde fuera de la aplicacion. Se agregaron seis herramientas (`list_quotations`, `create_quotation`, `update_quotation`, `list_proformas`, `create_proforma`, `update_proforma`) con las mismas reglas que ya tenian las demas: clave `x-api-key`, `profileId` explicito y `confirm: true` obligatorio tras ensenarle al usuario el resumen calculado.
+- Rutas nuevas `/api/mcp/quotations`, `/api/mcp/quotations/[id]`, `/api/mcp/proformas` y `/api/mcp/proformas/[id]`.
+- `quotationUpdateDefaults` y `proformaUpdateDefaults` en `lib/mcp.ts`, para que una edicion parcial (por ejemplo, solo mover el proyecto) no borre lo que el llamador no mando. Los items siguen reemplazandose enteros cuando si se mandan.
+
+### Cambiado
+- `getQuotations`, `getProformas`, `createQuotation`, `updateQuotation`, `createProforma` y `updateProforma` resolvian el perfil solo por la cookie del navegador (`getActiveProfileId`). Como los llamadores MCP no llevan cookie, ahora aceptan el perfil explicito igual que facturas y compras (`resolveReadProfileId` / `resolveExplicitOrActiveProfileId`). El comportamiento de la web no cambia: sigue sin mandar perfil y sigue usando el activo.
+- `createQuotation` genera el numero `COT-xxxx` cuando no se lo mandan. Antes lo exigia en el formulario, asi que un llamador que no lo pusiera creaba la cotizacion con el numero en blanco.
+
+### Corregido
+- `updateQuotation` escribia `number` con lo que viniera en el formulario y sin respaldo: una edicion que no mandara ese campo dejaba la cotizacion sin numero, y la siguiente que hiciera lo mismo chocaba contra el indice unico. Ahora conserva el numero actual.
+
+### Pendiente de prueba
+- No se pudo probar contra datos reales: el `.env` local apunta a `file:./dev.db` (SQLite) y el schema es PostgreSQL, asi que no hay base local que levantar. Se verifico que las rutas responden 401 sin clave y llegan hasta la capa de datos con ella. Falta desplegar y crear una cotizacion y una prefactura de prueba desde el MCP, revisando que caigan en el perfil correcto.
+
 ## 2026-08-13 - El sitio web del proveedor ya no exige escribir https://
 
 ### Cambiado
