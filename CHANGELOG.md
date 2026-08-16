@@ -25,8 +25,15 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 - Una sesion firmada de antes de que existieran los roles se lee como `OWNER`, y un `role` inventado dentro del token no cuela: cualquier valor que no sea `ACCOUNTANT` cae en `OWNER`, y el payload va firmado con HMAC.
 - Auditoria automatica de que ninguna accion mutante quedo sin guardia. Las dos que aparecen sin el son a proposito: `setActiveProfile` (solo escribe la cookie, y comprueba el alcance por su cuenta) y `processDGIIQR` (solo interpreta el texto de un QR).
 
+### Corregido antes de darlo por bueno
+- La pantalla `/invite` escribia la cookie del token durante el render. Next no deja modificar cookies desde un Server Component, solo desde una server action o un route handler, asi que con un token **valido** el render fallaba y la pantalla se quedaba en `Preparando la pantalla...`. Los tokens invalidos si se veian bien porque ese camino retorna antes de tocar la cookie: el fallo salia unicamente en el caso que importa. Ahora el token viaja como parametro a `/api/auth/google`, que si puede escribirla.
+
+### Probado contra produccion
+- La migracion se aplico y se verifico con Prisma sobre la base real: alta con perfiles ligados, lectura por token, correo duplicado rechazado y borrado en cascada sin filas huerfanas.
+- El flujo de la invitacion, con filas de prueba creadas y borradas en la base de produccion: token vigente muestra la invitacion **con el perfil correcto y sin filtrar el otro**; token inventado, vencido y ya usado se rechazan los tres.
+
 ### Pendiente de prueba
-- Todo esto esta probado en logica y compila, pero **no se ha ejercitado contra la base**: falta invitar de verdad a un correo, aceptar desde otra cuenta de Google y confirmar en pantalla que no aparece nada mas que compras, gastos y reportes.
+- Falta el ultimo tramo, que necesita una segunda cuenta de Google: aceptar la invitacion de verdad y confirmar en pantalla que no aparece nada mas que compras, gastos y reportes.
 - Probar tambien el intento hostil: con la sesion del contador abierta, cambiar la cookie `active_profile_id` al perfil que no le dieron y confirmar que sigue viendo el suyo.
 
 ## 2026-08-15 - Pagos con su soporte, conversion de prefacturas y personas de contacto por MCP
