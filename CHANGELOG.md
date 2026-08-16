@@ -2,6 +2,28 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-16 - Cambiar la numeracion al editar una factura
+
+### Agregado
+- **El desplegable de numeracion ahora sale tambien al editar.** Solo aparecia al crear (`!initialData` en `InvoiceForm.tsx`), asi que pasar una factura de B02 a B01 obligaba a teclear el NCF a mano. Ahora se elige la secuencia igual que al crear, con la opcion `Manual / Sin NCF` incluida.
+- Al abrir la edicion se preselecciona la secuencia a la que pertenece el NCF que la factura ya tiene, para que se vea de donde salio. Si no cuadra con ninguna (escrito a mano o importado del sistema anterior), queda en `Manual`.
+- La pantalla de edicion ni siquiera cargaba las secuencias; ahora las pide.
+- Aviso en pantalla cuando la edicion cambia el NCF, diciendo cual se abandona: el comprobante anterior queda anulado y no se puede reutilizar.
+
+### Cambiado
+- `updateInvoice` ignoraba `ncfSequenceId`: el formulario lo mandaba y la accion solo leia el `ncf` como texto. Ahora, si se elige una secuencia, el numero se reclama de forma atomica con `issueNextNcf` al guardar, la misma garantia que al crear; el que muestra el navegador es una vista previa.
+- **Editar una factura no gasta un comprobante nuevo.** La emision solo ocurre cuando el NCF que llega es distinto del que ya tiene: sin eso, cada retoque de una linea o una fecha habria consumido un NCF y dejado huecos en la serie. Cambiar de secuencia y volver a la original tampoco gasta: se restituye el NCF con el que se abrio.
+
+### Corregido
+- **El NCF se guardaba tal como se teclara.** El campo se ve en mayusculas, pero eso era solo CSS: escribir `b0100000045` guardaba un NCF en minusculas que en pantalla se veia igual que el correcto. Ahora se normaliza al guardar (`normalizeNcf`) y el campo tambien convierte mientras se escribe.
+- Un NCF escrito a mano no adelantaba el contador de su secuencia. Repetirlo ya era imposible (`nextFreeSequenceNumber` mira los NCF realmente emitidos y `findInvoiceWithNcf` rechaza el duplicado al guardar), pero el contador quedaba por detras de la realidad y la pantalla de numeracion mentia. Ahora se alinea al crear, al editar y al convertir una prefactura, con un solo helper (`syncSequenceCounter`) en vez de la copia suelta que tenia la conversion.
+
+### Probado
+- 21 comprobaciones de la logica pura: normalizacion (minusculas, espacios, vacio), reparto de un NCF en secuencia y correlativo (B01, B02, e-NCF de 10 digitos, con letras detras, demasiado corto), y que el contador nunca entregue un numero ya emitido (contador por detras, por delante, serie sin estrenar, otra serie, NCF con basura).
+
+### Pendiente de prueba
+- Falta hacerlo en pantalla con una factura real: abrir una B02, pasarla a B01, guardar, y confirmar que toma el siguiente de B01 y que el contador de la pantalla de numeracion queda donde debe. Y el caso de ida y vuelta: cambiar de secuencia, volver a la original y comprobar que conserva su NCF sin gastar ninguno.
+
 ## 2026-08-16 - Acceso de solo lectura para el contador
 
 ### Agregado

@@ -14,7 +14,7 @@ import {
 import { allowedProfileIds, requireWriteAccess } from "@/lib/authz";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
-import { formatNcf, nextFreeNumber } from "@/lib/ncf";
+import { formatNcf, nextFreeNumber, normalizeNcf, splitNcf } from "@/lib/ncf";
 import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
 
@@ -2496,6 +2496,30 @@ async function nextFreeSequenceNumber(profileId: number, prefix: string, counter
   return nextFreeNumber(cleanPrefix, counter, issued.map((invoice) => invoice.ncf));
 }
 
+/**
+ * Adelanta el contador de la secuencia a la que pertenece un NCF escrito a mano.
+ *
+ * Repetirlo ya era imposible sin esto: `nextFreeSequenceNumber` mira los NCF realmente
+ * emitidos y `findInvoiceWithNcf` rechaza el duplicado al guardar. Lo que quedaba era el
+ * contador guardado por detras de la realidad, que se ve mal en la pantalla de numeracion
+ * y obliga a que cada emision lo recalcule. Con esto el contador dice la verdad.
+ *
+ * Recibe el cliente porque las conversiones lo llaman dentro de su transaccion.
+ */
+async function syncSequenceCounter(
+  client: Prisma.TransactionClient | typeof prisma,
+  profileId: number,
+  ncf: string | null | undefined,
+) {
+  const parsed = splitNcf(ncf);
+  if (!parsed) return;
+
+  await client.numberingSequence.updateMany({
+    where: { profileId, prefix: parsed.prefix, nextNumber: { lte: parsed.number } },
+    data: { nextNumber: parsed.number + 1 },
+  });
+}
+
 // Un NCF escrito a mano no pasa por la secuencia, asi que se comprueba contra las
 // facturas ya emitidas del perfil. La DGII no permite repetir un comprobante.
 async function findInvoiceWithNcf(profileId: number, ncf: string, excludeId?: number) {
@@ -2696,7 +2720,7 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
     const ncfSequenceId = optionalNumber(formData, "ncfSequenceId");
-    const manualNcf = ncfSequenceId ? null : optionalText(formData, "ncf");
+    const manualNcf = ncfSequenceId ? null : normalizeNcf(optionalText(formData, "ncf"));
 
     if (manualNcf) {
       const clash = await findInvoiceWithNcf(profileId, manualNcf);
@@ -2741,6 +2765,9 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
       }
     }
 
+    // El emitido por secuencia ya dejo el contador donde toca; el escrito a mano no.
+    if (manualNcf) await syncSequenceCounter(prisma, profileId, manualNcf);
+
     revalidatePath("/invoices");
     return { success: true, id: invoice.id };
   } catch (error) {
@@ -2749,20 +2776,61 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
   }
 }
 
+/**
+ * Que NCF le queda a una factura que se esta editando.
+ *
+ * Devuelve `{ ncf }` con el que queda, o `{ error }` si hay que abortar el guardado. Van
+ * en claves distintas a proposito: "sin NCF" es un resultado valido, y con un `null` suelto
+ * como valor de fallo no habria forma de distinguirlo de un error.
+ *
+ * Lo importante aqui es NO quemar un comprobante en cada guardado. Al editar cualquier
+ * cosa (una linea, la fecha) el formulario reenvia la numeracion tal cual la cargo; si eso
+ * disparara una emision, cada retoque consumiria un NCF nuevo y dejaria un hueco en la
+ * serie. Por eso solo se emite cuando el NCF que llega es distinto del que ya tiene.
+ */
+async function resolveUpdatedInvoiceNcf(
+  formData: FormData,
+  profileId: number,
+  invoiceId: number,
+  currentNcf: string | null,
+): Promise<{ ncf: string | null } | { error: string }> {
+  const sequenceId = optionalNumber(formData, "ncfSequenceId");
+  const submitted = normalizeNcf(optionalText(formData, "ncf"));
+
+  // Nada cambio en la numeracion: se deja como esta y no se toca ninguna secuencia.
+  if (submitted === normalizeNcf(currentNcf)) return { ncf: currentNcf };
+
+  if (sequenceId) {
+    // El numero que mando el navegador era una vista previa. El de verdad se reclama
+    // ahora, de forma atomica, para que dos facturas guardadas a la vez no choquen.
+    try {
+      return { ncf: await issueNextNcf(sequenceId, profileId) };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "No fue posible asignar el NCF." };
+    }
+  }
+
+  if (!submitted) return { ncf: null };
+
+  const clash = await findInvoiceWithNcf(profileId, submitted, invoiceId);
+  if (clash) {
+    return { error: `El NCF ${submitted} ya está usado en la factura ${clash.number}.` };
+  }
+
+  await syncSequenceCounter(prisma, profileId, submitted);
+  return { ncf: submitted };
+}
+
 export async function updateInvoice(id: number, formData: FormData): Promise<ActionResult> {
   await requireWriteAccess();
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
-    const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true } });
+    const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true, ncf: true } });
     if (!existing) return { success: false, error: "Factura no encontrada para el perfil activo." };
 
-    const ncf = optionalText(formData, "ncf");
-    if (ncf) {
-      const clash = await findInvoiceWithNcf(profileId, ncf, id);
-      if (clash) {
-        return { success: false, error: `El NCF ${ncf} ya está usado en la factura ${clash.number}.` };
-      }
-    }
+    const numbering = await resolveUpdatedInvoiceNcf(formData, profileId, id, existing.ncf);
+    if ("error" in numbering) return { success: false, error: numbering.error };
+    const ncf = numbering.ncf;
 
     const items = parseItems(formData);
     const total = totals(items);
@@ -2982,7 +3050,7 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   if (proforma.status === "CONVERTED") return { success: false, error: "Esta prefactura ya fue convertida." };
   if ((proforma.paidAmount || 0) < proforma.total) return { success: false, error: "La prefactura debe estar pagada completa antes de emitir la factura fiscal." };
   // Un NCF explicito sigue mandando; si no viene, lo emite la secuencia preferida.
-  const manualNcf = formData ? optionalText(formData, "ncf") : null;
+  const manualNcf = formData ? normalizeNcf(optionalText(formData, "ncf")) : null;
   if (manualNcf) {
     const clash = await findInvoiceWithNcf(profileId, manualNcf);
     if (clash) {
@@ -3029,16 +3097,8 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
       data: { invoiceId: created.id },
     });
     await tx.proformaInvoice.update({ where: { id: proforma.id }, data: { status: "CONVERTED" } });
-    // Solo para el NCF escrito a mano: si pertenece a una secuencia, esta se adelanta a el
-    // en vez de exigir que el contador estuviera justo en ese numero, asi no lo vuelve a
-    // entregar. El emitido por secuencia ya dejo el contador donde toca.
-    const usedNumber = Number(manualNcf?.slice(3));
-    if (manualNcf && Number.isFinite(usedNumber)) {
-      await tx.numberingSequence.updateMany({
-        where: { profileId, prefix: manualNcf.slice(0, 3), nextNumber: { lte: usedNumber } },
-        data: { nextNumber: usedNumber + 1 },
-      });
-    }
+    // Solo para el NCF escrito a mano: el emitido por secuencia ya dejo el contador donde toca.
+    if (manualNcf) await syncSequenceCounter(tx, profileId, manualNcf);
     return created;
   });
   revalidatePath("/proformas");

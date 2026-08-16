@@ -115,27 +115,53 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
 
 
 
+    // El NCF con el que se abrio la factura. Sirve para poder volver a el sin gastar un
+    // comprobante nuevo si se cambia de secuencia y se recapacita.
+    const originalNcf = initialData?.ncf || "";
+
     useEffect(() => {
-        if (!initialData && numberingSequences.length > 0) {
+        if (numberingSequences.length === 0) return;
+
+        if (!initialData) {
             const preferred = numberingSequences.find(s => s.isPreferred);
             if (preferred) {
                 setSelectedSequenceId(preferred.id.toString());
                 handleSequenceChange(preferred.id.toString());
             }
+            return;
         }
+
+        // Al editar se preselecciona la secuencia a la que pertenece el NCF que ya tiene,
+        // para que se vea de donde salio. Si no cuadra con ninguna (escrito a mano o
+        // importado), queda en Manual.
+        const prefix = originalNcf.slice(0, 3).toUpperCase();
+        const owner = prefix ? numberingSequences.find(s => String(s.prefix).toUpperCase() === prefix) : undefined;
+        setSelectedSequenceId(owner ? owner.id.toString() : "");
     }, [numberingSequences, initialData]);
 
     const handleSequenceChange = async (sequenceId: string) => {
         setSelectedSequenceId(sequenceId);
-        if (sequenceId) {
-            try {
-                const nextNcf = await getNextNcf(parseInt(sequenceId));
-                setNcf(nextNcf);
-            } catch (error: any) {
-                toast.error("No se pudo tomar el NCF", error.message);
-                setNcf("");
-            }
-        } else {
+
+        if (!sequenceId) {
+            // Manual: se conserva lo que hubiera para poder corregirlo, en vez de vaciarlo
+            // y obligar a teclearlo de nuevo.
+            return;
+        }
+
+        // Volver a la secuencia original devuelve su NCF tal cual. Sin esto, entrar y salir
+        // del desplegable dejaba un numero distinto y abandonaba el comprobante ya emitido.
+        const chosen = numberingSequences.find(s => s.id.toString() === sequenceId);
+        const originalPrefix = originalNcf.slice(0, 3).toUpperCase();
+        if (chosen && originalNcf && String(chosen.prefix).toUpperCase() === originalPrefix) {
+            setNcf(originalNcf);
+            return;
+        }
+
+        try {
+            const nextNcf = await getNextNcf(parseInt(sequenceId));
+            setNcf(nextNcf);
+        } catch (error: any) {
+            toast.error("No se pudo tomar el NCF", error.message);
             setNcf("");
         }
     };
@@ -383,7 +409,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                     <label className="absolute left-3 -top-2 px-1 bg-white dark:bg-slate-900 text-[10px] font-bold uppercase text-slate-400 z-10">Numeración / NCF</label>
 
                                     <div className="space-y-2">
-                                        {!initialData && numberingSequences.length > 0 && (
+                                        {numberingSequences.length > 0 && (
                                             <div className="relative">
                                                 <select
                                                     className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl py-3 px-3 text-xs focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-medium"
@@ -405,9 +431,20 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                             placeholder="E3100000000"
                                             type="text"
                                             value={ncf}
-                                            onChange={(e) => setNcf(e.target.value)}
-                                            readOnly={!!selectedSequenceId && !initialData}
+                                            onChange={(e) => setNcf(e.target.value.toUpperCase())}
+                                            readOnly={!!selectedSequenceId}
                                         />
+                                        {selectedSequenceId && !initialData && (
+                                            <p className="text-[11px] text-slate-400">
+                                                El número definitivo se toma de la secuencia al guardar.
+                                            </p>
+                                        )}
+                                        {initialData && originalNcf && ncf.toUpperCase() !== originalNcf.toUpperCase() && (
+                                            <p className="text-[11px] font-medium text-amber-600 dark:text-amber-500">
+                                                Esta factura pasa de {originalNcf} a {ncf || "sin NCF"}. El comprobante anterior
+                                                queda anulado y no se puede reutilizar.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

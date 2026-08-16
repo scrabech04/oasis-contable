@@ -1,5 +1,5 @@
 import { InvoiceForm } from "@/components/invoices/InvoiceForm";
-import { getContacts, getInvoice, getProjects } from "@/app/actions";
+import { getContacts, getInvoice, getNumberingSequences, getProjects } from "@/app/actions";
 import { notFound } from "next/navigation";
 
 interface EditInvoicePageProps {
@@ -14,10 +14,11 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         notFound();
     }
 
-    const [invoice, contacts, projects] = await Promise.all([
+    const [invoice, contacts, projects, numberingSequences] = await Promise.all([
         getInvoice(invoiceId),
         getContacts({ type: 'CLIENT' as any }),
-        getProjects()
+        getProjects(),
+        getNumberingSequences()
     ]);
 
     if (!invoice) {
@@ -26,7 +27,12 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
 
     return (
         <div className="animate-in fade-in duration-500">
-            <InvoiceForm contacts={contacts} projects={projects} initialData={invoice} />
+            <InvoiceForm
+                contacts={contacts}
+                projects={projects}
+                initialData={invoice}
+                numberingSequences={numberingSequences}
+            />
         </div>
     );
 }

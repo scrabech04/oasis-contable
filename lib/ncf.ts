@@ -8,6 +8,35 @@ export function formatNcf(prefix: string, number: number) {
   return `${prefix}${String(number).padStart(8, "0")}`;
 }
 
+/**
+ * El campo de NCF del formulario se ve en mayusculas por CSS, pero eso es solo pintura: el
+ * valor viaja tal como se tecleo. Sin normalizar aqui, escribir "b0100000045" guardaba un
+ * NCF en minusculas que en pantalla se veia igual que el correcto.
+ */
+export function normalizeNcf(value: string | null | undefined) {
+  const clean = String(value || "").trim().toUpperCase();
+  return clean || null;
+}
+
+/**
+ * Parte un NCF en prefijo y correlativo, o null si no tiene esa forma.
+ * `B0100000045` -> `{ prefix: "B01", number: 45 }`.
+ *
+ * El prefijo son los tres primeros caracteres (`B01`, `B02`, `E31`...), igual que asume el
+ * resto de la aplicacion; lo que sigue tiene que ser todo digitos para considerarlo un
+ * correlativo y no un codigo escrito a mano.
+ */
+export function splitNcf(ncf: string | null | undefined) {
+  const clean = normalizeNcf(ncf);
+  if (!clean || clean.length <= 3) return null;
+
+  const prefix = clean.slice(0, 3);
+  const suffix = clean.slice(3);
+  if (!/^\d+$/.test(suffix)) return null;
+
+  return { prefix, number: Number(suffix) };
+}
+
 /** Mayor correlativo ya emitido con ese prefijo, o 0 si la serie esta sin estrenar. */
 export function highestIssuedNumber(prefix: string, issued: Array<string | null | undefined>) {
   const cleanPrefix = String(prefix || "").trim().toUpperCase();
