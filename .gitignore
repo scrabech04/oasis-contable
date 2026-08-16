@@ -60,3 +60,9 @@ prisma/dev.db
 # repositorio; lo que se deje dentro (facturas, comprobantes) no.
 entrada/*
 !entrada/LEEME.md
+
+# Grafo de conocimiento de graphify: se regenera con "graphify update ."
+graphify-out/
+
+# Permisos personales de Claude Code, propios de cada maquina
+.claude/settings.local.json
