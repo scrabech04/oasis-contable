@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { ROLE_ACCOUNTANT } from "@/lib/auth";
-import { INVITE_COOKIE, previewInvite } from "@/lib/invite-flow";
+import { previewInvite } from "@/lib/invite-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -19,16 +18,6 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       </main>
     );
   }
-
-  // Se guarda aqui para que el callback de Google sepa que venia de una invitacion. Dura
-  // poco: solo el viaje de ida y vuelta a Google.
-  (await cookies()).set(INVITE_COOKIE, token, {
-    httpOnly: true,
-    maxAge: 60 * 15,
-    path: "/",
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  });
 
   const roleLabel =
     invite.role === ROLE_ACCOUNTANT ? "solo lectura de compras, gastos y reportes" : "acceso completo";
@@ -61,7 +50,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       </p>
 
       <Link
-        href="/api/auth/google"
+        href={`/api/auth/google?invite=${encodeURIComponent(token)}`}
         className="rounded-md bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground"
       >
         Continuar con Google
