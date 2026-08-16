@@ -15,8 +15,13 @@ Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nue
 ### Cambiado
 - Las reglas del soporte (tipos permitidos y tope de 10 MB) salen de `app/actions.ts` a `lib/attachments.ts`, para que las rutas MCP puedan comprobarlas **antes** de crear nada. Si el archivo no sirve, la compra no llega a guardarse: al reves quedaria una compra registrada sin el soporte que se pidio, que es justo lo que se queria evitar. Si aun asi fallara el adjunto despues de guardar, la respuesta lo dice en vez de callarselo.
 
+### Corregido al probarlo
+- Un adjunto grande no daba el aviso de tamano sino `Unterminated string in JSON at position 10427562`: el servidor corta el cuerpo de la peticion antes de que la validacion llegue a verlo. La compra no se creaba, que es lo importante, pero el mensaje no le decia nada a nadie. Ahora el cuerpo se lee con `readMcpJson`, que traduce ese fallo a lo que casi siempre significa.
+- **El tope real es 7 MB, no 10.** El archivo viaja en base64 dentro del JSON y eso infla un 37%, asi que con el corte del servidor cerca de los 10 MB un archivo de mas de ~7 MB llega truncado. El servidor MCP lo comprueba antes de que nada salga por la red.
+
 ### Probado
-- 16 comprobaciones de las reglas del soporte: se aceptan PDF, JPG, PNG y WEBP, incluido justo en el limite de 10 MB y con un solo byte; se rechazan GIF, HEIC, Excel, texto plano, tipo desconocido, 11 MB, un byte pasado del limite, vacio, tamano negativo y NaN.
+- 16 comprobaciones de las reglas del soporte: se aceptan PDF, JPG, PNG y WEBP, incluido justo en el limite y con un solo byte; se rechazan GIF, HEIC, Excel, texto plano, tipo desconocido, 11 MB, un byte pasado del limite, vacio, tamano negativo y NaN.
+- Contra produccion, con una compra de prueba creada y borrada despues: un tipo no permitido responde 400 y **no crea la compra**; un PDF valido la crea con el soporte adjunto (`ORIGINAL_INVOICE`), guardado como data URI y con el contenido devuelto intacto byte a byte; y editar con otro archivo **reemplaza** el soporte en vez de acumular (queda uno solo). Al borrar la compra no quedan adjuntos huerfanos.
 
 ### Nota
 - **Las fotos de iPhone (HEIC) se rechazan.** Es la regla que ya tenia la web, no se cambio aqui. Si hace falta, es agregar el tipo a `lib/attachments.ts`, pero conviene comprobar antes que el visor de la pantalla de compras sepa mostrarlo.
