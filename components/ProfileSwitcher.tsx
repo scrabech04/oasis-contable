@@ -16,9 +16,11 @@ type Profile = {
 export function ProfileSwitcher({
   profiles,
   activeProfileId,
+  readOnly = false,
 }: {
   profiles: Profile[];
   activeProfileId: number;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -28,6 +30,21 @@ export function ProfileSwitcher({
   if (!activeProfile) return null;
 
   const switchProfile = (nextProfileId: number) => {
+    // Las cuentas de solo lectura tienen todas las server actions bloqueadas en el
+    // middleware, asi que cambian de perfil por la ruta /api/active-profile con un envio
+    // de formulario normal. Ver lib/access.ts.
+    if (readOnly) {
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = "/api/active-profile";
+      form.innerHTML =
+        `<input type="hidden" name="profileId" value="${nextProfileId}">` +
+        `<input type="hidden" name="returnTo" value="${window.location.pathname}">`;
+      document.body.appendChild(form);
+      form.submit();
+      return;
+    }
+
     const next = profiles.find((profile) => profile.id === nextProfileId);
     if (!next || nextProfileId === activeProfileId) return;
 

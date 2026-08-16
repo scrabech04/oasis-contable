@@ -2,6 +2,33 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-16 - Acceso de solo lectura para el contador
+
+### Agregado
+- **Roles.** Hasta ahora el permiso era `AUTH_ALLOWED_EMAILS`, una lista de correos que solo sabe decir si alguien entra o no: todo el que entraba entraba como dueno, sin excepcion. Ahora hay dos roles: `OWNER` (todo) y `ACCOUNTANT` (solo lectura de compras, gastos y reportes, y solo en los perfiles que se le asignen). Los correos de `AUTH_ALLOWED_EMAILS` siguen siendo dueno aunque no tengan fila en la tabla nueva, para no dejar a nadie fuera al desplegar esto.
+- **Tablas `AppUser` y `AppUserProfile`** (migracion `20260815000100_add_app_users_and_invitations`). Guardan quien entra, con que rol, a que perfiles y en que estado (`INVITED`, `ACTIVE`, `DISABLED`). Revocar deja la fila para conservar el rastro.
+- **Invitacion por enlace.** En `Configuracion` aparece `Acceso de terceros`: se escribe el correo, se marcan los perfiles y sale un enlace para copiar y enviar por fuera. Vence a los 7 dias, sirve una sola vez y **solo funciona si quien lo abre inicia sesion con la cuenta de Google de ese mismo correo**, asi que reenviarlo no sirve de nada. En la base solo queda el SHA-256 del token; el token en claro existe unicamente en el enlace.
+- Pagina `/invite/[token]` y ruta `/api/active-profile`.
+
+### Seguridad
+- **La regla que sostiene el solo lectura es una sola:** el middleware rechaza toda peticion que lleve la cabecera `next-action`, que es como viajan las server actions de Next. No hay que enumerar las 56 acciones que escriben ni acordarse de proteger las que se agreguen despues; lo que no esta permitido no necesita listarse. Por eso el cambio de perfil del contador no es una server action sino un POST normal a `/api/active-profile`: para no tener que perforar la regla con excepciones.
+- Segunda capa de todos modos: `requireWriteAccess()` al principio de las 56 acciones que crean, modifican o borran. El middleware es facil de romper sin darse cuenta al tocar el matcher, y una accion puede invocarse desde codigo que no pase por el.
+- Tercera: el contador solo alcanza `/purchases`, `/purchases/<id>`, `/expenses`, `/reports` y `/reports/it1`. `/purchases/new`, `/purchases/<id>/edit`, `/purchases/quick`, `/purchases/ai-import` y todo lo demas rebotan a `/purchases`.
+- **El alcance por perfil se aplica en `getActiveProfileId()`**, que es por donde pasan todas las consultas de la aplicacion. Sin eso, un invitado cambiaba a mano la cookie `active_profile_id` y leia el perfil que no le dieron. `setActiveProfile` y `/api/active-profile` comprueban lo mismo.
+- Esconder enlaces del menu **no es** proteccion y no se trata como tal: se filtran con la misma regla solo para no ofrecer pantallas que van a rebotar.
+
+### Nota importante
+- Los reportes 606/607 y el IT-1 leen compras **y facturas de venta** (`getReportData`), asi que el contador ve los ingresos agregados del perfil. No se puede separar sin romper los reportes: el 607 son las ventas. No ve las pantallas de facturacion, cotizaciones, prefacturas, proyectos ni contactos.
+
+### Probado
+- 45 comprobaciones de la logica pura: que rutas abre y cuales no (incluidas `/purchases/13/edit`, `/purchases/abc` y `/purchasesX`, que no deben colarse), deteccion de server actions, y las invitaciones (token distinto del hash, hash reproducible, comparacion en tiempo constante, vencida / ya usada / revocada / sin vencimiento no sirven).
+- Una sesion firmada de antes de que existieran los roles se lee como `OWNER`, y un `role` inventado dentro del token no cuela: cualquier valor que no sea `ACCOUNTANT` cae en `OWNER`, y el payload va firmado con HMAC.
+- Auditoria automatica de que ninguna accion mutante quedo sin guardia. Las dos que aparecen sin el son a proposito: `setActiveProfile` (solo escribe la cookie, y comprueba el alcance por su cuenta) y `processDGIIQR` (solo interpreta el texto de un QR).
+
+### Pendiente de prueba
+- Todo esto esta probado en logica y compila, pero **no se ha ejercitado contra la base**: falta invitar de verdad a un correo, aceptar desde otra cuenta de Google y confirmar en pantalla que no aparece nada mas que compras, gastos y reportes.
+- Probar tambien el intento hostil: con la sesion del contador abierta, cambiar la cookie `active_profile_id` al perfil que no le dieron y confirmar que sigue viendo el suyo.
+
 ## 2026-08-15 - Pagos con su soporte, conversion de prefacturas y personas de contacto por MCP
 
 ### Agregado

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { ProfileSwitcher } from "./ProfileSwitcher";
 import { ThemeToggle } from "./ThemeToggle";
+import { accountantCanOpen } from "@/lib/access";
 
 type Profile = { id: number; name: string; taxId: string; type: string };
 
@@ -56,13 +57,19 @@ function isActivePath(pathname: string, href: string) {
 export function MobileBottomNav({
   profiles,
   activeProfileId,
+  readOnly = false,
 }: {
   profiles: Profile[];
   activeProfileId: number;
+  readOnly?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const isMoreActive = moreLinks.some((link) => isActivePath(pathname, link.href));
+  // Misma regla que aplica el middleware; ver el comentario en Sidebar.tsx.
+  const visible = (href: string) => !readOnly || accountantCanOpen(href);
+  const shownPrimary = primaryLinks.filter((link) => visible(link.href));
+  const shownMore = moreLinks.filter((link) => visible(link.href));
+  const isMoreActive = shownMore.some((link) => isActivePath(pathname, link.href));
 
   return (
     <>
@@ -88,11 +95,11 @@ export function MobileBottomNav({
             </div>
 
             <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50 py-3 dark:border-slate-800 dark:bg-slate-900/70">
-              <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} />
+              <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} readOnly={readOnly} />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {moreLinks.map((link) => {
+              {shownMore.map((link) => {
                 const Icon = link.icon;
                 const active = isActivePath(pathname, link.href);
                 return (
@@ -127,7 +134,7 @@ export function MobileBottomNav({
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-3 pt-2 shadow-[0_-12px_30px_rgba(15,23,42,0.10)] backdrop-blur-md pb-[calc(0.75rem+env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-slate-950/95 md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-          {primaryLinks.map((link) => {
+          {shownPrimary.map((link) => {
             const Icon = link.icon;
             const active = isActivePath(pathname, link.href);
             return (

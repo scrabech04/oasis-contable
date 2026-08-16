@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   AUTH_SESSION_COOKIE,
   AUTH_STATE_COOKIE,
+  ROLE_ACCOUNTANT,
   createSessionToken,
   decodeJwtPayload,
   getAppUrl,
   getAuthSecret,
   getGoogleCallbackUrl,
-  isEmailAllowed,
 } from "@/lib/auth";
+import { markLogin, resolveLoginRole } from "@/lib/authz";
+import { ACCOUNTANT_HOME } from "@/lib/access";
+import { INVITE_COOKIE, acceptPendingInvite } from "@/lib/invite-flow";
 
 function loginRedirect(request: NextRequest, error: string) {
   return NextResponse.redirect(getAppUrl(`/login?error=${error}`, request));
@@ -71,17 +74,31 @@ export async function GET(request: NextRequest) {
     return loginRedirect(request, "invalid_identity");
   }
 
-  if (!isEmailAllowed(email)) {
+  const displayName = typeof profile?.name === "string" ? profile.name : email;
+
+  // Si venia de un enlace de invitacion, se activa aqui: solo despues de que Google
+  // confirmo que quien esta al otro lado es dueno del correo al que se invito.
+  const pendingInviteToken = request.cookies.get(INVITE_COOKIE)?.value;
+  if (pendingInviteToken) {
+    await acceptPendingInvite(pendingInviteToken, email, displayName);
+  }
+
+  const role = await resolveLoginRole(email);
+  if (!role) {
     return loginRedirect(request, "not_allowed");
   }
 
   const sessionToken = await createSessionToken({
     email,
-    name: typeof profile?.name === "string" ? profile.name : email,
+    name: displayName,
     picture: typeof profile?.picture === "string" ? profile.picture : undefined,
+    role,
   }, authSecret);
 
-  const response = NextResponse.redirect(getAppUrl("/", request));
+  await markLogin(email);
+
+  const landing = role === ROLE_ACCOUNTANT ? ACCOUNTANT_HOME : "/";
+  const response = NextResponse.redirect(getAppUrl(landing, request));
   response.cookies.set(AUTH_SESSION_COOKIE, sessionToken, {
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 30,
@@ -90,5 +107,6 @@ export async function GET(request: NextRequest) {
     secure: process.env.NODE_ENV === "production",
   });
   response.cookies.delete(AUTH_STATE_COOKIE);
+  response.cookies.delete(INVITE_COOKIE);
   return response;
 }

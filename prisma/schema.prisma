@@ -462,8 +462,47 @@ model AccountProfile {
   subscriptions      Subscription[]
   companySettings    CompanySettings?
   identities         CompanyIdentity[]
+  userAccess         AppUserProfile[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+}
+
+/// Quien puede entrar a la aplicacion y con que permisos.
+///
+/// Hasta ahora el permiso era la variable de entorno AUTH_ALLOWED_EMAILS, que solo sabe
+/// decir si un correo entra o no, y a todo el que entra le da acceso completo. Los correos
+/// de esa lista siguen siendo OWNER aunque no tengan fila aqui, para no dejar a nadie
+/// fuera al desplegar esto.
+model AppUser {
+  id              Int              @id @default(autoincrement())
+  email           String           @unique
+  name            String?
+  /// OWNER (todo) o ACCOUNTANT (solo lectura de compras, gastos y reportes).
+  role            String           @default("ACCOUNTANT")
+  /// INVITED (aun no acepta), ACTIVE, DISABLED (revocado, conserva el historial).
+  status          String           @default("INVITED")
+  /// SHA-256 del token de invitacion. El token en claro solo existe en el enlace que se
+  /// le entrega a la persona: si se filtra la base, no sirve para entrar.
+  inviteTokenHash String?          @unique
+  inviteExpiresAt DateTime?
+  invitedByEmail  String?
+  acceptedAt      DateTime?
+  lastLoginAt     DateTime?
+  profiles        AppUserProfile[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+/// A que perfiles llega cada usuario invitado. Un OWNER no necesita filas aqui: llega a todos.
+model AppUserProfile {
+  id        Int            @id @default(autoincrement())
+  userId    Int
+  user      AppUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId Int
+  profile   AccountProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@unique([userId, profileId])
 }
 
 model Subscription {

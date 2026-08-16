@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { allowedProfileIds } from "@/lib/authz";
 
 export const ACTIVE_PROFILE_COOKIE = "active_profile_id";
 
@@ -119,7 +120,9 @@ export async function ensureAccountProfilesSetup() {
 
 export async function getAccountProfiles() {
   await ensureAccountProfilesSetup();
+  const allowed = await allowedProfileIds();
   return prisma.accountProfile.findMany({
+    where: allowed === null ? undefined : { id: { in: allowed } },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   });
 }
@@ -129,6 +132,18 @@ export async function getActiveProfileId() {
   const cookieStore = await cookies();
   const rawId = cookieStore.get(ACTIVE_PROFILE_COOKIE)?.value;
   const parsedId = Number(rawId);
+
+  // `null` = dueno, llega a todos los perfiles. Una lista = invitado, y entonces la cookie
+  // no decide nada por si sola: es el unico sitio por el que pasan TODAS las consultas de
+  // la aplicacion, asi que aqui es donde el alcance por perfil se sostiene de verdad.
+  // Sin esto, un invitado cambiaba la cookie a mano y leia el otro perfil entero.
+  const allowed = await allowedProfileIds();
+  if (allowed !== null) {
+    if (allowed.length === 0) {
+      throw new Error("Tu cuenta no tiene ningún perfil asignado. Pídele acceso a quien te invitó.");
+    }
+    return allowed.includes(parsedId) ? parsedId : allowed[0];
+  }
 
   if (!rawId || Number.isNaN(parsedId)) {
     return defaultProfile.id;

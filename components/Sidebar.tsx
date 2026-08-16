@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { ThemeToggle } from "./ThemeToggle";
 import { ProfileSwitcher } from "./ProfileSwitcher";
+import { accountantCanOpen } from "@/lib/access";
 
 const links = [
   { name: "Resumen", href: "/", icon: "dashboard" },
@@ -35,11 +36,17 @@ function isActivePath(pathname: string, href: string) {
 export function Sidebar({
   profiles,
   activeProfileId,
+  readOnly = false,
 }: {
   profiles: Array<{ id: number; name: string; taxId: string; type: string }>;
   activeProfileId: number;
+  readOnly?: boolean;
 }) {
   const pathname = usePathname();
+  // Se filtra con la misma regla que aplica el middleware, para que el menu no ofrezca
+  // pantallas que van a rebotar. Esconder el enlace no es la proteccion: la proteccion
+  // esta en proxy.ts y en requireWriteAccess.
+  const visible = (href: string) => !readOnly || accountantCanOpen(href);
 
   return (
     <div className="flex h-full w-full flex-col bg-white transition-colors duration-200 dark:bg-[#151b23]">
@@ -52,10 +59,10 @@ export function Sidebar({
         </Link>
       </div>
 
-      <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} />
+      <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} readOnly={readOnly} />
 
       <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto px-4">
-        {links.map((link) => {
+        {links.filter((link) => visible(link.href)).map((link) => {
           const isActive = isActivePath(pathname, link.href);
           return (
             <Link
@@ -86,7 +93,7 @@ export function Sidebar({
           Reportes
         </div>
 
-        {reportLinks.map((link) => {
+        {reportLinks.filter((link) => visible(link.href)).map((link) => {
           const isActive = isActivePath(pathname, link.href);
           return (
             <Link

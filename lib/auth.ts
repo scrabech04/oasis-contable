@@ -1,12 +1,36 @@
 export const AUTH_SESSION_COOKIE = "oasis_session";
 export const AUTH_STATE_COOKIE = "oasis_oauth_state";
 
+/** Todo (el dueno). Los correos de AUTH_ALLOWED_EMAILS son siempre esto. */
+export const ROLE_OWNER = "OWNER";
+/** Solo lectura de compras, gastos y reportes, y solo en los perfiles asignados. */
+export const ROLE_ACCOUNTANT = "ACCOUNTANT";
+
+export type AuthRole = typeof ROLE_OWNER | typeof ROLE_ACCOUNTANT;
+
 export type AuthSession = {
   email: string;
   name?: string;
   picture?: string;
+  /**
+   * El rol viaja firmado dentro de la cookie porque el middleware corre en el runtime edge
+   * y no puede consultar Prisma. Se decide una sola vez, al iniciar sesion.
+   *
+   * Ausente en las sesiones emitidas antes de que existieran los roles: se leen como OWNER,
+   * que es lo que eran. Un token viejo no puede colar un rol distinto porque el payload
+   * entero va firmado con HMAC.
+   */
+  role?: AuthRole;
   exp: number;
 };
+
+export function sessionRole(session: Pick<AuthSession, "role"> | null | undefined): AuthRole {
+  return session?.role === ROLE_ACCOUNTANT ? ROLE_ACCOUNTANT : ROLE_OWNER;
+}
+
+export function isAccountantSession(session: Pick<AuthSession, "role"> | null | undefined) {
+  return sessionRole(session) === ROLE_ACCOUNTANT;
+}
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

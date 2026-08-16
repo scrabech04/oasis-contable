@@ -8,7 +8,7 @@ import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider } from "@/components/ui/toast";
 import { PwaRegister } from "@/components/PwaRegister";
-import { AUTH_SESSION_COOKIE, getAuthSecret, verifySessionToken } from "@/lib/auth";
+import { AUTH_SESSION_COOKIE, getAuthSecret, isAccountantSession, verifySessionToken } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +79,7 @@ export default async function RootLayout({
     getAccountProfiles(),
     getActiveProfile(),
   ]);
+  const readOnly = isAccountantSession(session);
 
   return (
     <html lang="es" suppressHydrationWarning>
@@ -96,14 +97,14 @@ export default async function RootLayout({
           <ToastProvider>
           <div className="flex h-screen w-full overflow-hidden bg-background print:h-auto print:block print:overflow-visible dark:bg-[#0b0f15]">
             <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 flex-col border-r bg-white transition-colors duration-200 dark:border-[#2a3442] dark:bg-[#151b23] md:flex">
-              <Sidebar profiles={profiles} activeProfileId={activeProfile.id} />
+              <Sidebar profiles={profiles} activeProfileId={activeProfile.id} readOnly={readOnly} />
             </aside>
             <main className="flex-1 overflow-y-auto custom-scrollbar print:ml-0 print:h-auto print:overflow-visible print:p-0 md:ml-64">
               <div className="mx-auto max-w-7xl p-4 pb-32 print:max-w-none print:p-0 md:p-8 md:pb-8">
                 {children}
               </div>
             </main>
-            <MobileBottomNav profiles={profiles} activeProfileId={activeProfile.id} />
+            <MobileBottomNav profiles={profiles} activeProfileId={activeProfile.id} readOnly={readOnly} />
             <PwaRegister />
           </div>
           </ToastProvider>

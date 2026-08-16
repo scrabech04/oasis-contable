@@ -11,6 +11,7 @@ import {
   getScopedCompanySettings,
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
+import { allowedProfileIds, requireWriteAccess } from "@/lib/authz";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber } from "@/lib/ncf";
@@ -1813,6 +1814,14 @@ export async function setActiveProfile(profileId: number) {
   const exists = await prisma.accountProfile.findUnique({ where: { id: profileId }, select: { id: true } });
   if (!exists) return { success: false, error: "Perfil no encontrado" };
 
+  // No lleva requireWriteAccess porque no escribe datos, solo la cookie de que perfil se
+  // esta mirando. Pero el alcance si se comprueba: un invitado no puede pararse en un
+  // perfil que no le dieron. Es la misma regla que aplica /api/active-profile.
+  const allowed = await allowedProfileIds();
+  if (allowed !== null && !allowed.includes(profileId)) {
+    return { success: false, error: "No tienes acceso a ese perfil" };
+  }
+
   const cookieStore = await cookies();
   cookieStore.set(ACTIVE_PROFILE_COOKIE, String(profileId), {
     path: "/",
@@ -1828,6 +1837,7 @@ export async function getCompanySettings() {
 }
 
 export async function updateCompanySettings(formData: FormData) {
+  await requireWriteAccess();
   const settings = await getScopedCompanySettings();
   const incomingCoverImage = text(formData, "coverImageDataUrl");
   const coverImageData =
@@ -1877,6 +1887,7 @@ export async function getCompanyIdentities() {
 }
 
 export async function createCompanyIdentity(formData: FormData) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const isDefault = text(formData, "isDefault") === "true";
   if (isDefault) await prisma.companyIdentity.updateMany({ where: { profileId }, data: { isDefault: false } });
@@ -1897,6 +1908,7 @@ export async function createCompanyIdentity(formData: FormData) {
 }
 
 export async function updateCompanyIdentity(id: number, formData: FormData) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const isDefault = text(formData, "isDefault") === "true";
   if (isDefault) await prisma.companyIdentity.updateMany({ where: { profileId }, data: { isDefault: false } });
@@ -1918,6 +1930,7 @@ export async function updateCompanyIdentity(id: number, formData: FormData) {
 }
 
 export async function deleteCompanyIdentity(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.companyIdentity.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Identidad no encontrada para el perfil activo." };
@@ -1926,6 +1939,7 @@ export async function deleteCompanyIdentity(id: number) {
 }
 
 export async function createAccountProfile(formData: FormData) {
+  await requireWriteAccess();
   const isDefault = text(formData, "isDefault") === "true";
   if (isDefault) await prisma.accountProfile.updateMany({ data: { isDefault: false } });
   const profile = await prisma.accountProfile.create({
@@ -1946,6 +1960,7 @@ export async function createAccountProfile(formData: FormData) {
 }
 
 export async function updateAccountProfile(id: number, formData: FormData) {
+  await requireWriteAccess();
   const isDefault = text(formData, "isDefault") === "true";
   if (isDefault) await prisma.accountProfile.updateMany({ where: { NOT: { id } }, data: { isDefault: false } });
   await prisma.accountProfile.update({
@@ -1967,6 +1982,7 @@ export async function updateAccountProfile(id: number, formData: FormData) {
 }
 
 export async function deleteAccountProfile(id: number) {
+  await requireWriteAccess();
   const totalProfiles = await prisma.accountProfile.count();
   if (totalProfiles <= 1) return { success: false, error: "Debe existir al menos un perfil." };
 
@@ -2086,6 +2102,7 @@ export async function getContactLedger(id: number) {
 }
 
 export async function createContact(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const name = text(formData, "name");
   const taxId = optionalText(formData, "taxId");
@@ -2120,6 +2137,7 @@ export async function createContact(formData: FormData): Promise<ActionResult> {
 }
 
 export async function updateContact(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const existing = await prisma.contact.findFirst({ where: { id, profileId }, select: { id: true } });
   if (!existing) return { success: false, error: "Contacto no encontrado para el perfil activo." };
@@ -2164,6 +2182,7 @@ export async function updateContact(id: number, formData: FormData): Promise<Act
  * lista completa, pero los llamadores MCP mandan solo lo que el usuario dijo.
  */
 export async function addContactPerson(contactId: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const contact = await prisma.contact.findFirst({
     where: { id: contactId, profileId },
@@ -2208,6 +2227,7 @@ export async function addContactPerson(contactId: number, formData: FormData): P
 }
 
 export async function deleteContact(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.contact.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Contacto no encontrado para el perfil activo." };
@@ -2280,6 +2300,7 @@ export async function getProject(id: number) {
 }
 
 export async function createProject(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     const profileId = await getActiveProfileId();
     const shareIds = sharedProfileIds(formData, profileId);
@@ -2317,6 +2338,7 @@ export async function createProject(formData: FormData): Promise<ActionResult> {
 }
 
 export async function updateProject(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const existing = await prisma.project.findFirst({ where: { id, profileId }, select: { id: true } });
   if (!existing) return { success: false, error: "Proyecto no encontrado para el perfil activo." };
@@ -2352,6 +2374,7 @@ export async function updateProject(id: number, formData: FormData): Promise<Act
 }
 
 export async function deleteProject(id: number): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const existing = await prisma.project.findFirst({
     where: { id, profileId },
@@ -2424,6 +2447,7 @@ export async function getProjectLinkCandidates(projectId: number) {
 }
 
 export async function setProjectDocumentLink(projectId: number, documentType: "invoice" | "purchase", documentId: number, linked: boolean): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const project = await prisma.project.findFirst({
     where: {
@@ -2516,6 +2540,7 @@ export async function getNcfPreview(sequenceId: number, profileId: number) {
 // that still sees the value it just read, so a losing concurrent call gets count 0
 // and retries with a fresh read instead of silently reusing the same NCF as another call.
 export async function issueNextNcf(sequenceId: number, profileId: number, maxRetries = 10) {
+  await requireWriteAccess();
   for (let attempt = 0; attempt < maxRetries; attempt += 1) {
     const { sequence, number } = await resolveSequenceNumber(sequenceId, profileId);
     // El contador queda en el numero emitido + 1, no en un increment: asi tambien absorbe
@@ -2561,6 +2586,7 @@ export async function getNumberingSequences(docType = "INVOICE") {
 }
 
 export async function createNumberingSequence(formData: FormData) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const docType = text(formData, "docType", "INVOICE");
   const isPreferred = text(formData, "isPreferred") === "true";
@@ -2586,6 +2612,7 @@ export async function createNumberingSequence(formData: FormData) {
 }
 
 export async function updateNumberingSequence(id: number, formData: FormData) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const docType = text(formData, "docType", "INVOICE");
   const isPreferred = text(formData, "isPreferred") === "true";
@@ -2612,6 +2639,7 @@ export async function updateNumberingSequence(id: number, formData: FormData) {
 }
 
 export async function deleteNumberingSequence(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.numberingSequence.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Secuencia no encontrada para el perfil activo." };
@@ -2660,6 +2688,7 @@ export async function getInvoice(id: number) {
 }
 
 export async function createInvoice(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const items = parseItems(formData);
@@ -2721,6 +2750,7 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
 }
 
 export async function updateInvoice(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true } });
@@ -2769,6 +2799,7 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
 }
 
 export async function deleteInvoice(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.invoice.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Factura no encontrada para el perfil activo." };
@@ -2777,6 +2808,7 @@ export async function deleteInvoice(id: number) {
 }
 
 export async function duplicateInvoice(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const source = await prisma.invoice.findFirst({ where: { id, profileId }, include: { items: true } });
   if (!source) return { success: false, error: "Factura no encontrada" };
@@ -2850,6 +2882,7 @@ export async function getProforma(id: number) {
 }
 
 export async function createProforma(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const items = parseItems(formData);
@@ -2887,6 +2920,7 @@ export async function createProforma(formData: FormData): Promise<ActionResult> 
 }
 
 export async function updateProforma(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const existing = await prisma.proformaInvoice.findFirst({ where: { id, profileId }, select: { id: true, paidAmount: true, status: true } });
@@ -2927,6 +2961,7 @@ export async function updateProforma(id: number, formData: FormData): Promise<Ac
 }
 
 export async function deleteProforma(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const existing = await prisma.proformaInvoice.findFirst({ where: { id, profileId }, select: { status: true } });
   if (!existing) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
@@ -2937,6 +2972,7 @@ export async function deleteProforma(id: number) {
 }
 
 export async function convertProformaToInvoice(id: number, formData?: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = formData ? await resolveExplicitOrActiveProfileId(formData) : await getActiveProfileId();
   const proforma = await prisma.proformaInvoice.findFirst({
     where: { id, profileId },
@@ -3069,6 +3105,7 @@ export async function attachDgiiConstancia(
   timbreUrl: string,
   explicitProfileId?: number,
 ): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     if (!isDgiiTimbreUrl(timbreUrl)) {
       return { success: false, error: "El enlace del timbre no corresponde al portal de la DGII." };
@@ -3126,6 +3163,7 @@ export async function attachDgiiConstancia(
 }
 
 export async function replacePurchaseAttachment(purchaseId: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   try {
     const profileId = await getActiveProfileId();
     const purchase = await prisma.purchase.findFirst({
@@ -3169,6 +3207,7 @@ export async function replacePurchaseAttachment(purchaseId: number, formData: Fo
  * una constancia o una foto equivocada se quedaba ahi para siempre.
  */
 export async function deletePurchaseAttachment(attachmentId: number): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const attachment = await prisma.purchaseAttachment.findFirst({
     where: { id: attachmentId, purchase: { profileId } },
@@ -3185,6 +3224,7 @@ export async function deletePurchaseAttachment(attachmentId: number): Promise<Ac
 }
 
 export async function createPurchase(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await resolvePurchaseProfileId(formData);
   const items = parsePurchaseItems(formData);
   const { currency, exchangeRate } = moneyContext(formData);
@@ -3252,6 +3292,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
 }
 
 export async function updatePurchase(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const existing = await prisma.purchase.findFirst({ where: { id, profileId }, select: { paidAmount: true, type: true } });
   if (!existing) return { success: false, error: "Compra no encontrada para el perfil activo." };
@@ -3348,6 +3389,7 @@ async function supplierContactInProfile(profileId: number, contact: Prisma.Conta
  * puede quedar apuntando a uno ajeno.
  */
 export async function movePurchaseToProfile(purchaseId: number, targetProfileId: number): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const purchase = await prisma.purchase.findFirst({
     where: { id: purchaseId, profileId },
@@ -3386,6 +3428,7 @@ export async function movePurchaseToProfile(purchaseId: number, targetProfileId:
 }
 
 export async function deletePurchase(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.purchase.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Compra no encontrada para el perfil activo." };
@@ -3427,6 +3470,7 @@ export async function getSubscriptions(options?: PeriodParams & { search?: strin
 }
 
 export async function createSubscription(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const { currency, exchangeRate } = moneyContext(formData);
   await prisma.subscription.create({
@@ -3457,6 +3501,7 @@ export async function createSubscription(formData: FormData): Promise<ActionResu
 }
 
 export async function updateSubscription(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const { currency, exchangeRate } = moneyContext(formData);
   const result = await prisma.subscription.updateMany({
@@ -3488,6 +3533,7 @@ export async function updateSubscription(id: number, formData: FormData): Promis
 }
 
 export async function updateSubscriptionStatus(id: number, status: string) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.subscription.updateMany({
     where: { id, profileId },
@@ -3499,6 +3545,7 @@ export async function updateSubscriptionStatus(id: number, status: string) {
 }
 
 export async function deleteSubscription(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.subscription.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Suscripcion no encontrada para el perfil activo." };
@@ -3507,6 +3554,7 @@ export async function deleteSubscription(id: number) {
 }
 
 export async function createExpense(formData: FormData) {
+  await requireWriteAccess();
   formData.set("type", "INFORMAL");
   return createPurchase(formData);
 }
@@ -3592,6 +3640,7 @@ export async function getQuotation(id: number) {
 }
 
 export async function createQuotation(formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const items = parseItems(formData);
   const total = totals(items);
@@ -3623,6 +3672,7 @@ export async function createQuotation(formData: FormData): Promise<ActionResult>
 }
 
 export async function updateQuotation(id: number, formData: FormData): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const existing = await prisma.quotation.findFirst({ where: { id, profileId }, select: { id: true, number: true } });
   if (!existing) return { success: false, error: "Cotización no encontrada para el perfil activo." };
@@ -3658,6 +3708,7 @@ export async function updateQuotation(id: number, formData: FormData): Promise<A
 }
 
 export async function deleteQuotation(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.quotation.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Cotización no encontrada para el perfil activo." };
@@ -3666,6 +3717,7 @@ export async function deleteQuotation(id: number) {
 }
 
 export async function duplicateQuotation(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const source = await prisma.quotation.findFirst({ where: { id, profileId }, include: { items: true } });
   if (!source) return { success: false, error: "Cotización no encontrada" };
@@ -3695,6 +3747,7 @@ export async function duplicateQuotation(id: number) {
 }
 
 export async function convertQuotationToInvoice(id: number) {
+  await requireWriteAccess();
   const activeProfileId = await getActiveProfileId();
   const quote = await prisma.quotation.findFirst({ where: { id, profileId: activeProfileId }, include: { items: true } });
   if (!quote) return { success: false, error: "Cotización no encontrada" };
@@ -3735,6 +3788,7 @@ export async function convertQuotationToInvoice(id: number) {
 }
 
 export async function convertQuotationToProject(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const quote = await prisma.quotation.findFirst({ where: { id, profileId } });
   if (!quote) return { success: false, error: "Cotización no encontrada" };
@@ -3753,6 +3807,7 @@ export async function convertQuotationToProject(id: number) {
 }
 
 export async function recordPayment(targetId: number, targetType: "INVOICE" | "PURCHASE" | "PROFORMA", formData: FormData) {
+  await requireWriteAccess();
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const target =
     targetType === "INVOICE"
@@ -3787,6 +3842,7 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
 }
 
 export async function updatePayment(id: number, formData: FormData) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const existing = await prisma.payment.findFirst({
     where: {
@@ -3815,6 +3871,7 @@ export async function updatePayment(id: number, formData: FormData) {
 }
 
 export async function deletePayment(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const existing = await prisma.payment.findFirst({
     where: {
@@ -3976,6 +4033,7 @@ export async function getIT1Data(period: string) {
 }
 
 export async function createRecurringInvoice(formData: FormData) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const items = parseItems(formData);
   const recurringItems = recurringInvoiceItemsData(items);
@@ -4004,6 +4062,7 @@ export async function createRecurringInvoice(formData: FormData) {
 }
 
 export async function createRecurringInvoiceFromInvoice(id: number): Promise<ActionResult> {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const source = await prisma.invoice.findFirst({
     where: { id, profileId },
@@ -4072,6 +4131,7 @@ export async function getRecurringInvoices() {
 }
 
 export async function toggleRecurringInvoiceStatus(id: number, currentStatus?: string) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const invoice = await prisma.recurringInvoice.findFirst({ where: { id, profileId } });
   if (!invoice) return { success: false, error: "Plantilla no encontrada" };
@@ -4082,6 +4142,7 @@ export async function toggleRecurringInvoiceStatus(id: number, currentStatus?: s
 }
 
 export async function deleteRecurringInvoice(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const result = await prisma.recurringInvoice.deleteMany({ where: { id, profileId } });
   if (result.count === 0) return { success: false, error: "Plantilla no encontrada para el perfil activo." };
@@ -4130,6 +4191,7 @@ async function createInvoiceFromRecurringTemplate(template: any, issueDate: Date
 }
 
 export async function generateRecurringInvoiceNow(id: number) {
+  await requireWriteAccess();
   const profileId = await getActiveProfileId();
   const template = await prisma.recurringInvoice.findFirst({
     where: { id, profileId },
@@ -4150,6 +4212,7 @@ export async function generateRecurringInvoiceNow(id: number) {
 }
 
 export async function processRecurringInvoices() {
+  await requireWriteAccess();
   if (process.env.NEXT_PHASE === "phase-production-build") {
     return { generatedCount: 0 };
   }
@@ -4197,10 +4260,12 @@ export async function processRecurringInvoices() {
 }
 
 export async function processInvoiceAction(formData?: FormData) {
+  await requireWriteAccess();
   return extractInvoicesWithGemini(formData, "purchase");
 }
 
 export async function processSalesInvoiceAction(formData?: FormData) {
+  await requireWriteAccess();
   return extractInvoicesWithGemini(formData, "sale");
 }
 

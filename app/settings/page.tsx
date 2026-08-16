@@ -7,15 +7,18 @@ import { Building2, Mail, Phone, MapPin, DollarSign, Fingerprint, Settings2, Has
 import Link from "next/link";
 import IdentitiesClient from "./IdentitiesClient";
 import ProfilesClient from "./ProfilesClient";
+import TeamClient from "./TeamClient";
+import { getTeamMembers } from "@/app/team-actions";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { CoverTemplateSettings } from "@/components/settings/CoverTemplateSettings";
 
 export default async function SettingsPage() {
-    const [settings, identities, profiles, activeProfile] = await Promise.all([
+    const [settings, identities, profiles, activeProfile, teamMembers] = await Promise.all([
         getCompanySettings(),
         getCompanyIdentities(),
         getAccountProfiles(),
-        getActiveProfile()
+        getActiveProfile(),
+        getTeamMembers()
     ]);
     const selectedIncomeTaxRegime = settings.incomeTaxRegime === "PERSON_PROGRESSIVE"
         ? "INDIVIDUAL"
@@ -39,6 +42,7 @@ export default async function SettingsPage() {
 
             <div className="grid gap-6">
                 <ProfilesClient profiles={profiles} />
+                <TeamClient members={teamMembers} profiles={profiles.map((profile) => ({ id: profile.id, name: profile.name }))} />
                 <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                     <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                         <div className="flex items-center gap-2 text-primary">
