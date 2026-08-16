@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DeleteButton } from "@/components/DeleteButton";
-import { deleteContact } from "@/app/actions";
+import { DeleteContactButton } from "@/components/contacts/DeleteContactButton";
 
 function contactTypeLabel(type: string) {
     return type === "CLIENT" ? "Cliente" : type === "SUPPLIER" ? "Proveedor" : "Ambos";
@@ -17,6 +16,9 @@ function contactTypeClass(type: string) {
 }
 
 export function ContactsTable({ contacts }: { contacts: any[] }) {
+    // A donde ofrecer mover los documentos cuando un contacto no se puede borrar tal cual.
+    const options = contacts.map((contact) => ({ id: contact.id, name: contact.name }));
+
     return (
         <div>
             <div className="space-y-3 md:hidden">
@@ -51,7 +53,7 @@ export function ContactsTable({ contacts }: { contacts: any[] }) {
                                     <Link href={`/contacts/${contact.id}/edit`} className="rounded-lg p-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30" title="Editar">
                                         <span className="material-icons-round text-[20px]">edit</span>
                                     </Link>
-                                    <DeleteButton id={contact.id} action={deleteContact} variant="ghost_icon" />
+                                    <DeleteContactButton id={contact.id} name={contact.name} contacts={options} />
                                 </div>
                             </div>
                         </article>
@@ -106,7 +108,7 @@ export function ContactsTable({ contacts }: { contacts: any[] }) {
                                             <Link href={`/contacts/${contact.id}/edit`} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 text-slate-400 rounded-lg transition-all" title="Editar">
                                                 <span className="material-icons-round text-[20px]">edit</span>
                                             </Link>
-                                            <DeleteButton id={contact.id} action={deleteContact} variant="ghost_icon" />
+                                            <DeleteContactButton id={contact.id} name={contact.name} contacts={options} />
                                         </div>
                                     </td>
                                 </tr>

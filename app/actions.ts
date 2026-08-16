@@ -256,8 +256,23 @@ function normalizeContactName(name: string | null | undefined) {
     .replace(/[^A-Z0-9]/g, "");
 }
 
-// Un contacto ya registrado se considera el mismo cuando comparte el RNC/cedula, o
-// cuando comparte el nombre y ninguno de los dos RNC contradice al otro.
+/**
+ * Un contacto ya registrado se considera el mismo cuando comparte el RNC/cedula **o** el
+ * nombre.
+ *
+ * Antes, dos RNC distintos cortaban la comparacion antes de mirar el nombre. Eso hacia que
+ * la importacion con IA creara un contacto nuevo con el nombre EXACTO de uno que ya
+ * existia, solo porque el RNC salio mal leido del PDF. Un digito equivocado bastaba para
+ * duplicar el cliente.
+ *
+ * El RNC que llega no se usa para corregir al que ya esta guardado: quien reutiliza el
+ * contacto (`resolveContact`) solo rellena huecos, nunca pisa un dato existente. Asi un
+ * RNC mal leido no puede estropear el bueno.
+ *
+ * A cambio, dos empresas distintas con el mismo nombre exacto y RNC diferente se tratan
+ * como una sola. Es raro, y se prefiere a llenar la agenda de duplicados; para separarlas
+ * basta con que sus nombres no sean identicos.
+ */
 function isSameContact(
   candidate: { name: string; taxId: string | null },
   name: string,
@@ -265,7 +280,7 @@ function isSameContact(
 ) {
   const candidateTaxId = normalizeProfileTaxId(candidate.taxId);
   const incomingTaxId = normalizeProfileTaxId(taxId);
-  if (candidateTaxId && incomingTaxId) return candidateTaxId === incomingTaxId;
+  if (candidateTaxId && incomingTaxId && candidateTaxId === incomingTaxId) return true;
 
   const candidateName = normalizeContactName(candidate.name);
   const incomingName = normalizeContactName(name);
@@ -2222,13 +2237,101 @@ export async function addContactPerson(contactId: number, formData: FormData): P
   return { success: true, id: person.id };
 }
 
-export async function deleteContact(id: number) {
+/** Documentos que apuntan a un contacto y que impiden borrarlo mientras existan. */
+async function contactLinkCounts(contactId: number) {
+  const [invoices, proformas, quotations, purchases, projects, recurring] = await Promise.all([
+    prisma.invoice.count({ where: { contactId } }),
+    prisma.proformaInvoice.count({ where: { contactId } }),
+    prisma.quotation.count({ where: { contactId } }),
+    prisma.purchase.count({ where: { contactId } }),
+    prisma.project.count({ where: { contactId } }),
+    prisma.recurringInvoice.count({ where: { contactId } }),
+  ]);
+  return { invoices, proformas, quotations, purchases, projects, recurring };
+}
+
+export type ContactLinkSummary = Awaited<ReturnType<typeof contactLinkCounts>> & { total: number };
+
+export async function getContactLinks(id: number): Promise<ContactLinkSummary> {
+  const profileId = await getActiveProfileId();
+  const contact = await prisma.contact.findFirst({ where: { id, profileId }, select: { id: true } });
+  if (!contact) throw new Error("Contacto no encontrado para el perfil activo.");
+
+  const counts = await contactLinkCounts(id);
+  return { ...counts, total: Object.values(counts).reduce((sum, value) => sum + value, 0) };
+}
+
+function describeContactLinks(counts: Awaited<ReturnType<typeof contactLinkCounts>>) {
+  const parts: string[] = [];
+  const label = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  if (counts.invoices) parts.push(label(counts.invoices, "factura", "facturas"));
+  if (counts.proformas) parts.push(label(counts.proformas, "prefactura", "prefacturas"));
+  if (counts.quotations) parts.push(label(counts.quotations, "cotización", "cotizaciones"));
+  if (counts.purchases) parts.push(label(counts.purchases, "compra", "compras"));
+  if (counts.projects) parts.push(label(counts.projects, "proyecto", "proyectos"));
+  if (counts.recurring) parts.push(label(counts.recurring, "factura recurrente", "facturas recurrentes"));
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Borra un contacto. Si tiene documentos, `reassignToId` los pasa antes a otro contacto.
+ *
+ * Sin ese paso el borrado reventaba: los documentos apuntan al contacto con clave foranea
+ * y la base lo rechaza. El boton existia y fallaba con un error crudo. Aqui nunca se borra
+ * un documento para dejar libre al contacto - una factura emitida no se tira por limpiar
+ * la agenda - asi que la unica salida es moverlos o dejarlo estar.
+ */
+export async function deleteContact(id: number, reassignToId?: number) {
   await requireWriteAccess();
   const profileId = await getActiveProfileId();
-  const result = await prisma.contact.deleteMany({ where: { id, profileId } });
-  if (result.count === 0) return { success: false, error: "Contacto no encontrado para el perfil activo." };
+
+  const contact = await prisma.contact.findFirst({ where: { id, profileId }, select: { id: true, name: true } });
+  if (!contact) return { success: false, error: "Contacto no encontrado para el perfil activo." };
+
+  const counts = await contactLinkCounts(id);
+  const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
+
+  if (total > 0 && !reassignToId) {
+    return {
+      success: false,
+      error: `"${contact.name}" tiene ${describeContactLinks(counts)}. Elige a qué contacto moverlos para poder eliminarlo.`,
+      linked: total,
+    };
+  }
+
+  if (reassignToId) {
+    if (reassignToId === id) {
+      return { success: false, error: "Elige un contacto distinto al que vas a eliminar." };
+    }
+    const target = await prisma.contact.findFirst({
+      where: { id: reassignToId, profileId },
+      select: { id: true },
+    });
+    if (!target) return { success: false, error: "El contacto de destino no existe en este perfil." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (reassignToId) {
+      await Promise.all([
+        tx.invoice.updateMany({ where: { contactId: id }, data: { contactId: reassignToId } }),
+        tx.proformaInvoice.updateMany({ where: { contactId: id }, data: { contactId: reassignToId } }),
+        tx.quotation.updateMany({ where: { contactId: id }, data: { contactId: reassignToId } }),
+        tx.purchase.updateMany({ where: { contactId: id }, data: { contactId: reassignToId } }),
+        tx.project.updateMany({ where: { contactId: id }, data: { contactId: reassignToId } }),
+        tx.recurringInvoice.updateMany({ where: { contactId: id }, data: { contactId: reassignToId } }),
+      ]);
+    }
+    // Las personas de contacto caen solas: su relacion es en cascada.
+    await tx.contact.delete({ where: { id } });
+  });
+
   revalidatePath("/contacts");
-  return { success: true };
+  revalidatePath("/invoices");
+  revalidatePath("/purchases");
+  revalidatePath("/projects");
+  return { success: true, moved: reassignToId ? total : 0 };
 }
 
 export async function getProjects(options?: PeriodParams & { profileId?: number; search?: string; sortBy?: string; sortOrder?: "asc" | "desc" }) {

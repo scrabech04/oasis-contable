@@ -2,6 +2,23 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-16 - Borrar contactos, y que la importacion con IA deje de duplicarlos
+
+### Corregido
+- **La importacion con IA creaba un contacto nuevo con el nombre exacto de uno que ya existia.** `isSameContact` cortaba la comparacion en cuanto los dos RNC estaban presentes y diferian, sin llegar a mirar el nombre. Como el RNC lo lee la IA del PDF, un solo digito mal leido bastaba para duplicar el cliente. Ahora el nombre tambien une: coinciden el RNC **o** el nombre.
+  - El RNC que llega **no** corrige al que ya esta guardado. `resolveContact` solo rellena huecos, nunca pisa un dato existente, asi que un RNC mal leido no puede estropear el bueno.
+  - A cambio, dos empresas distintas con el mismo nombre exacto y RNC diferente pasan a tratarse como una sola. Es raro y se prefiere a llenar la agenda de duplicados; para separarlas basta con que los nombres no sean identicos.
+- **El boton de eliminar contacto existia y siempre fallaba** cuando el contacto tenia documentos: sus facturas apuntan a el con clave foranea y la base lo rechaza (`Invoice_contactId_fkey`), con un error crudo y sin salida. Ahora se dice que lo esta bloqueando (`"X" tiene 3 facturas y 2 compras`) y se ofrece mover esos documentos a otro contacto antes de eliminarlo, en una sola transaccion.
+
+### Nota de seguridad de datos
+- Comprobado contra la base real que hacen las claves foraneas al borrar un contacto: `Invoice`, `ProformaInvoice`, `Quotation`, `Project` y `RecurringInvoice` estan en `RESTRICT` (bloquean), `ContactPerson` en `CASCADE` (las personas se van con el contacto, correcto) y **`Purchase` en `SET NULL`**.
+- Ese `SET NULL` importa: un contacto que solo tuviera compras se habria borrado sin protestar, **dejando esas compras sin proveedor**. Como el recuento incluye las compras y bloquea igual, ese caso tambien pide reasignacion en vez de vaciar el dato en silencio.
+- Nunca se borra un documento para dejar libre a un contacto. Una factura emitida no se tira por limpiar la agenda.
+
+### Probado
+- 13 comprobaciones de la regla de coincidencia: une por nombre aunque el RNC venga mal leido, ausente o no exista en ninguno de los dos; el nombre se compara sin acentos, sin puntuacion y sin distinguir mayusculas; el RNC sigue uniendo cuando coincide aunque el nombre sea otro; y no une nombres distintos, nombres vacios ni parecidos que no son iguales (`DUMA GROUP SRL` contra `DUMA GROUP SRL 2`).
+- Contra produccion, con contactos y una factura de prueba creados y borrados despues: borrar el contacto referenciado **falla** como se esperaba, y mover la factura al otro contacto y borrar despues funciona en una transaccion, dejando la factura apuntando al contacto bueno.
+
 ## 2026-08-16 - El MCP ya adjunta el soporte a compras y gastos
 
 ### Agregado
