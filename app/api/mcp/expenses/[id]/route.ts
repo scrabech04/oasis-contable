@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertMcpApiKey, mcpErrorResponse, purchaseUpdateDefaults, requireConfirm, requireProfileId, toFormData } from "@/lib/mcp";
-import { updatePurchase } from "@/app/actions";
+import {
+  assertMcpApiKey,
+  mcpErrorResponse,
+  purchaseAttachmentFormData,
+  purchaseUpdateDefaults,
+  requireConfirm,
+  requireProfileId,
+  toFormData,
+} from "@/lib/mcp";
+import { replacePurchaseAttachment, updatePurchase } from "@/app/actions";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -10,10 +18,25 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const profileId = await requireProfileId(body.profileId);
     requireConfirm(body);
 
+    const { attachment, ...rest } = body;
+    const attachmentForm = purchaseAttachmentFormData(attachment, profileId);
+
     const defaults = await purchaseUpdateDefaults(Number(id), profileId);
-    const formData = toFormData({ ...defaults, ...body, targetProfileId: profileId });
+    const formData = toFormData({ ...defaults, ...rest, targetProfileId: profileId });
     const result = await updatePurchase(Number(id), formData);
-    return NextResponse.json(result, { status: result.success ? 200 : 400 });
+    if (!result.success) return NextResponse.json(result, { status: 400 });
+
+    if (attachmentForm) {
+      const attached = await replacePurchaseAttachment(Number(id), attachmentForm);
+      if (!attached.success) {
+        return NextResponse.json(
+          { ...result, attachmentError: attached.error, warning: "El gasto se actualizó, pero el soporte no pudo adjuntarse." },
+          { status: 200 }
+        );
+      }
+    }
+
+    return NextResponse.json({ ...result, attached: Boolean(attachmentForm) });
   } catch (error) {
     return mcpErrorResponse(error);
   }

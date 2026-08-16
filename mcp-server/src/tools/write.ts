@@ -43,6 +43,17 @@ const updateConfirmSchema = z.boolean().describe(
 
 const idSchema = z.number().int().positive().describe("id of the existing record to update.");
 
+const attachmentPathSchema = z
+  .string()
+  .optional()
+  .describe(
+    "Path on this machine to the supplier's invoice or receipt backing this purchase (PDF, JPG, PNG or WEBP, " +
+    "up to 10 MB). It is stored as the purchase's supporting document, the same slot the app's AI import fills. " +
+    "Pass it whenever you read the amounts off such a file: a purchase entered from a document but filed without " +
+    "it leaves numbers nobody can check against anything. On an update it REPLACES the current support, since a " +
+    "purchase has a single supplier invoice."
+  );
+
 const updateNote =
   " This is a full update: any field you omit is preserved from the current record (call list_expenses / " +
   "list_purchases / list_invoices first if you need to see current values), but items - when you DO pass " +
@@ -74,13 +85,15 @@ export function registerWriteTools(server: McpServer) {
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         ncf: z.string().optional(),
         notes: z.string().optional(),
+        attachmentPath: attachmentPathSchema,
         confirm: confirmSchema,
       },
     },
     async (input) => {
       assertConfirmed(input.confirm);
-      const { confirm, ...rest } = input;
-      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const { confirm, attachmentPath, ...rest } = input;
+      const attachment = attachmentPath ? await loadAttachment(attachmentPath) : undefined;
+      const body = { ...rest, attachment, profileId: input.profileId ?? defaultProfileId(), confirm };
       const result = await oasisPost("/api/mcp/expenses", body);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
@@ -111,13 +124,15 @@ export function registerWriteTools(server: McpServer) {
         costType: z.string().optional().describe("DGII 606 cost-type code, e.g. 02"),
         taxTreatment: z.enum(["LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"]).optional(),
         notes: z.string().optional(),
+        attachmentPath: attachmentPathSchema,
         confirm: confirmSchema,
       },
     },
     async (input) => {
       assertConfirmed(input.confirm);
-      const { confirm, ...rest } = input;
-      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const { confirm, attachmentPath, ...rest } = input;
+      const attachment = attachmentPath ? await loadAttachment(attachmentPath) : undefined;
+      const body = { ...rest, attachment, profileId: input.profileId ?? defaultProfileId(), confirm };
       const result = await oasisPost("/api/mcp/purchases", body);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
@@ -269,13 +284,15 @@ export function registerWriteTools(server: McpServer) {
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         ncf: z.string().optional(),
         notes: z.string().optional(),
+        attachmentPath: attachmentPathSchema,
         confirm: updateConfirmSchema,
       },
     },
     async ({ id, ...input }) => {
       assertConfirmed(input.confirm);
-      const { confirm, ...rest } = input;
-      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const { confirm, attachmentPath, ...rest } = input;
+      const attachment = attachmentPath ? await loadAttachment(attachmentPath) : undefined;
+      const body = { ...rest, attachment, profileId: input.profileId ?? defaultProfileId(), confirm };
       const result = await oasisPatch(`/api/mcp/expenses/${id}`, body);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
@@ -310,13 +327,15 @@ export function registerWriteTools(server: McpServer) {
         costType: z.string().optional().describe("DGII 606 cost-type code, e.g. 02"),
         taxTreatment: z.enum(["LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"]).optional(),
         notes: z.string().optional(),
+        attachmentPath: attachmentPathSchema,
         confirm: updateConfirmSchema,
       },
     },
     async ({ id, ...input }) => {
       assertConfirmed(input.confirm);
-      const { confirm, ...rest } = input;
-      const body = { ...rest, profileId: input.profileId ?? defaultProfileId(), confirm };
+      const { confirm, attachmentPath, ...rest } = input;
+      const attachment = attachmentPath ? await loadAttachment(attachmentPath) : undefined;
+      const body = { ...rest, attachment, profileId: input.profileId ?? defaultProfileId(), confirm };
       const result = await oasisPatch(`/api/mcp/purchases/${id}`, body);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }

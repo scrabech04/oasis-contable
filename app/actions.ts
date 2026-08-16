@@ -15,6 +15,7 @@ import { allowedProfileIds, requireWriteAccess } from "@/lib/authz";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber, normalizeNcf, splitNcf } from "@/lib/ncf";
+import { purchaseAttachmentProblem } from "@/lib/attachments";
 import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
 
@@ -1549,15 +1550,10 @@ async function savePurchaseEvidenceFile(file: File, _profileId: number) {
 
 async function purchaseAttachmentFromFile(file: File) {
   if (!(file instanceof File) || file.size <= 0) return null;
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error("El soporte supera el limite de 10 MB. Usa un PDF o imagen mas ligera.");
-  }
 
   const mimeType = file.type || "application/octet-stream";
-  const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-  if (!allowed.includes(mimeType)) {
-    throw new Error("Solo se permiten soportes en PDF, JPG, PNG o WEBP.");
-  }
+  const problem = purchaseAttachmentProblem(mimeType, file.size);
+  if (problem) throw new Error(problem);
 
   const originalName = safeFileName(file.name || "soporte");
   const bytes = Buffer.from(await file.arrayBuffer());
@@ -3225,7 +3221,10 @@ export async function attachDgiiConstancia(
 export async function replacePurchaseAttachment(purchaseId: number, formData: FormData): Promise<ActionResult> {
   await requireWriteAccess();
   try {
-    const profileId = await getActiveProfileId();
+    // Explicito, no por cookie: las rutas MCP llaman aqui y no llevan ninguna. Con el
+    // perfil activo por defecto, adjuntar el soporte de una compra del otro perfil
+    // respondia "compra no encontrada".
+    const profileId = await resolveExplicitOrActiveProfileId(formData);
     const purchase = await prisma.purchase.findFirst({
       where: { id: purchaseId, profileId },
       select: { id: true },

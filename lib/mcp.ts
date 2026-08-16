@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { purchaseAttachmentProblem } from "@/lib/attachments";
 
 export class McpAuthError extends Error {
   status = 401;
@@ -89,6 +90,26 @@ export function fileFromMcpAttachment(attachment: unknown): File | null {
 
   const type = typeof mimeType === "string" && mimeType ? mimeType : "application/octet-stream";
   return new File([new Uint8Array(bytes)], typeof fileName === "string" && fileName ? fileName : "comprobante-pago", { type });
+}
+
+/**
+ * Prepara el soporte de una compra que llega por MCP.
+ *
+ * Comprueba tipo y tamano ANTES de que se cree o edite nada: si el archivo no sirve, la
+ * compra no llega a guardarse. Al reves seria peor que no adjuntar nada, porque quedaria
+ * una compra registrada sin el soporte que se pidio y sin aviso claro.
+ */
+export function purchaseAttachmentFormData(attachment: unknown, profileId: number): FormData | null {
+  const file = fileFromMcpAttachment(attachment);
+  if (!file) return null;
+
+  const problem = purchaseAttachmentProblem(file.type, file.size);
+  if (problem) throw new McpBadRequestError(problem);
+
+  const formData = new FormData();
+  formData.set("attachment", file);
+  formData.set("targetProfileId", String(profileId));
+  return formData;
 }
 
 export function mcpErrorResponse(error: unknown) {

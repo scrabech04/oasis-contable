@@ -2,6 +2,26 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-16 - El MCP ya adjunta el soporte a compras y gastos
+
+### Agregado
+- `create_purchase`, `update_purchase`, `create_expense` y `update_expense` aceptan `attachmentPath`: la ruta local del PDF o imagen de la factura del proveedor. El servidor MCP lee el archivo del disco y lo manda en base64, igual que ya hacia `record_payment`. Queda en la misma ranura que llena la importacion con IA de la web (`ORIGINAL_INVOICE`), asi que se ve en la pantalla de la compra como cualquier otro soporte.
+- Hasta ahora, una compra registrada por MCP se guardaba **sin** el documento del que salieron las cifras. El modelo lo permitia y `createPurchase` lo aceptaba, pero las rutas MCP no pasaban nada.
+- En una edicion, el soporte **reemplaza** al anterior: una compra tiene una sola factura de proveedor. Se hace con `replacePurchaseAttachment`, la misma accion que usa el gestor de adjuntos de la pantalla.
+
+### Corregido
+- `replacePurchaseAttachment` resolvia el perfil por la cookie del navegador. Las rutas MCP no llevan ninguna, asi que adjuntar el soporte de una compra que no fuera del perfil por defecto habria respondido "compra no encontrada". Ahora acepta el perfil explicito, como el resto.
+
+### Cambiado
+- Las reglas del soporte (tipos permitidos y tope de 10 MB) salen de `app/actions.ts` a `lib/attachments.ts`, para que las rutas MCP puedan comprobarlas **antes** de crear nada. Si el archivo no sirve, la compra no llega a guardarse: al reves quedaria una compra registrada sin el soporte que se pidio, que es justo lo que se queria evitar. Si aun asi fallara el adjunto despues de guardar, la respuesta lo dice en vez de callarselo.
+
+### Probado
+- 16 comprobaciones de las reglas del soporte: se aceptan PDF, JPG, PNG y WEBP, incluido justo en el limite de 10 MB y con un solo byte; se rechazan GIF, HEIC, Excel, texto plano, tipo desconocido, 11 MB, un byte pasado del limite, vacio, tamano negativo y NaN.
+
+### Nota
+- **Las fotos de iPhone (HEIC) se rechazan.** Es la regla que ya tenia la web, no se cambio aqui. Si hace falta, es agregar el tipo a `lib/attachments.ts`, pero conviene comprobar antes que el visor de la pantalla de compras sepa mostrarlo.
+- Facturas de venta, prefacturas y cotizaciones siguen sin poder llevar soporte: el modelo no tiene esa relacion y agregarla pide una migracion.
+
 ## 2026-08-16 - Cambiar la numeracion al editar una factura
 
 ### Agregado
