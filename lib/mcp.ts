@@ -41,6 +41,24 @@ export async function requireProfileId(rawValue: unknown): Promise<number> {
   return profile.id;
 }
 
+/**
+ * Lee el JSON del cuerpo con un error entendible.
+ *
+ * Un adjunto grande hace que el servidor corte el cuerpo a medias, y entonces `json()`
+ * falla con "Unterminated string in JSON at position ...", que no le dice nada a nadie.
+ * Casi siempre significa lo mismo: el archivo pesa demasiado.
+ */
+export async function readMcpJson(request: Request): Promise<Record<string, unknown>> {
+  try {
+    return await request.json();
+  } catch {
+    throw new McpBadRequestError(
+      "No se pudo leer el cuerpo de la peticion. Si llevaba un adjunto, lo mas probable es que supere el tamano " +
+      "que admite el servidor (unos 7 MB de archivo): usa un PDF o imagen mas ligera."
+    );
+  }
+}
+
 export function requireConfirm(body: Record<string, unknown>) {
   if (body.confirm !== true) {
     throw new McpBadRequestError("confirm must be true - show the user a full summary and get explicit approval first");

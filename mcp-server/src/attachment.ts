@@ -1,9 +1,15 @@
 import { readFile, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, resolve } from "node:path";
 
-// Espejo del tope del lado del servidor (lib/mcp.ts). Se comprueba aqui tambien para no
-// leer y viajar 40 MB por la red antes de que la API los rechace.
-const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+/**
+ * Tope real de lo que se puede adjuntar, y es mas bajo de lo que parece.
+ *
+ * El archivo viaja en base64 dentro del JSON, y base64 infla ~37%. El servidor corta los
+ * cuerpos de peticion alrededor de los 10 MB, asi que un archivo de mas de ~7 MB llega
+ * truncado y revienta al interpretar el JSON, con un error ilegible en vez de un aviso
+ * claro. Comprobandolo aqui el usuario se entera antes de que nada salga por la red.
+ */
+const MAX_ATTACHMENT_BYTES = 7 * 1024 * 1024;
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   ".pdf": "application/pdf",

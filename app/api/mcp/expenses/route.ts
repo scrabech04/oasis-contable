@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   assertMcpApiKey,
   mcpErrorResponse,
+  readMcpJson,
   purchaseAttachmentFormData,
   requireConfirm,
   requireProfileId,
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     assertMcpApiKey(request);
-    const body = await request.json();
+    const body = await readMcpJson(request);
     const profileId = await requireProfileId(body.profileId);
     requireConfirm(body);
 

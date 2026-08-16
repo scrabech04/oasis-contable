@@ -4,6 +4,7 @@ import {
   fileFromMcpAttachment,
   McpBadRequestError,
   mcpErrorResponse,
+  readMcpJson,
   requireConfirm,
   requireProfileId,
   toFormData,
@@ -16,7 +17,7 @@ type TargetType = (typeof TARGET_TYPES)[number];
 export async function POST(request: NextRequest) {
   try {
     assertMcpApiKey(request);
-    const body = await request.json();
+    const body = await readMcpJson(request);
     const profileId = await requireProfileId(body.profileId);
     requireConfirm(body);
 

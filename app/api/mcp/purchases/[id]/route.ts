@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   assertMcpApiKey,
   mcpErrorResponse,
+  readMcpJson,
   purchaseAttachmentFormData,
   purchaseUpdateDefaults,
   requireConfirm,
@@ -14,7 +15,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   try {
     assertMcpApiKey(request);
     const { id } = await context.params;
-    const body = await request.json();
+    const body = await readMcpJson(request);
     const profileId = await requireProfileId(body.profileId);
     requireConfirm(body);
 
