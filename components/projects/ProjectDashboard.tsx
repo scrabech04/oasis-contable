@@ -19,24 +19,27 @@ interface ProjectDashboardProps {
     };
 }
 
+/**
+ * ISR estimado del proyecto.
+ *
+ * La tasa que manda es SIEMPRE la guardada en el perfil. Antes, el regimen "persona
+ * fisica" forzaba un 25% fijo y descartaba la tasa configurada, asi que un perfil con 27%
+ * guardado seguia calculando al 25% sin que nada lo explicara en pantalla. El regimen solo
+ * decide como se llama la fila y que tasa usar cuando no hay ninguna guardada.
+ */
 function resolveIncomeTax(taxableProfit: number, taxSettings?: ProjectDashboardProps["taxSettings"]) {
     const regime = taxSettings?.incomeTaxRegime || "LEGAL_ENTITY";
-    const configuredRate = Number.isFinite(Number(taxSettings?.incomeTaxRate)) ? Number(taxSettings?.incomeTaxRate) : 0.27;
+    const isIndividual = regime === "INDIVIDUAL" || regime === "PERSON_PROGRESSIVE";
 
-    if (regime === "INDIVIDUAL" || regime === "PERSON_PROGRESSIVE") {
-        const rate = 0.25;
-        return {
-            amount: Math.max(0, taxableProfit) * rate,
-            label: "ISR PF 25%",
-            helper: "Persona fisica",
-        };
-    }
+    const stored = Number(taxSettings?.incomeTaxRate);
+    const fallback = isIndividual ? 0.25 : 0.27;
+    const rate = Math.min(1, Math.max(0, Number.isFinite(stored) && stored > 0 ? stored : fallback));
+    const percent = (rate * 100).toFixed(2).replace(/\.?0+$/, "");
 
-    const rate = Math.min(1, Math.max(0, configuredRate));
     return {
         amount: Math.max(0, taxableProfit) * rate,
-        label: regime === "CUSTOM" ? `ISR ref. ${(rate * 100).toFixed(2).replace(/\.00$/, "")}%` : `ISR PJ ${(rate * 100).toFixed(0)}%`,
-        helper: regime === "CUSTOM" ? "Tasa personalizada del perfil" : "Persona juridica",
+        label: isIndividual ? `ISR PF ${percent}%` : regime === "CUSTOM" ? `ISR ref. ${percent}%` : `ISR PJ ${percent}%`,
+        helper: isIndividual ? "Persona fisica" : regime === "CUSTOM" ? "Tasa personalizada del perfil" : "Persona juridica",
     };
 }
 

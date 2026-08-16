@@ -11,6 +11,7 @@ import TeamClient from "./TeamClient";
 import { getTeamMembers } from "@/app/team-actions";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { CoverTemplateSettings } from "@/components/settings/CoverTemplateSettings";
+import { IncomeTaxFields } from "@/components/settings/IncomeTaxFields";
 
 export default async function SettingsPage() {
     const [settings, identities, profiles, activeProfile, teamMembers] = await Promise.all([
@@ -96,38 +97,7 @@ export default async function SettingsPage() {
                                         <Input id="currency" name="currency" defaultValue={settings.currency} className="pl-10" required />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="incomeTaxRegime">Regimen ISR para estimaciones</Label>
-                                    <select
-                                        id="incomeTaxRegime"
-                                        name="incomeTaxRegime"
-                                        defaultValue={selectedIncomeTaxRegime}
-                                        className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                                    >
-                                        <option value="LEGAL_ENTITY">Persona juridica - 27%</option>
-                                        <option value="INDIVIDUAL">Persona fisica - 25%</option>
-                                        <option value="CUSTOM">Tasa personalizada</option>
-                                    </select>
-                                    <p className="text-xs text-slate-500">Se usa en la estimacion fiscal de proyectos, no sustituye la declaracion anual.</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="incomeTaxRate">Tasa ISR estimada (%)</Label>
-                                    <div className="relative">
-                                        <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                                        <Input
-                                            id="incomeTaxRate"
-                                            name="incomeTaxRate"
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            step="0.01"
-                                            defaultValue={(Number(settings.incomeTaxRate ?? (activeProfile.type === "PERSON" ? 0.25 : 0.27)) * 100).toFixed(2).replace(/\.00$/, "")}
-                                            className="pl-10"
-                                            required
-                                        />
-                                    </div>
-                                    <p className="text-xs text-slate-500">Para persona fisica usa 25 y para juridica 27. Para personalizada puedes poner la tasa que indique tu contador.</p>
-                                </div>
+                                <IncomeTaxFields regime={selectedIncomeTaxRegime} rate={Number(((settings.incomeTaxRate ?? 0.27) * 100).toFixed(2))} />
                             </div>
                             <CoverTemplateSettings settings={settings} />
                             <div className="flex justify-end pt-4">

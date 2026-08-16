@@ -2,6 +2,20 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-16 - El ISR del proyecto ignoraba la tasa configurada
+
+### Corregido
+- **`resolveIncomeTax` descartaba la tasa guardada cuando el regimen era persona fisica**: forzaba un 25% fijo. Un perfil con 27% guardado seguia calculando al 25% y rotulando "Persona fisica", sin que nada en pantalla explicara por que. Ahora la tasa que manda es siempre la del perfil; el regimen solo decide el rotulo y que tasa usar si no hay ninguna guardada.
+- **Regimen y tasa eran dos campos que podian guardarse en desacuerdo.** Elegir "persona fisica" y escribir 27 guardaba las dos cosas tal cual: en Configuracion se veia el 27, pero el proyecto calculaba al 25 porque mandaba el regimen. Justo el estado en el que estaba el perfil `Oasis Gate SRL` (`INDIVIDUAL` + `0.27`).
+  - Ahora los regimenes con tasa legal la fijan ellos (juridica 27, fisica 25) y solo `CUSTOM` acepta la que se teclee, comprobado en el servidor (`incomeTaxFrom`).
+  - En pantalla, la tasa sigue al regimen elegido y solo se puede escribir cuando es personalizada, para que no se pueda volver a dejar en desacuerdo.
+
+### Dato corregido en produccion
+- La fila de `Oasis Gate SRL` decia `INDIVIDUAL` con tasa `0.27`. Se dejo la tasa que estaba escrita, porque es la que revela la intencion, y se corrigio el regimen a `LEGAL_ENTITY`. Los proyectos de ese perfil ya calculan al 27% y rotulan "Persona juridica". La fila de `Samuel Calderon Ortiz` era coherente (`INDIVIDUAL` + `0.25`) y no se toco.
+
+### Probado
+- 12 comprobaciones del calculo: los dos perfiles reales, el caso que fallaba (tasa guardada distinta de la del regimen, en ambos sentidos), tasas personalizadas con decimales, los respaldos cuando no hay tasa guardada, el regimen antiguo `PERSON_PROGRESSIVE`, la tasa 0 y que no se calcula ISR sobre perdidas.
+
 ## 2026-08-16 - Borrar contactos, y que la importacion con IA deje de duplicarlos
 
 ### Corregido

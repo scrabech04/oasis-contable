@@ -1847,6 +1847,24 @@ export async function getCompanySettings() {
   return getScopedCompanySettings();
 }
 
+/**
+ * Regimen y tasa de ISR, obligados a no contradecirse.
+ *
+ * Eran dos campos sueltos y el formulario dejaba guardarlos en desacuerdo: "persona
+ * fisica" con tasa 27. En pantalla se veia el 27 guardado, pero el proyecto calculaba al
+ * 25 porque mandaba el regimen. Ahora los regimenes con tasa legal la fijan ellos, y solo
+ * `CUSTOM` acepta la que se teclee.
+ */
+function incomeTaxFrom(formData: FormData) {
+  const regime = boundedText(formData, "incomeTaxRegime", ["LEGAL_ENTITY", "INDIVIDUAL", "CUSTOM"], "LEGAL_ENTITY");
+  if (regime === "LEGAL_ENTITY") return { incomeTaxRegime: regime, incomeTaxRate: 0.27 };
+  if (regime === "INDIVIDUAL") return { incomeTaxRegime: regime, incomeTaxRate: 0.25 };
+  return {
+    incomeTaxRegime: regime,
+    incomeTaxRate: clampNumber(numberValue(formData, "incomeTaxRate", 27) / 100, 0, 1),
+  };
+}
+
 export async function updateCompanySettings(formData: FormData) {
   await requireWriteAccess();
   const settings = await getScopedCompanySettings();
@@ -1870,8 +1888,7 @@ export async function updateCompanySettings(formData: FormData) {
       phone: optionalText(formData, "phone"),
       address: optionalText(formData, "address"),
       currency: text(formData, "currency", "RD$"),
-      incomeTaxRegime: boundedText(formData, "incomeTaxRegime", ["LEGAL_ENTITY", "INDIVIDUAL", "CUSTOM"], "LEGAL_ENTITY"),
-      incomeTaxRate: clampNumber(numberValue(formData, "incomeTaxRate", 27) / 100, 0, 1),
+      ...incomeTaxFrom(formData),
       coverImageFit: boundedText(formData, "coverImageFit", ["COVER", "CONTAIN"], "COVER"),
       coverImagePosition: boundedText(formData, "coverImagePosition", ["CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT"], "CENTER"),
       coverOverlayOpacity: clampNumber(numberValue(formData, "coverOverlayOpacity", 0.35), 0, 0.85),
