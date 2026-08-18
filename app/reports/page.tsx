@@ -79,12 +79,25 @@ export default async function ReportsPage(props: {
                             Periodo: {formatPeriod(period)}
                         </p>
                     </div>
-                    <ExportButton
-                        type={tab as any}
-                        data={tab === '606' ? purchases : invoices}
-                        period={period}
-                        companyTaxId={companySettings.taxId}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                        {tab === '606' && (
+                            <a
+                                href={`/api/reports/606/soportes?period=${period}`}
+                                download
+                                className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                title="Descarga en un ZIP las facturas de las compras que generan credito fiscal en este periodo"
+                            >
+                                <FileDown className="h-4 w-4" />
+                                Descargar soportes
+                            </a>
+                        )}
+                        <ExportButton
+                            type={tab as any}
+                            data={tab === '606' ? purchases : invoices}
+                            period={period}
+                            companyTaxId={companySettings.taxId}
+                        />
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -93,7 +106,7 @@ export default async function ReportsPage(props: {
                             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/20">
                                 <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">RNC/Cédula</th>
                                 <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden sm:table-cell">{tab === '606' ? 'Tipo' : 'NCF'}</th>
-                                {tab === '606' && <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden xs:table-cell">NCF</th>}
+                                {tab === '606' && <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">NCF</th>}
                                 <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden md:table-cell">Fecha DGII</th>
                                 <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 hidden lg:table-cell">Estado</th>
                                 <th className="px-4 md:px-6 py-4 font-semibold text-slate-900 dark:text-slate-200 text-right">Monto</th>
@@ -122,7 +135,7 @@ export default async function ReportsPage(props: {
                                                         {p.type === 'FORMAL' ? 'B01' : 'Inf'}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 md:px-6 py-4 font-numeric text-[11px] text-slate-500 tracking-wider uppercase font-bold hidden xs:table-cell">{p.ncf || '-'}</td>
+                                                <td className="px-4 md:px-6 py-4 font-numeric text-[11px] text-slate-500 tracking-wider uppercase font-bold">{p.ncf || "-"}</td>
                                                 <td className="px-4 md:px-6 py-4 font-numeric text-slate-400 text-xs hidden md:table-cell">{new Date(p.date).toLocaleDateString('en-GB', { timeZone: "UTC" }).split('/').reverse().join('')}</td>
                                                 <td className="px-4 md:px-6 py-4 hidden lg:table-cell">
                                                     <span className={`text-[10px] px-2 py-0.5 rounded-md font-black border uppercase tracking-wider ${p.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300' :

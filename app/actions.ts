@@ -3222,12 +3222,15 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   return { success: true, id: invoice.id, invoiceId: invoice.id };
 }
 
-export async function getPurchases(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; profileId?: number } & PeriodParams) {
+export async function getPurchases(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string; profileId?: number } & PeriodParams) {
   const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
   const search = options?.search?.trim();
   const amount = parseAmountTerm(search);
   const sortOrder = options?.sortOrder || "desc";
+  // Solo valen los dos tipos que existen; cualquier otro valor en la URL se ignora y el
+  // listado sigue mostrandolo todo.
+  const type = options?.type === "FORMAL" || options?.type === "INFORMAL" ? options.type : undefined;
   const orderBy =
     options?.sortBy === "supplier"
       ? { contact: { name: sortOrder } }
@@ -3236,6 +3239,7 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
   return prisma.purchase.findMany({
     where: {
       profileId,
+      ...(type ? { type } : {}),
       ...(period.gte ? { date: period } : {}),
       // El proveedor puede venir de un contacto o escrito a mano en la compra, asi que se
       // buscan ambos. El monto solo entra al OR cuando el termino parece un numero.

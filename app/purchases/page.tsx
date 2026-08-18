@@ -15,8 +15,9 @@ export default async function PurchasesPage(props: {
   const sortBy = typeof searchParams.sortBy === "string" ? searchParams.sortBy : "date";
   const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
   const autoOpenQR = searchParams.scan === "qr";
+  const type = typeof searchParams.type === "string" ? searchParams.type : undefined;
   const period = getPeriodParams(searchParams);
-  const purchases = await getPurchases({ search, sortBy, sortOrder, ...period });
+  const purchases = await getPurchases({ search, sortBy, sortOrder, type, ...period });
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -49,6 +50,17 @@ export default async function PurchasesPage(props: {
           { key: "createdAt", label: "Recien anadida" },
           { key: "supplier", label: "Proveedor" },
           { key: "total", label: "Monto" },
+        ]}
+        filters={[
+          {
+            param: "type",
+            allLabel: "Todos los tipos",
+            value: type,
+            options: [
+              { value: "FORMAL", label: "Formales" },
+              { value: "INFORMAL", label: "Personales" },
+            ],
+          },
         ]}
       />
 

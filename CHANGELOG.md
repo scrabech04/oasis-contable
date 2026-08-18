@@ -2,6 +2,32 @@
 
 Bitacora de cambios del proyecto oFlow by Oasis. Mantener aqui las funciones nuevas, ajustes de UI, migraciones y puntos que necesitan prueba funcional.
 
+## 2026-08-18 - Filtrar compras por tipo, ver el NCF en el 606 y bajar sus soportes
+
+### Agregado
+- **Filtro de tipo en la barra de Compras**: un select "Todos los tipos / Formales / Personales" junto a los de ano y mes. Viaja en la URL (`?type=FORMAL`), asi que se combina con la busqueda, el periodo y el orden, y el enlace se puede compartir. `getPurchases` solo admite `FORMAL` o `INFORMAL`; cualquier otro valor en la URL se ignora y el listado sigue mostrandolo todo.
+- **Boton "Descargar soportes" en Reportes DGII (606)**: baja en un ZIP las facturas de las compras que generan credito fiscal del periodo que este en pantalla, con el mismo criterio que el CSV (`report606: true`), y dentro:
+  - los archivos nombrados `fecha _ proveedor _ NCF _ compra-ID`, que ordenan solos por fecha y se rastrean a la compra;
+  - `indice.csv` (fecha, RNC, NCF, proveedor, subtotal, ITBIS, id y nombre del archivo), con BOM para que Excel abra bien las tildes;
+  - `faltantes.txt` con las compras del 606 que se van a declarar **sin** comprobante detras, o cuyo archivo ya no esta disponible. Es la parte que avisa antes de declarar, no despues.
+- `lib/zip.ts`: armador de ZIP sin dependencias, metodo "store". Los soportes son PDFs y fotos ya comprimidos, asi que deflate no ahorraria nada y habria que sumar una libreria mas al build. No implementa ZIP64: sirve para el periodo, no para respaldos historicos.
+
+### Corregido
+- **La columna NCF del 606 existia en el codigo pero era invisible en todos los tamanos de pantalla.** Llevaba `hidden xs:table-cell`, y en este proyecto **no existe el breakpoint `xs`** (Tailwind v4, sin `--breakpoint-xs` en `globals.css`): la clase `xs:table-cell` nunca se genera, asi que solo quedaba efectivo el `hidden`. El CSV exportado si traia el NCF; el problema era solo lo que se veia en pantalla.
+
+### Verificado contra produccion
+- **Ni las compras personales ni las del exterior entran al 606.** Las 142 compras marcadas `report606: true` en toda la base son `FORMAL / LOCAL / LOCAL_CREDIT`, sin una sola excepcion, y no hay ninguna formal local con credito que se haya quedado fuera. Concuerda con el codigo: la bandera se calcula en un unico sitio (`purchaseTaxClassification`) como `report606 = (taxTreatment === "LOCAL_CREDIT")`, y todas las vias de alta (formulario, gasto rapido, importacion con IA por lote y MCP) pasan por `createPurchase`.
+- **Cobertura de soportes del 606: 55 de 142 compras no tienen ningun adjunto.** Oasis Gate SRL esta casi al dia (may 15/17, jun 17/17, jul 25/26, ago 10/10); el perfil personal esta practicamente sin respaldar (mar 0/31, abr 16/30, may 2/7). Ese hueco es justo lo que ahora reporta `faltantes.txt`.
+
+### Probado
+- El ZIP se descomprime con `Expand-Archive` de Windows y los PDFs salen **byte a byte identicos** al original (md5 igual). Los nombres con tildes y ene sobreviven, por el bit 11 de las banderas que marca el nombre como UTF-8.
+- `npx tsc --noEmit` limpio.
+
+### Pendiente
+- El mismo `xs:` inexistente esconde el avatar del cliente y la linea "Cobrado: RD$..." en `components/invoices/InvoicesTable.tsx:147` y `:182`. Es cosmetico y no se toco.
+- `schema.prisma` tiene `report606 Boolean @default(true)`. Hoy no molesta porque nada escribe compras sin pasar por `createPurchase`, pero una insercion por fuera (un script, una migracion) entraria al 606 sin querer. Cambiarlo a `false` es una migracion de una linea.
+- `periodRange` construye el rango en zona local, igual que el `getReportData` que ya existia. En el servidor desplegado (UTC) coincide con las fechas, guardadas a medianoche UTC; corriendo en local con hora dominicana el primer dia del mes puede quedarse fuera. Se dejo identico a proposito para que el ZIP y el CSV nunca discrepen entre si.
+
 ## 2026-08-16 - El ISR del proyecto ignoraba la tasa configurada
 
 ### Corregido
