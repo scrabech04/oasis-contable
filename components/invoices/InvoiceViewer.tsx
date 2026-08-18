@@ -128,16 +128,16 @@ export function InvoiceViewer({ invoice, identities = [], companySettings }: Inv
 
                         <div className="text-right space-y-2">
                             <h2 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic opacity-10 leading-none mb-4">Factura</h2>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Número de Factura</p>
-                                <p className="text-lg font-bold text-slate-900 dark:text-white">{invoice.number}</p>
-                            </div>
                             {invoice.ncf && (
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 font-mono">NCF</p>
-                                    <p className="text-lg font-bold text-blue-600 font-mono">{invoice.ncf}</p>
+                                    <p className="text-2xl font-black text-blue-600 font-mono tracking-tight">{invoice.ncf}</p>
                                 </div>
                             )}
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Número de Factura</p>
+                                <p className={invoice.ncf ? "text-sm font-semibold text-slate-500 dark:text-slate-400" : "text-lg font-bold text-slate-900 dark:text-white"}>{invoice.number}</p>
+                            </div>
                         </div>
                     </div>
 

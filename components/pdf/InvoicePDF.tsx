@@ -108,10 +108,17 @@ const styles = StyleSheet.create({
         color: slate900,
         marginBottom: 10,
     },
+    invoiceNumberSecondary: {
+        fontSize: 9,
+        fontWeight: "bold",
+        color: slate400,
+        marginBottom: 10,
+    },
     ncf: {
-        fontSize: 12,
+        fontSize: 16,
         fontWeight: "bold",
         color: blue,
+        marginBottom: 10,
     },
     separator: {
         borderBottomWidth: 1,
@@ -452,14 +459,14 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
 
                         <View style={styles.invoiceSide}>
                             <Text style={styles.watermarkTitle}>FACTURA</Text>
-                            <Text style={styles.eyebrow}>Numero de factura</Text>
-                            <Text style={styles.invoiceNumber}>{invoice.number || `INV-${invoice.id}`}</Text>
                             {invoice.ncf ? (
                                 <>
                                     <Text style={styles.eyebrow}>NCF</Text>
                                     <Text style={styles.ncf}>{invoice.ncf}</Text>
                                 </>
                             ) : null}
+                            <Text style={styles.eyebrow}>Numero de factura</Text>
+                            <Text style={invoice.ncf ? styles.invoiceNumberSecondary : styles.invoiceNumber}>{invoice.number || `INV-${invoice.id}`}</Text>
                         </View>
                     </View>
 

@@ -50,7 +50,9 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                     >
                         <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                                <p className="text-sm font-black text-slate-900 dark:text-white">#{invoice.number}</p>
+                                <p className="text-sm font-black text-slate-900 dark:text-white">
+                                    {invoice.ncf ? <span className="font-numeric tracking-tight">{invoice.ncf}</span> : <>#{invoice.number}</>}
+                                </p>
                                 {invoice.contact?.id ? (
                                     <Link
                                         href={`/contacts/${invoice.contact.id}`}
@@ -63,7 +65,7 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                     <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">Sin cliente</p>
                                 )}
                                 {invoice.ncf && (
-                                    <p className="mt-1 text-[10px] font-bold tracking-tight text-slate-400">{invoice.ncf}</p>
+                                    <p className="mt-1 text-[10px] font-medium tracking-tight text-slate-400">#{invoice.number}</p>
                                 )}
                             </div>
                             <div className="text-right">
@@ -119,7 +121,7 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                            <th className="px-4 md:px-6 py-4">Ref. / NCF</th>
+                            <th className="px-4 md:px-6 py-4">NCF / Ref.</th>
                             <th className="px-4 md:px-6 py-4">Cliente</th>
                             <th className="px-6 py-4 text-center hidden md:table-cell">Fecha</th>
                             <th className="px-6 py-4 text-center hidden sm:table-cell">Estado</th>
@@ -136,9 +138,13 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                             >
                                 <td className="px-4 md:px-6 py-4 md:py-5">
                                     <div className="flex flex-col">
-                                        <span className="text-xs md:text-sm font-semibold text-slate-900 dark:text-white">#{invoice.number}</span>
-                                        {invoice.ncf && (
-                                            <span className="text-[10px] md:text-xs font-numeric font-bold text-slate-500 tracking-tighter">{invoice.ncf}</span>
+                                        {invoice.ncf ? (
+                                            <>
+                                                <span className="text-xs md:text-sm font-numeric font-black text-slate-900 dark:text-white tracking-tight">{invoice.ncf}</span>
+                                                <span className="text-[10px] md:text-xs font-medium text-slate-400">#{invoice.number}</span>
+                                            </>
+                                        ) : (
+                                            <span className="text-xs md:text-sm font-semibold text-slate-900 dark:text-white">#{invoice.number}</span>
                                         )}
                                     </div>
                                 </td>

@@ -71,7 +71,11 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
                     </Link>
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            Factura {invoice.number}
+                            {invoice.ncf ? (
+                                <span className="font-numeric tracking-tight">{invoice.ncf}</span>
+                            ) : (
+                                <>Factura {invoice.number}</>
+                            )}
                             <span className={clsx(
                                 "text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full font-black border",
                                 {
@@ -84,7 +88,10 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
                                 {invoice.status}
                             </span>
                         </h1>
-                        <p className="text-sm text-slate-500">Creada el {formatDate(invoice.date)}</p>
+                        <p className="text-sm text-slate-500">
+                            {invoice.ncf ? <span className="font-medium text-slate-400">Ref. {invoice.number} &middot; </span> : null}
+                            Creada el {formatDate(invoice.date)}
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
