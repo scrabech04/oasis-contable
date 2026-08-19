@@ -15,7 +15,7 @@ import { allowedProfileIds, requireWriteAccess } from "@/lib/authz";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber, normalizeNcf, splitNcf } from "@/lib/ncf";
-import { purchaseAttachmentProblem } from "@/lib/attachments";
+import { ATTACHMENT_MAX_BYTES, COVER_IMAGE_MAX_BYTES, attachmentProblem, purchaseAttachmentProblem } from "@/lib/attachments";
 import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
 
@@ -1551,6 +1551,9 @@ function safeFileName(name: string) {
 }
 
 async function savePurchaseEvidenceFile(file: File, _profileId: number) {
+  const problem = purchaseAttachmentProblem(file.type || "application/octet-stream", file.size);
+  if (problem) throw new Error(problem);
+
   const originalName = safeFileName(file.name || "soporte");
   const bytes = Buffer.from(await file.arrayBuffer());
   const mimeType = file.type || "application/octet-stream";
@@ -1590,6 +1593,9 @@ function attachmentFromFormData(formData: FormData) {
 
   if (!storagePath || !fileName || !mimeType || fileSize <= 0) return null;
   if (!storagePath.startsWith("data:")) return null;
+  if (attachmentProblem(mimeType, fileSize)) return null;
+  // El tamano declarado puede no coincidir con lo que de verdad viene en el data URI.
+  if (storagePath.length > ATTACHMENT_MAX_BYTES * 1.4) return null;
 
   return {
     fileName,
@@ -1600,13 +1606,30 @@ function attachmentFromFormData(formData: FormData) {
   };
 }
 
+/**
+ * Los adjuntos se guardan como data URI dentro de `storagePath`, asi que traer la
+ * relacion completa arrastra el PDF entero en base64. Los listados solo necesitan saber
+ * que el soporte existe y como se llama, asi que piden estos campos y nunca el archivo.
+ */
+const attachmentSummarySelect = {
+  id: true,
+  fileName: true,
+  fileSize: true,
+  mimeType: true,
+  type: true,
+  createdAt: true,
+} as const;
+
 async function paymentAttachmentFromFormData(formData: FormData) {
   const value = formData.get("attachment");
   if (!(value instanceof File) || value.size <= 0) return null;
 
+  const mimeType = value.type || "application/octet-stream";
+  const problem = attachmentProblem(mimeType, value.size);
+  if (problem) throw new Error(problem);
+
   const originalName = safeFileName(value.name || "comprobante-pago");
   const bytes = Buffer.from(await value.arrayBuffer());
-  const mimeType = value.type || "application/octet-stream";
 
   return {
     fileName: value.name || originalName,
@@ -1649,7 +1672,12 @@ async function extractInvoicesWithGemini(formData: FormData | undefined, mode: "
     return { success: false as const, error: "Selecciona un PDF o imagen para procesar.", data: null };
   }
 
-  if (file.size > 15 * 1024 * 1024) {
+  // En modo compra el archivo no solo se analiza: queda guardado como soporte, asi que
+  // tiene que cumplir las mismas reglas que cualquier otro adjunto.
+  if (mode === "purchase") {
+    const problem = purchaseAttachmentProblem(file.type || "application/octet-stream", file.size);
+    if (problem) return { success: false as const, error: problem, data: null };
+  } else if (file.size > 15 * 1024 * 1024) {
     return { success: false as const, error: "El archivo supera el limite de 15 MB.", data: null };
   }
 
@@ -1869,10 +1897,13 @@ export async function updateCompanySettings(formData: FormData) {
   await requireWriteAccess();
   const settings = await getScopedCompanySettings();
   const incomingCoverImage = text(formData, "coverImageDataUrl");
-  const coverImageData =
-    incomingCoverImage && /^data:image\/(png|jpe?g|webp);base64,/i.test(incomingCoverImage) && incomingCoverImage.length < 2_500_000
-      ? incomingCoverImage
-      : undefined;
+  if (incomingCoverImage && !/^data:image\/(png|jpe?g|webp);base64,/i.test(incomingCoverImage)) {
+    return { success: false, error: "La portada debe ser una imagen PNG, JPG o WEBP." };
+  }
+  if (incomingCoverImage && incomingCoverImage.length >= COVER_IMAGE_MAX_BYTES) {
+    return { success: false, error: "La portada pesa demasiado. Usa una imagen mas ligera o de menor resolucion." };
+  }
+  const coverImageData = incomingCoverImage || undefined;
   const removeCoverImage = text(formData, "removeCoverImage") === "true";
   const coverImageUpdate =
     removeCoverImage ? { coverImageUrl: null } :
@@ -2813,7 +2844,7 @@ export async function getInvoices(options?: { search?: string; sortBy?: string; 
           }
         : {}),
     },
-    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true, attachments: true } } },
+    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true, attachments: { select: attachmentSummarySelect } } } },
     orderBy: orderBy as any,
   });
 }
@@ -2822,7 +2853,7 @@ export async function getInvoice(id: number) {
   const profileId = await getActiveProfileId();
   const invoice = await prisma.invoice.findFirst({
     where: { id, profileId },
-    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true, attachments: true }, orderBy: { date: "desc" } } },
+    include: { contact: true, project: true, items: true, payments: { include: { withholdings: true, attachments: { select: attachmentSummarySelect } }, orderBy: { date: "desc" } } },
   });
   return invoice ? { ...invoice, client: invoice.contact } : null;
 }
@@ -3046,7 +3077,7 @@ export async function getProformas(options?: { search?: string; sortBy?: string;
           }
         : {}),
     },
-    include: { contact: true, project: true, items: true, payments: { include: { attachments: true, withholdings: true } }, invoices: true },
+    include: { contact: true, project: true, items: true, payments: { include: { attachments: { select: attachmentSummarySelect }, withholdings: true } }, invoices: true },
     orderBy: orderBy as any,
   });
 }
@@ -3060,7 +3091,7 @@ export async function getProforma(id: number) {
       project: true,
       items: true,
       invoices: true,
-      payments: { include: { attachments: true, withholdings: true }, orderBy: { date: "desc" } },
+      payments: { include: { attachments: { select: attachmentSummarySelect }, withholdings: true }, orderBy: { date: "desc" } },
     },
   });
 }
@@ -3160,7 +3191,7 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   const profileId = formData ? await resolveExplicitOrActiveProfileId(formData) : await getActiveProfileId();
   const proforma = await prisma.proformaInvoice.findFirst({
     where: { id, profileId },
-    include: { items: true, payments: { include: { withholdings: true, attachments: true } } },
+    include: { items: true, payments: { include: { withholdings: true } } },
   });
   if (!proforma) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
   if (proforma.status === "CONVERTED") return { success: false, error: "Esta prefactura ya fue convertida." };
@@ -3259,7 +3290,13 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
           }
         : {}),
     },
-    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: true } } },
+    include: {
+      contact: true,
+      project: true,
+      items: true,
+      attachments: { select: attachmentSummarySelect },
+      payments: { include: { withholdings: true, attachments: { select: attachmentSummarySelect } } },
+    },
     orderBy: orderBy as Prisma.PurchaseOrderByWithRelationInput,
   });
 }
@@ -3268,7 +3305,7 @@ export async function getPurchase(id: number) {
   const profileId = await getActiveProfileId();
   return prisma.purchase.findFirst({
     where: { id, profileId },
-    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: true } } },
+    include: { contact: true, project: true, items: true, attachments: true, payments: { include: { withholdings: true, attachments: { select: attachmentSummarySelect } } } },
   });
 }
 
@@ -3767,7 +3804,7 @@ export async function getExpenses(options?: PeriodParams & { profileId?: number;
           }
         : {}),
     },
-    include: { contact: true, items: true, attachments: true },
+    include: { contact: true, items: true, attachments: { select: attachmentSummarySelect } },
     orderBy: { [options?.sortBy === "total" ? "total" : "date"]: sortOrder } as Prisma.PurchaseOrderByWithRelationInput,
   });
 }
@@ -4002,7 +4039,12 @@ export async function recordPayment(targetId: number, targetType: "INVOICE" | "P
 
   const amount = numberValue(formData, "amount");
   const withholdings = JSON.parse(text(formData, "withholdings", "[]"));
-  const attachment = await paymentAttachmentFromFormData(formData);
+  let attachment;
+  try {
+    attachment = await paymentAttachmentFromFormData(formData);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "No se pudo preparar el soporte." };
+  }
   const payment = await prisma.payment.create({
     data: {
       amount,
@@ -4035,7 +4077,12 @@ export async function updatePayment(id: number, formData: FormData) {
   });
   if (!existing) return { success: false, error: "Pago no encontrado para el perfil activo." };
   const withholdings = JSON.parse(text(formData, "withholdings", "[]"));
-  const attachment = await paymentAttachmentFromFormData(formData);
+  let attachment;
+  try {
+    attachment = await paymentAttachmentFromFormData(formData);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "No se pudo preparar el soporte." };
+  }
   await prisma.payment.update({
     where: { id },
     data: {

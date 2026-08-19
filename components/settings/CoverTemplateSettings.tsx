@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { useMemo, useState } from "react";
 import { ImageIcon, RotateCcw } from "lucide-react";
+import { COVER_IMAGE_MAX_BYTES } from "@/lib/attachments";
 
 type Settings = {
   coverImageUrl?: string | null;
@@ -94,6 +95,7 @@ export function CoverTemplateSettings({ settings }: { settings: Settings }) {
   const [textColor, setTextColor] = useState(settings.coverTextColor || "#ffffff");
   const [accentColor, setAccentColor] = useState(settings.coverAccentColor || "#2563eb");
   const [processing, setProcessing] = useState(false);
+  const [imageError, setImageError] = useState("");
 
   const previewStyle = useMemo(() => ({
     color: textColor,
@@ -125,8 +127,16 @@ export function CoverTemplateSettings({ settings }: { settings: Settings }) {
                   const file = event.target.files?.[0];
                   if (!file) return;
                   setProcessing(true);
+                  setImageError("");
                   try {
                     const optimized = await fileToOptimizedDataUrl(file);
+                    // Ya viene reescalada a 1600px, pero una foto muy detallada todavia
+                    // puede pasarse: antes se descartaba en silencio al guardar.
+                    if (optimized.length >= COVER_IMAGE_MAX_BYTES) {
+                      setImageError("Esta imagen pesa demasiado incluso optimizada. Usa una mas ligera o de menor resolucion.");
+                      event.target.value = "";
+                      return;
+                    }
                     setImageDataUrl(optimized);
                     setPreviewImage(optimized);
                     setRemoveImage(false);
@@ -136,8 +146,8 @@ export function CoverTemplateSettings({ settings }: { settings: Settings }) {
                 }}
               />
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-slate-500">
-                  {processing ? "Optimizando imagen..." : "Recomendado: imagen horizontal, JPG/WebP."}
+                <span className={imageError && !processing ? "text-xs font-semibold text-red-600" : "text-xs text-slate-500"}>
+                  {processing ? "Optimizando imagen..." : imageError || "Recomendado: imagen horizontal, JPG/WebP."}
                 </span>
                 {previewImage && (
                   <button

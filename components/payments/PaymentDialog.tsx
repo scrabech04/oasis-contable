@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, X as CloseIcon, Trash2, Receipt, User, CreditCard, Paperclip } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import { ATTACHMENT_MAX_BYTES, attachmentProblem } from "@/lib/attachments";
 
 const WITHHOLDING_TYPES = [
     { label: "Retención ITBIS - 30%", value: "ITBIS_30" },
@@ -157,10 +158,12 @@ export function PaymentDialog({
         }
 
         try {
-            if (initialPaymentData) {
-                await updatePayment(initialPaymentData.id, formData);
-            } else {
-                await recordPayment(targetId, targetType, formData);
+            const result = initialPaymentData
+                ? await updatePayment(initialPaymentData.id, formData)
+                : await recordPayment(targetId, targetType, formData);
+            if (result && result.success === false) {
+                toast.error("No se pudo guardar el pago", result.error);
+                return;
             }
             toast.success(initialPaymentData ? "Pago actualizado" : "Pago registrado");
             onSuccess();
@@ -258,7 +261,10 @@ export function PaymentDialog({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="payment-proof" className="text-xs font-bold uppercase text-slate-500">Comprobante</Label>
+                        <div className="flex items-baseline justify-between gap-2">
+                            <Label htmlFor="payment-proof" className="text-xs font-bold uppercase text-slate-500">Comprobante</Label>
+                            <span className="text-[10px] font-medium text-slate-400">PDF o imagen, hasta {ATTACHMENT_MAX_BYTES / 1024 / 1024} MB</span>
+                        </div>
                         <label
                             htmlFor="payment-proof"
                             className="grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-sm transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
@@ -276,9 +282,23 @@ export function PaymentDialog({
                         <Input
                             id="payment-proof"
                             type="file"
-                            accept="image/*,.pdf"
+                            accept="application/pdf,image/jpeg,image/png,image/webp"
                             className="hidden"
-                            onChange={(event) => setProofFile(event.target.files?.[0] || null)}
+                            onChange={(event) => {
+                                const file = event.target.files?.[0] || null;
+                                if (!file) {
+                                    setProofFile(null);
+                                    return;
+                                }
+                                const problem = attachmentProblem(file.type, file.size);
+                                if (problem) {
+                                    toast.error("Ese soporte no sirve", problem);
+                                    event.target.value = "";
+                                    setProofFile(null);
+                                    return;
+                                }
+                                setProofFile(file);
+                            }}
                         />
                         {initialPaymentData?.attachments?.length > 0 && (
                             <div className="flex flex-wrap gap-2">
