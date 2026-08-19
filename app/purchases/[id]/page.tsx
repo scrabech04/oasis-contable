@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, CreditCard, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText } from "lucide-react";
+import { ArrowLeft, CalendarDays, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText } from "lucide-react";
 import { deletePurchase, getPurchase } from "@/app/actions";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { Button } from "@/components/ui/button";
 import { DeleteButton } from "@/components/DeleteButton";
 import { MovePurchaseProfile } from "@/components/purchases/MovePurchaseProfile";
 import { PurchaseAttachmentManager } from "@/components/purchases/PurchaseAttachmentManager";
+import { PurchasePaymentsManager } from "@/components/purchases/PurchasePaymentsManager";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 interface PurchaseDetailPageProps {
@@ -260,47 +261,7 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
-          <CreditCard className="h-5 w-5 text-emerald-600" />
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Pagos registrados</h2>
-        </div>
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {purchase.payments.map((payment) => (
-            <article key={payment.id} className="grid grid-cols-1 gap-3 p-5 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <p className="font-black text-slate-900 dark:text-white">
-                  RD$ {formatCurrency(payment.amount)} · {paymentMethodLabels[payment.method] || payment.method}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {formatMaybeDate(payment.date)}{payment.reference ? ` · Ref. ${payment.reference}` : ""}
-                </p>
-                {payment.notes && <p className="mt-2 text-sm text-slate-500">{payment.notes}</p>}
-                {payment.withholdings.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {payment.withholdings.map((withholding) => (
-                      <span key={withholding.id} className="rounded-full border border-orange-100 bg-orange-50 px-2 py-1 text-[11px] font-bold text-orange-700">
-                        {withholding.type}: RD$ {formatCurrency(withholding.amount)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2 md:justify-end">
-                {payment.attachments.map((attachment) => (
-                  <Link key={attachment.id} href={`/api/payments/attachments/${attachment.id}`} target="_blank" className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800">
-                    <Paperclip className="h-4 w-4" />
-                    Soporte
-                  </Link>
-                ))}
-              </div>
-            </article>
-          ))}
-          {purchase.payments.length === 0 && (
-            <p className="px-5 py-8 text-center text-sm text-slate-400">No hay pagos registrados para esta compra.</p>
-          )}
-        </div>
-      </section>
+      <PurchasePaymentsManager purchase={purchase} paymentMethodLabels={paymentMethodLabels} />
     </div>
   );
 }
