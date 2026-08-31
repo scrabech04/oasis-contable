@@ -531,3 +531,19 @@ model Subscription {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 }
+
+// Historial de códigos de seguridad que hubo que buscar por variantes. Guarda qué se
+// leyó y cuál era el correcto para que más adelante se pueda ordenar la búsqueda según
+// el sesgo de cada impresora: la sustitución que funcionó antes con un emisor es la más
+// probable la próxima vez que llegue una factura suya.
+model DgiiSecurityCodeFix {
+  id             Int      @id @default(autoincrement())
+  rncEmisor      String
+  encf           String
+  codigoLeido    String
+  codigoCorrecto String
+  intentos       Int
+  createdAt      DateTime @default(now())
+
+  @@index([rncEmisor])
+}

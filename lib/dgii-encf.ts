@@ -62,7 +62,23 @@ export interface DgiiEncfResult {
   dgiiUrl: string;
 }
 
-export class FriendlyError extends Error {}
+/**
+ * Distingue por qué rechazó la DGII, que es lo que decide si vale la pena buscar
+ * variantes del código de seguridad:
+ * - "bad_rnc_or_encf": el par RNC emisor + e-NCF no existe. Probar códigos es inútil.
+ * - "not_found": ese par sí existe, pero el código de seguridad (o el RNC comprador)
+ *   no coincide. Aquí sí tiene sentido buscar.
+ */
+export type DgiiEncfFailureKind = "not_found" | "bad_rnc_or_encf" | "other";
+
+export class FriendlyError extends Error {
+  readonly kind: DgiiEncfFailureKind;
+
+  constructor(message: string, kind: DgiiEncfFailureKind = "other") {
+    super(message);
+    this.kind = kind;
+  }
+}
 
 export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
   const data: DgiiEncfInput = {
@@ -244,7 +260,8 @@ function parseConsultaResult(html: string): DgiiEncfExtractedData {
   const encf = label("cphMain_lblencf");
 
   if (!encf) {
-    throw new FriendlyError(buildNotFoundMessage($));
+    const message = buildNotFoundMessage($);
+    throw new FriendlyError(message, classifyNotFound(message));
   }
 
   const fechaEmision = label("cphMain_lblFechaEmision");
@@ -264,6 +281,21 @@ function parseConsultaResult(html: string): DgiiEncfExtractedData {
     estado: label("cphMain_lblEstadoFe"),
     totalItbis: normalizeAmount(label("cphMain_lblTotalItbis")),
   };
+}
+
+// La DGII usa dos mensajes distintos y esa diferencia es la única señal disponible para
+// saber qué campo está mal. Verificado el 2026-08-31 consultando a propósito con cada
+// campo corrompido por separado.
+function classifyNotFound(message: string): DgiiEncfFailureKind {
+  if (/no corresponde a este rnc|comprobante fiscal ingresado no es correcto/i.test(message)) {
+    return "bad_rnc_or_encf";
+  }
+
+  if (/no encontrado|no devolvió datos/i.test(message)) {
+    return "not_found";
+  }
+
+  return "other";
 }
 
 function buildNotFoundMessage($: cheerio.CheerioAPI) {
@@ -776,4 +808,157 @@ function formatOffset(offsetSeconds: number) {
 
 function normalizeAmount(value: string) {
   return cleanText(value).replace(/RD\$/gi, "").replace(/,/g, "").trim();
+}
+
+/**
+ * El código de seguridad son los primeros 6 caracteres de la firma digital, que va en
+ * Base64: el alfabeto es A-Z, a-z, 0-9, "+" y "/". Como no excluye ningún carácter, no
+ * hay forma de descartar una lectura por el alfabeto, y en impresión térmica pequeña
+ * varios pares quedan idénticos. Cada entrada lista las alternativas plausibles para un
+ * carácter leído, ordenadas de más a menos probable.
+ */
+const CONFUSIONES: Record<string, string[]> = {
+  I: ["l", "1"], l: ["I", "1"], "1": ["l", "I", "7"],
+  O: ["0", "o", "Q"], "0": ["O", "o", "D"], o: ["O", "0"], Q: ["O", "0"],
+  S: ["5", "s"], "5": ["S", "s"], s: ["S", "5"],
+  Z: ["2", "z"], "2": ["Z", "z"], z: ["Z", "2"],
+  B: ["8"], "8": ["B", "S"],
+  G: ["6", "C"], "6": ["G", "b"], b: ["6", "h"],
+  q: ["g", "9"], g: ["q", "9"], "9": ["g", "q"],
+  U: ["V", "u"], V: ["U", "v", "Y"], u: ["U", "v", "n"], v: ["V", "u", "y"],
+  D: ["0", "O"], "7": ["1", "/"], "/": ["7", "1"], "+": ["t"], t: ["+", "f"],
+  c: ["e"], e: ["c"], n: ["h", "u"], h: ["n", "b"], m: ["rn"], Y: ["V", "y"], y: ["v", "Y"],
+  C: ["G"], f: ["t"], j: ["i"], i: ["j", "l"],
+};
+
+export interface CodigoSearchProgress {
+  intentos: number;
+  total: number;
+}
+
+export interface CodigoSearchResult {
+  encontrado: boolean;
+  // Motivo por el que no se buscó o no se halló, para explicárselo al usuario.
+  motivo: "hallado" | "sin_candidatos" | "agotado" | "tope" | "rnc_o_encf";
+  codigo: string | null;
+  intentos: number;
+  candidatosTotales: number;
+}
+
+/**
+ * Genera variantes del código ordenadas por cantidad de sustituciones: primero el código
+ * tal como se leyó, después las de un solo cambio, luego dos, y así. Un OCR se equivoca
+ * en pocos caracteres, de modo que ese orden encuentra el correcto mucho antes de agotar
+ * el espacio, que crece muy rápido con la longitud.
+ */
+export function buildCodigoCandidates(codigo: string, maxCandidatos = 200) {
+  const base = [...codigo];
+  const alternativas = base.map((ch) => CONFUSIONES[ch] || []);
+  const posicionesDudosas = alternativas.reduce((total, alts) => total + (alts.length > 0 ? 1 : 0), 0);
+  const candidatos: string[] = [codigo];
+  const vistos = new Set([codigo]);
+
+  const combinar = (posiciones: number[], indice: number, actual: string[]) => {
+    if (candidatos.length >= maxCandidatos) return;
+
+    if (indice === posiciones.length) {
+      const texto = actual.join("");
+      if (!vistos.has(texto)) {
+        vistos.add(texto);
+        candidatos.push(texto);
+      }
+      return;
+    }
+
+    const pos = posiciones[indice];
+    for (const alt of alternativas[pos]) {
+      const siguiente = [...actual];
+      siguiente[pos] = alt;
+      combinar(posiciones, indice + 1, siguiente);
+      if (candidatos.length >= maxCandidatos) return;
+    }
+  };
+
+  const elegirPosiciones = (distancia: number, desde: number, elegidas: number[]) => {
+    if (candidatos.length >= maxCandidatos) return;
+
+    if (elegidas.length === distancia) {
+      combinar(elegidas, 0, base);
+      return;
+    }
+
+    for (let pos = desde; pos < base.length; pos += 1) {
+      if (alternativas[pos].length === 0) continue;
+      elegirPosiciones(distancia, pos + 1, [...elegidas, pos]);
+      if (candidatos.length >= maxCandidatos) return;
+    }
+  };
+
+  for (let distancia = 1; distancia <= posicionesDudosas; distancia += 1) {
+    elegirPosiciones(distancia, 0, []);
+    if (candidatos.length >= maxCandidatos) break;
+  }
+
+  return candidatos;
+}
+
+/**
+ * Prueba variantes del código de seguridad contra la DGII hasta que una devuelva la
+ * factura. Solo corre cuando la DGII ya confirmó que el RNC emisor y el e-NCF existen:
+ * si el problema fuera ese par, ninguna variante del código serviría y se estarían
+ * gastando cientos de consultas para nada.
+ */
+export async function searchCodigoSeguridad(
+  input: DgiiEncfInput,
+  opciones: { maxCandidatos?: number; concurrencia?: number; onProgress?: (p: CodigoSearchProgress) => void } = {}
+): Promise<CodigoSearchResult> {
+  const maxCandidatos = Math.max(1, Math.min(opciones.maxCandidatos ?? 200, 400));
+  const concurrencia = Math.max(1, Math.min(opciones.concurrencia ?? 4, 6));
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+
+  const candidatos = buildCodigoCandidates(input.codigoSeguridad, maxCandidatos);
+
+  if (candidatos.length <= 1) {
+    return { encontrado: false, motivo: "sin_candidatos", codigo: null, intentos: 0, candidatosTotales: candidatos.length };
+  }
+
+  let intentos = 0;
+
+  for (let i = 0; i < candidatos.length; i += concurrencia) {
+    if (Date.now() > deadline) {
+      return { encontrado: false, motivo: "tope", codigo: null, intentos, candidatosTotales: candidatos.length };
+    }
+
+    const lote = candidatos.slice(i, i + concurrencia);
+    const resultados = await Promise.all(
+      lote.map(async (codigo) => {
+        try {
+          await consultarEncf({ ...input, codigoSeguridad: codigo });
+          return codigo;
+        } catch (error) {
+          // El par RNC + e-NCF está mal: ninguna variante del código va a servir.
+          if (error instanceof FriendlyError && error.kind === "bad_rnc_or_encf") {
+            throw error;
+          }
+          return null;
+        }
+      })
+    );
+
+    intentos += lote.length;
+    opciones.onProgress?.({ intentos, total: candidatos.length });
+
+    const hallado = resultados.find(Boolean);
+    if (hallado) {
+      return { encontrado: true, motivo: "hallado", codigo: hallado, intentos, candidatosTotales: candidatos.length };
+    }
+  }
+
+  return {
+    encontrado: false,
+    motivo: candidatos.length >= maxCandidatos ? "tope" : "agotado",
+    codigo: null,
+    intentos,
+    candidatosTotales: candidatos.length,
+  };
 }

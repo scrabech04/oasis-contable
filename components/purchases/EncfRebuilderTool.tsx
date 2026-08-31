@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, ExternalLink, ImagePlus, Link2, Loader2, QrCode, WandSparkles } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, ImagePlus, Link2, Loader2, QrCode, SearchCheck, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,8 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
   const [copied, setCopied] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const [readNote, setReadNote] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const canUseInPurchase = useMemo(() => {
@@ -133,6 +135,7 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
     setResult(null);
     setCopied(false);
     setReadNote(null);
+    setSearchNote(null);
 
     try {
       const response = await fetch("/api/purchases/rebuild-encf", {
@@ -165,6 +168,50 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
       setError("No se pudo comunicar con el servidor para consultar la DGII.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Cuando la consulta rebota, lo mas comun es que el codigo de seguridad tenga un
+  // caracter leido mal: en impresion termica pequena la I, la l y el 1 son identicos, y
+  // el alfabeto Base64 del codigo permite los tres. Esto prueba las variantes por orden
+  // de cuantos caracteres cambian, asi que la correcta suele salir en los primeros
+  // intentos. El servidor corta solo si el problema resulta ser el RNC o el e-NCF.
+  const handleSearchCode = async () => {
+    setIsSearching(true);
+    setError(null);
+    setSearchNote(null);
+    setReadNote(null);
+
+    try {
+      const response = await fetch("/api/purchases/rebuild-encf/search-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!data) {
+        setError("El servidor no devolvió una respuesta válida al buscar el código.");
+        return;
+      }
+
+      if (!data.ok || !data.encontrado) {
+        setError(data.message || "No se encontró ninguna variante del código que validara.");
+        return;
+      }
+
+      setForm((current) => ({ ...current, codigoSeguridad: data.codigoSeguridad }));
+      setResult(data as EncfRebuildResponse);
+      setSearchNote(
+        data.codigoSeguridad === form.codigoSeguridad
+          ? `El código estaba bien: la consulta validó a la ${data.intentos}ª prueba.`
+          : `El código correcto es "${data.codigoSeguridad}", no "${form.codigoSeguridad}". Encontrado en ${data.intentos} de ${data.candidatosTotales} variantes.`
+      );
+    } catch {
+      setError("No se pudo comunicar con el servidor para buscar el código.");
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -355,8 +402,39 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
               </div>
 
               {error ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-                  {error}
+                <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                  <p>{error}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isSearching || !form.codigoSeguridad.trim()}
+                      onClick={handleSearchCode}
+                      className="h-9 rounded-lg border-red-300 bg-white text-xs font-bold text-red-700 hover:bg-red-100 dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300"
+                    >
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Probando variantes...
+                        </>
+                      ) : (
+                        <>
+                          <SearchCheck className="mr-2 h-4 w-4" />
+                          No me reconoce el código
+                        </>
+                      )}
+                    </Button>
+                    <span className="text-xs text-red-700/80 dark:text-red-300/80">
+                      Prueba variantes de los caracteres que se confunden al imprimir (I/l/1, O/0, S/5...).
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {searchNote ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  {searchNote}
                 </div>
               ) : null}
 
