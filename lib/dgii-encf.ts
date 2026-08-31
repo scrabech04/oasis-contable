@@ -24,6 +24,10 @@ export interface DgiiEncfInput {
   rncComprador: string;
   codigoSeguridad: string;
   horaFirma?: string;
+  // Muchas facturas imprimen dos horas: la de la venta en el encabezado y la de la firma
+  // digital junto al código de seguridad, que suelen diferir por segundos. Cualquiera de
+  // las dos puede ser la que valida, así que se prueban ambas antes de barrer offsets.
+  horaFirmaAlt?: string;
   // "second" cuando la hora vino completa (17:17:01) y "minute" cuando la factura
   // solo mostraba hora y minutos (17:17). Decide qué tan ancho es el barrido.
   horaFirmaPrecision?: "second" | "minute";
@@ -67,6 +71,7 @@ export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
     rncComprador: normalizeTaxId(body.rncComprador),
     codigoSeguridad: normalizeCompact(body.codigoSeguridad),
     horaFirma: normalizeTime(body.horaFirma),
+    horaFirmaAlt: normalizeTime(body.horaFirmaAlt),
   };
 
   if (!data.rncEmisor || !data.encf || !data.rncComprador || !data.codigoSeguridad) {
@@ -77,16 +82,26 @@ export function sanitizeDgiiEncfInput(body: Partial<DgiiEncfInput>) {
     };
   }
 
-  if (data.horaFirma) {
-    if (!/^([0-1]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(data.horaFirma)) {
+  const horaPattern = /^([0-1]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+  for (const [etiqueta, valor] of [
+    ["hora de firma", data.horaFirma],
+    ["segunda hora", data.horaFirmaAlt],
+  ] as const) {
+    if (valor && !horaPattern.test(valor)) {
       return {
         ok: false as const,
-        message:
-          "La hora de firma debe tener formato HH:mm:ss (17:17:01) o HH:mm (17:17) si la factura no muestra los segundos.",
+        message: `La ${etiqueta} debe tener formato HH:mm:ss (17:17:01) o HH:mm (17:17) si la factura no muestra los segundos.`,
       };
     }
+  }
 
-    data.horaFirmaPrecision = data.horaFirma.length === 5 ? "minute" : "second";
+  // La precisión decide el ancho del barrido. Si solo vino la hora alterna, es ella la
+  // que se va a barrer, así que manda su propio formato.
+  const horaParaPrecision = data.horaFirma || data.horaFirmaAlt;
+
+  if (horaParaPrecision) {
+    data.horaFirmaPrecision = horaParaPrecision.length === 5 ? "minute" : "second";
   }
 
   return { ok: true as const, data };
@@ -286,6 +301,7 @@ async function validateOrSweepTimbre({
 }): Promise<DgiiEncfValidation> {
   const minuteOnly = input.horaFirmaPrecision === "minute";
   const horaBase = expandHora(input.horaFirma);
+  const horaAlt = expandHora(input.horaFirmaAlt);
   const horaDgii = extractHoraFirmaDgii(extracted.fechaFirma);
   const baseFechaFirma = combineFechaFirma(
     extracted.fechaFirma,
@@ -305,6 +321,7 @@ async function validateOrSweepTimbre({
     fechaFirma: extracted.fechaFirma,
     horaDgii,
     horaBase,
+    horaAlt,
     rangeSeconds: DEFAULT_SWEEP_SECONDS,
     minuteOnly,
   });
@@ -380,7 +397,14 @@ async function validateOrSweepTimbre({
     checkedUrl: baseUrl,
     message: incomplete
       ? `Se agotó el tiempo disponible tras ${attempted} intentos sin validar el enlace. Verifica la hora de firma exacta.`
-      : describeMiss({ horaDgii, horaBase, horaEscrita: input.horaFirma, minuteOnly }),
+      : describeMiss({
+          horaDgii,
+          horaBase,
+          horaAlt,
+          horaEscrita: input.horaFirma,
+          horaEscritaAlt: input.horaFirmaAlt,
+          minuteOnly,
+        }),
   };
 }
 
@@ -407,26 +431,34 @@ function describeHit(candidate: SweepCandidate, minuteOnly: boolean) {
     return `El enlace fue validado con la hora de firma que devolvió la DGII (${candidate.hora}).`;
   }
 
+  const cual = candidate.source === "alt" ? "la segunda hora de la factura" : "la hora base indicada";
+
   if (minuteOnly) {
     return `El enlace fue validado con la hora ${candidate.hora}: la firma cayó en el segundo ${String(
       candidate.offsetSeconds
-    ).padStart(2, "0")} del minuto indicado.`;
+    ).padStart(2, "0")} del minuto de ${cual}.`;
   }
 
   return candidate.offsetSeconds === 0
-    ? "El enlace fue validado con la hora base indicada."
-    : `El enlace fue validado ajustando ${formatOffset(candidate.offsetSeconds ?? 0)} respecto a la hora base.`;
+    ? `El enlace fue validado con ${cual} (${candidate.hora}).`
+    : `El enlace fue validado ajustando ${formatOffset(
+        candidate.offsetSeconds ?? 0
+      )} respecto a ${cual}.`;
 }
 
 function describeMiss({
   horaDgii,
   horaBase,
+  horaAlt,
   horaEscrita,
+  horaEscritaAlt,
   minuteOnly,
 }: {
   horaDgii: HoraFirmaDgii | null;
   horaBase: string;
+  horaAlt: string;
   horaEscrita?: string;
+  horaEscritaAlt?: string;
   minuteOnly: boolean;
 }) {
   const intentos: string[] = [];
@@ -439,12 +471,17 @@ function describeMiss({
     );
   }
 
+  const describirBarrido = (hora: string, escrita: string | undefined, etiqueta: string) =>
+    minuteOnly
+      ? `los 60 segundos del minuto ${escrita || hora} (${etiqueta})`
+      : `un barrido de ±${DEFAULT_SWEEP_SECONDS} segundos alrededor de ${hora} (${etiqueta})`;
+
   if (horaBase) {
-    intentos.push(
-      minuteOnly
-        ? `los 60 segundos del minuto ${horaEscrita}`
-        : `un barrido de ±${DEFAULT_SWEEP_SECONDS} segundos alrededor de ${horaBase}`
-    );
+    intentos.push(describirBarrido(horaBase, horaEscrita, "hora de firma"));
+  }
+
+  if (horaAlt) {
+    intentos.push(describirBarrido(horaAlt, horaEscritaAlt, "segunda hora"));
   }
 
   return `No se validó el enlace probando ${intentos.join(" y ")}.`;
@@ -482,7 +519,8 @@ interface SweepCandidate {
   // Segundos de ajuste respecto a la hora escrita por el usuario; null cuando la hora
   // salió de la propia DGII y no de un ajuste.
   offsetSeconds: number | null;
-  source: "dgii" | "base";
+  // "base" es la hora de firma digital y "alt" la otra hora impresa en la factura.
+  source: "dgii" | "base" | "alt";
 }
 
 interface HoraFirmaDgii {
@@ -530,12 +568,14 @@ function buildSweepCandidates({
   fechaFirma,
   horaDgii,
   horaBase,
+  horaAlt,
   rangeSeconds,
   minuteOnly,
 }: {
   fechaFirma: string;
   horaDgii: HoraFirmaDgii | null;
   horaBase: string;
+  horaAlt: string;
   rangeSeconds: number;
   minuteOnly: boolean;
 }) {
@@ -552,16 +592,36 @@ function buildSweepCandidates({
     candidates.push({ hora, source, offsetSeconds, fechaFirma: `${normalizedDate} ${hora}` });
   };
 
+  // Primero las horas tal como vinieron: la que devolvió la DGII y las dos que trae
+  // impresas la factura. Una de ellas acierta casi siempre, y probarlas antes de barrer
+  // evita cientos de consultas cuando la hora buena estaba escrita desde el principio.
   if (horaDgii?.hasSeconds) {
     add(horaDgii.hora, "dgii", null);
-  } else if (horaDgii) {
+  }
+
+  if (!minuteOnly) {
+    if (horaBase) {
+      add(horaBase, "base", 0);
+    }
+
+    if (horaAlt) {
+      add(horaAlt, "alt", 0);
+    }
+  }
+
+  // La DGII dio hora pero sin segundos: hay que recorrer el minuto completo.
+  if (horaDgii && !horaDgii.hasSeconds) {
     for (let second = 0; second < 60; second += 1) {
       add(`${horaDgii.hora}:${String(second).padStart(2, "0")}`, "dgii", null);
     }
   }
 
-  if (horaBase) {
-    const base = parseTimeToSeconds(horaBase);
+  const sweepDesde = (hora: string, source: "base" | "alt") => {
+    if (!hora) {
+      return;
+    }
+
+    const base = parseTimeToSeconds(hora);
     const offsets: number[] = [];
 
     if (minuteOnly) {
@@ -580,10 +640,15 @@ function buildSweepCandidates({
       const total = base + offsetSeconds;
 
       if (total >= 0 && total <= 86_399) {
-        add(formatSecondsAsTime(total), "base", offsetSeconds);
+        add(formatSecondsAsTime(total), source, offsetSeconds);
       }
     }
-  }
+  };
+
+  // El barrido de cada hora va completo antes de pasar al de la otra: si la firma quedó
+  // a un par de segundos de la hora buena, se encuentra sin agotar el presupuesto.
+  sweepDesde(horaBase, "base");
+  sweepDesde(horaAlt, "alt");
 
   return candidates;
 }

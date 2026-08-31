@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Copy, ExternalLink, Link2, Loader2, QrCode, WandSparkles } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, ImagePlus, Link2, Loader2, QrCode, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { extractEncfTimbreFromFile } from "@/app/actions";
 
 interface EncfRebuilderToolProps {
   initialBuyerTaxId: string;
@@ -49,6 +50,7 @@ const initialForm = (buyerTaxId: string) => ({
   rncComprador: buyerTaxId,
   codigoSeguridad: "",
   horaFirma: "",
+  horaFirmaAlt: "",
 });
 
 export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps) {
@@ -58,6 +60,9 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isReading, setIsReading] = useState(false);
+  const [readNote, setReadNote] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const canUseInPurchase = useMemo(() => {
     return Boolean(form.encf.trim() && form.rncEmisor.trim() && result?.extracted.fechaEmision);
@@ -71,12 +76,63 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
       }));
     };
 
+  // La IA solo rellena el formulario: no consulta ni guarda nada. El codigo de seguridad
+  // distingue mayusculas de minusculas y es lo mas facil de leer mal en una foto, asi que
+  // el paso de revision humana antes de consultar es deliberado.
+  const handleFillFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setIsReading(true);
+    setError(null);
+    setReadNote(null);
+
+    try {
+      const payload = new FormData();
+      payload.append("file", file);
+      const response = await extractEncfTimbreFromFile(payload);
+
+      if (!response.success || !response.data) {
+        setError(response.error || "No fue posible leer los datos de la factura.");
+        return;
+      }
+
+      const leido = response.data;
+      setForm((current) => ({
+        ...current,
+        rncEmisor: leido.rncEmisor || current.rncEmisor,
+        encf: leido.encf || current.encf,
+        codigoSeguridad: leido.codigoSeguridad || current.codigoSeguridad,
+        horaFirma: leido.horaFirmaDigital || current.horaFirma,
+        horaFirmaAlt: leido.horaEmision || current.horaFirmaAlt,
+      }));
+
+      const faltantes = [
+        !leido.rncEmisor && "RNC emisor",
+        !leido.encf && "e-NCF",
+        !leido.codigoSeguridad && "código de seguridad",
+      ].filter(Boolean);
+
+      setReadNote(
+        faltantes.length > 0
+          ? `Revisa los datos antes de consultar. No se pudo leer: ${faltantes.join(", ")}.`
+          : "Revisa los datos antes de consultar, sobre todo las mayúsculas y minúsculas del código de seguridad."
+      );
+    } catch {
+      setError("No se pudo procesar el archivo de la factura.");
+    } finally {
+      setIsReading(false);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setError(null);
     setResult(null);
     setCopied(false);
+    setReadNote(null);
 
     try {
       const response = await fetch("/api/purchases/rebuild-encf", {
@@ -174,6 +230,50 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6">
+            <div className="mb-6 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/60 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                    ¿No quieres teclearlo?
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-300/80">
+                    Sube la foto o el PDF de la factura y se rellenan estos campos. Los montos y fechas siguen viniendo de la DGII, no de la lectura.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isReading}
+                  onClick={() => fileRef.current?.click()}
+                  className="h-10 rounded-xl border-emerald-300 bg-white text-xs font-bold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-300"
+                >
+                  {isReading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Leyendo factura...
+                    </>
+                  ) : (
+                    <>
+                      <ImagePlus className="mr-2 h-4 w-4" />
+                      Rellenar desde foto
+                    </>
+                  )}
+                </Button>
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                className="hidden"
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                onChange={handleFillFromFile}
+              />
+              {readNote ? (
+                <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-xs font-semibold text-emerald-900 dark:bg-slate-900/60 dark:text-emerald-200">
+                  {readNote}
+                </p>
+              ) : null}
+            </div>
+
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
@@ -220,7 +320,7 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
                     required
                   />
                 </div>
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
                   <Label htmlFor="horaFirma">Hora de Firma</Label>
                   <Input
                     id="horaFirma"
@@ -229,8 +329,20 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
                     placeholder="19:00:45 o 19:00"
                     autoComplete="off"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="horaFirmaAlt">Segunda hora (encabezado)</Label>
+                  <Input
+                    id="horaFirmaAlt"
+                    value={form.horaFirmaAlt}
+                    onChange={handleChange("horaFirmaAlt")}
+                    placeholder="19:00:40 o 19:00"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Opcional: la DGII casi siempre devuelve la hora de firma y esa se prueba primero. Llénala solo si hace falta: completa con segundos (19:00:45), o solo hora y minutos (19:00) y el sistema probará los 60 segundos de ese minuto.
+                    Ambas horas son opcionales: la DGII casi siempre devuelve la hora de firma y esa se prueba primero. Muchas facturas imprimen dos horas —la de la venta arriba y la de la firma digital junto al código de seguridad— y suelen diferir por segundos. Si pones las dos, se prueban tal cual antes de barrer; si ninguna acierta, se barren los segundos alrededor de cada una. Con segundos (19:00:45) o solo hora y minutos (19:00), y en ese caso se prueban los 60 segundos del minuto.
                   </p>
                 </div>
               </div>

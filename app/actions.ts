@@ -1359,8 +1359,30 @@ function isMissingSupplierName(value: string) {
   return !cleaned || /proveedor sin identificar/i.test(cleaned);
 }
 
+// RNC/cedulas propias. Muchas representaciones impresas rotulan "RNC/Cedula:" sobre el
+// dato del COMPRADOR y dejan el del emisor suelto en el encabezado, asi que el modelo
+// tiende a devolver el nuestro como si fuera el del proveedor. Tratarlos como dato
+// faltante deja que corran los fallbacks de encabezado, que si miran arriba.
+const OWN_TAX_IDS = new Set(["133647461", "40200448476"]);
+
+function isOwnTaxId(value: string) {
+  const digits = String(value || "").replace(/\D/g, "");
+  return Boolean(digits) && OWN_TAX_IDS.has(digits);
+}
+
+// Deja pasar el valor salvo que sea uno de los nuestros, para que el siguiente candidato
+// de la cadena tenga su turno en vez de quedar tapado por un RNC que sabemos incorrecto.
+function discardOwnTaxId(value: string | null | undefined) {
+  const text = String(value || "");
+  return isOwnTaxId(text) ? "" : text;
+}
+
 function isMissingSupplierTaxId(value: string) {
   const cleaned = cleanTaxId(value);
+  if (isOwnTaxId(cleaned)) {
+    return true;
+  }
+
   return !cleaned || /^(n\/a|na|null|none|sin rnc|no aplica)$/i.test(cleaned);
 }
 
@@ -1378,6 +1400,8 @@ Reglas:
 - Si aparecen nombre comercial y razon social, combina ambos en supplierName. Ejemplo: "SIRENA MARKET COLINA C / GRUPO RAMOS S.A".
 - supplierTaxId es el RNC/Tax ID/VAT/RUC del emisor/proveedor. En tickets dominicanos suele aparecer como "RNC:" en el encabezado.
 - No uses cedula/RNC del comprador, cliente o consumidor.
+- En las representaciones impresas dominicanas el RNC del EMISOR suele ir en el encabezado, debajo del nombre del negocio y la direccion, muchas veces SIN etiqueta y relleno con ceros a la izquierda. La linea rotulada "RNC/Cedula:" que aparece mas abajo, junto al nombre del cliente, casi siempre es la del COMPRADOR: no la uses.
+- Nunca devuelvas 133647461 ni 40200448476 como supplierTaxId, con o sin guiones: son del comprador. Si el unico RNC legible es uno de esos, devuelve cadena vacia.
 - Si no hay RNC del emisor, supplierTaxId debe ser cadena vacia.
 - No extraigas productos, totales ni datos de pago.`;
 
@@ -1692,6 +1716,8 @@ Regla critica de proveedor:
 - supplierName debe ser SIEMPRE el nombre legal/comercial del EMISOR/VENDEDOR/PROVEEDOR, nunca el comprador/cliente.
 - Busca supplierName en etiquetas como "Razon social emisor", "Nombre emisor", "Emisor", "Proveedor", "Vendedor", "Seller", "Merchant", "Vendor", "Company" o el nombre grande del negocio que emite la factura.
 - supplierTaxId debe ser SIEMPRE el RNC/Cedula/Tax ID/VAT/RUC del EMISOR/VENDEDOR/PROVEEDOR.
+- En las representaciones impresas dominicanas el RNC del EMISOR suele ir en el encabezado, debajo del nombre del negocio y la direccion, muchas veces SIN etiqueta y relleno con ceros a la izquierda. La linea rotulada "RNC/Cedula:" que aparece mas abajo, junto al nombre del cliente, casi siempre es la del COMPRADOR: no la uses.
+- Nunca devuelvas 133647461 ni 40200448476 como supplierTaxId, con o sin guiones: son del comprador. Si el unico RNC legible es uno de esos, devuelve cadena vacia.
 - Busca supplierTaxId en "RNC Emisor", "RNC proveedor", "Cedula emisor", "Tax ID", "VAT", "RUC". No uses "RNC comprador", "Cliente", "Customer" ni datos del comprador.
 - Si el proveedor es internacional y no tiene RNC dominicano, supplierTaxId debe ser cadena vacia, nunca inventes un RNC.
 
@@ -1790,7 +1816,10 @@ Regla critica de fecha: en comprobantes dominicanos, fechas como 11/01/26, 11-01
               firstText(looseValue(row, "proveedor") || {}, ["taxId", "rnc", "cedula", "cédula"]) ||
               firstText(looseValue(row, "emisor") || {}, ["taxId", "rnc", "cedula", "cédula"]);
             const normalizedSupplierName = supplierNameFromImportedRow(row) || purchaseSupplierFallback?.supplierName || supplierName;
-            const normalizedSupplierTaxId = supplierTaxIdFromImportedRow(row) || purchaseSupplierFallback?.supplierTaxId || supplierTaxId;
+            const normalizedSupplierTaxId =
+              discardOwnTaxId(supplierTaxIdFromImportedRow(row)) ||
+              discardOwnTaxId(purchaseSupplierFallback?.supplierTaxId) ||
+              discardOwnTaxId(supplierTaxId);
             const normalized = normalizePurchaseSingleItem(row, normalizedSupplierName);
             const supplierWebsiteUrl = firstText(row, [
               "supplierWebsiteUrl",
@@ -4561,4 +4590,107 @@ export async function processDGIIQR(qrText: string) {
   } catch {
     return { success: false, error: "El QR no contiene un enlace válido de DGII.", duplicate: null };
   }
+}
+
+const encfTimbreSchema: ResponseSchema = {
+  type: SchemaType.ARRAY,
+  minItems: 1,
+  maxItems: 1,
+  items: {
+    type: SchemaType.OBJECT,
+    required: ["rncEmisor", "encf", "codigoSeguridad"],
+    properties: {
+      rncEmisor: {
+        type: SchemaType.STRING,
+        description:
+          "Issuer/vendor RNC from the receipt header, usually printed under the store name and address without a label. Never the buyer tax id labeled 'RNC/Cedula:'.",
+      },
+      encf: { type: SchemaType.STRING, description: "e-NCF, starts with E31, E32, E34, E41, E43, E44 or E45." },
+      codigoSeguridad: {
+        type: SchemaType.STRING,
+        description:
+          "Security code printed as 'Codigo de Seguridad'. Six characters, case sensitive: copy uppercase and lowercase exactly as printed.",
+      },
+      horaFirmaDigital: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description: "Time next to 'Fecha de Firma Digital', as HH:mm:ss or HH:mm.",
+      },
+      horaEmision: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description: "Time printed in the header next to the sale date, as HH:mm:ss or HH:mm.",
+      },
+    },
+  },
+};
+
+/**
+ * Lee de una foto o PDF solo los campos que necesita el reconstructor de timbre. La IA
+ * no aporta ningun dato al registro: monto, fecha e ITBIS los sigue trayendo la DGII.
+ * Si lee mal el codigo de seguridad o el e-NCF, la consulta falla de forma visible en
+ * vez de colar un dato incorrecto, asi que sirve de puente sin comprometer la certeza.
+ */
+export async function extractEncfTimbreFromFile(formData: FormData) {
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (!apiKey) {
+    return { success: false as const, error: "Falta configurar GEMINI_API_KEY en .env.", data: null };
+  }
+
+  const file = formData?.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false as const, error: "Selecciona un PDF o imagen de la factura.", data: null };
+  }
+
+  const problem = purchaseAttachmentProblem(file.type || "application/octet-stream", file.size);
+  if (problem) {
+    return { success: false as const, error: problem, data: null };
+  }
+
+  const prompt = `Analiza la factura de credito fiscal electronica y extrae SOLO los datos del timbre fiscal. Responde exclusivamente JSON valido, sin Markdown ni explicaciones, como un array con un unico objeto.
+
+Reglas:
+- rncEmisor es el RNC del EMISOR/VENDEDOR. En las representaciones impresas dominicanas va en el encabezado, debajo del nombre del negocio y la direccion, muchas veces SIN etiqueta y relleno con ceros a la izquierda. Copialo tal como aparece impreso, con sus ceros.
+- La linea rotulada "RNC/Cedula:" que aparece mas abajo, junto al nombre del cliente, es la del COMPRADOR: NUNCA la uses como rncEmisor.
+- Nunca devuelvas 133647461 ni 40200448476 como rncEmisor, con o sin guiones: son del comprador.
+- encf es el numero de comprobante electronico, rotulado "NCF:" o "e-NCF:". Empieza con E seguido del tipo (E31, E32, E34, E41, E43, E44, E45).
+- codigoSeguridad es el valor junto a "Codigo de Seguridad". Son seis caracteres y DISTINGUE MAYUSCULAS DE MINUSCULAS: transcribelo caracter por caracter respetando exactamente como esta impreso. Si una letra se ve minuscula, devuelvela minuscula.
+- horaFirmaDigital es la hora que acompana a "Fecha de Firma Digital", cerca del codigo de seguridad.
+- horaEmision es la hora impresa en el encabezado junto a la fecha de la venta.
+- Las dos horas suelen diferir por pocos segundos. Devuelve ambas por separado y no las mezcles. Usa formato HH:mm:ss, o HH:mm si la factura no muestra los segundos.
+- Si un dato no aparece, devuelve cadena vacia. Nunca lo inventes.`;
+
+  const generated = await generateGeminiInvoiceRows({
+    apiKey,
+    prompt,
+    filePart: await fileToGenerativePart(file),
+    schema: encfTimbreSchema,
+  });
+
+  if (!generated.success) {
+    return { success: false as const, error: generated.error, data: null };
+  }
+
+  const row = (generated.rows[0] || {}) as Record<string, unknown>;
+  const hora = (value: unknown) => {
+    const match = String(value || "").match(/(\d{1,2}):([0-5]\d)(?::([0-5]\d))?/);
+    if (!match) return "";
+    const hours = String(Number(match[1])).padStart(2, "0");
+    if (Number(hours) > 23) return "";
+    return match[3] ? `${hours}:${match[2]}:${match[3]}` : `${hours}:${match[2]}`;
+  };
+
+  return {
+    success: true as const,
+    error: null,
+    data: {
+      // El RNC conserva los ceros de relleno tal como los imprime la factura.
+      rncEmisor: String(row.rncEmisor || "").replace(/\D/g, ""),
+      encf: String(row.encf || "").replace(/\s+/g, "").toUpperCase(),
+      // Sin toUpperCase: el codigo de seguridad distingue mayusculas de minusculas.
+      codigoSeguridad: String(row.codigoSeguridad || "").replace(/\s+/g, ""),
+      horaFirmaDigital: hora(row.horaFirmaDigital),
+      horaEmision: hora(row.horaEmision),
+    },
+  };
 }
