@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ExportButton } from "@/components/reports/ExportButton";
 import { PeriodSelector } from "@/components/reports/PeriodSelector";
 import { formatCurrency } from "@/lib/format";
+import { dgiiComprobanteType } from "@/lib/ncf";
 
 function isForeignPurchase(purchase: any) {
     return purchase.origin === "FOREIGN" || ["FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"].includes(purchase.taxTreatment);
@@ -132,7 +133,7 @@ export default async function ReportsPage(props: {
                                                 </td>
                                                 <td className="px-4 md:px-6 py-4 hidden sm:table-cell">
                                                     <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-md text-[10px] font-black border border-blue-100 dark:border-blue-800 uppercase tracking-tighter">
-                                                        {p.type === 'FORMAL' ? 'B01' : 'Inf'}
+                                                        {dgiiComprobanteType(p.ncf) || (p.type === 'FORMAL' ? '—' : 'Inf')}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 md:px-6 py-4 font-numeric text-[11px] text-slate-500 tracking-wider uppercase font-bold">{p.ncf || "-"}</td>

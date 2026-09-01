@@ -68,3 +68,20 @@ export function nextFreeNumber(prefix: string, counter: number, issued: Array<st
   const safeCounter = Number.isFinite(counter) && counter > 0 ? Math.floor(counter) : 1;
   return Math.max(safeCounter, highestIssuedNumber(prefix, issued) + 1);
 }
+
+/**
+ * Tipo de comprobante que declara el propio NCF: `E310000108216` -> `E31`,
+ * `B0100000045` -> `B01`.
+ *
+ * Devuelve null cuando lo guardado no tiene forma de comprobante fiscal. En ese campo se
+ * han escrito numeros internos del proveedor (`FV14293`, `210316943`, `OE8SJZIH-0001`), y
+ * llamar `FV1` o `210` a un "tipo de comprobante" seria inventar un dato fiscal. La forma
+ * se comprueba por estructura y no contra una lista de tipos, para que un comprobante que
+ * la DGII agregue despues siga saliendo bien: serie B o E, dos digitos, y correlativo.
+ */
+export function dgiiComprobanteType(ncf: string | null | undefined) {
+  const parsed = splitNcf(ncf);
+  if (!parsed) return null;
+
+  return /^[BE]\d{2}$/.test(parsed.prefix) ? parsed.prefix : null;
+}
