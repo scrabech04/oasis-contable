@@ -167,14 +167,40 @@ function convertItemsToDop(items: any[], exchangeRate: number) {
   }));
 }
 
+/**
+ * Titulo o subtitulo son lineas de formato, no de cobro: solo maquetan la factura. El
+ * respaldo es ITEM porque las rutas MCP y las facturas viejas no mandan el campo, y ahi
+ * cada linea si es un cobro.
+ */
+function normalizeItemType(value: unknown) {
+  const clean = String(value || "").trim().toUpperCase();
+  return clean === "HEADING" || clean === "SUBHEADING" ? clean : "ITEM";
+}
+
+/**
+ * El tipo de linea se perdia al guardar: el formulario lo mandaba, pero aqui se descartaba
+ * y la tabla no tenia la columna. Un titulo quedaba como una linea normal de cantidad 0, y
+ * asi salia en el PDF, con 0 en cantidad, precio, ITBIS y total; en pantalla pasaba lo
+ * contrario y ninguna linea mostraba sus importes, porque el visor compara con "ITEM" y
+ * ninguna factura lo traia.
+ *
+ * En un titulo se guardan los importes en cero: `totals` ya los excluye del subtotal, asi
+ * que un numero ahi no se cobra pero tampoco significa nada.
+ */
 function invoiceItemsData(items: any[]) {
   return items.map((item) => {
+    const itemType = normalizeItemType(item.itemType);
+    if (itemType !== "ITEM") {
+      return { description: String(item.description || ""), itemType, quantity: 0, price: 0, taxRate: 0, total: 0 };
+    }
+
     const quantity = Number(item.quantity) || 0;
     const price = Number(item.price) || 0;
     const taxRate = normalizeTaxRateValue(item.taxRate);
 
     return {
       description: String(item.description || ""),
+      itemType,
       quantity,
       price,
       taxRate,

@@ -207,6 +207,7 @@ model ProformaInvoiceItem {
   proformaInvoiceId Int
   proformaInvoice   ProformaInvoice @relation(fields: [proformaInvoiceId], references: [id], onDelete: Cascade)
   description String
+  itemType    String    @default("ITEM") // ITEM, HEADING, SUBHEADING
   quantity    Int
   price       Float
   taxRate     Float    @default(0)
@@ -218,6 +219,7 @@ model InvoiceItem {
   invoiceId   Int
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   description String
+  itemType    String    @default("ITEM") // ITEM, HEADING, SUBHEADING
   quantity    Int
   price       Float
   taxRate     Float   @default(0) // Impuesto %
