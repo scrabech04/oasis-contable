@@ -180,6 +180,37 @@ const styles = StyleSheet.create({
         paddingBottom: 12,
         minHeight: 72,
     },
+    /**
+     * Un titulo es una linea de texto, no una fila de tabla. El `minHeight` de arriba esta
+     * para que a un item no se le venga encima la descripcion larga de la siguiente linea;
+     * en un titulo de una sola linea deja 72 puntos de aire debajo, que era el hueco
+     * enorme entre cada seccion y sus items.
+     */
+    sectionRow: {
+        minHeight: 0,
+        paddingTop: 11,
+        paddingBottom: 5,
+    },
+    subsectionRow: {
+        minHeight: 0,
+        paddingTop: 6,
+        paddingBottom: 5,
+    },
+    headingText: {
+        width: "94%",
+        fontSize: 9.5,
+        fontWeight: "bold",
+        color: slate900,
+        lineHeight: 1.28,
+    },
+    subheadingText: {
+        width: "94%",
+        paddingLeft: 10,
+        fontSize: 8.2,
+        fontWeight: "bold",
+        color: slate700,
+        lineHeight: 1.28,
+    },
     th: {
         fontSize: 6.5,
         fontWeight: "bold",
@@ -503,15 +534,26 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
                             <Text style={[styles.th, styles.colTotal]}>Total</Text>
                         </View>
                         {invoice.items.map((item: any, index: number) => {
-                            const isItem = item.itemType === "ITEM" || !item.itemType;
+                            const isHeading = item.itemType === "HEADING";
+                            const isSubheading = item.itemType === "SUBHEADING";
+
+                            if (isHeading || isSubheading) {
+                                return (
+                                    <View key={item.id || index} style={[styles.tableRow, isHeading ? styles.sectionRow : styles.subsectionRow]}>
+                                        <View style={styles.colNo} />
+                                        <Text style={isHeading ? styles.headingText : styles.subheadingText}>{item.description}</Text>
+                                    </View>
+                                );
+                            }
+
                             return (
                                 <View key={item.id || index} style={styles.tableRow}>
-                                    <Text style={[styles.td, styles.colNo]}>{isItem ? itemNumber(invoice.items, index) : ""}</Text>
+                                    <Text style={[styles.td, styles.colNo]}>{itemNumber(invoice.items, index)}</Text>
                                     <Text style={[styles.td, styles.colDesc]}>{item.description}</Text>
-                                    <Text style={[styles.td, styles.colQty]}>{isItem ? item.quantity : ""}</Text>
-                                    <Text style={[styles.td, styles.colPrice]}>{isItem ? formatCurrency(item.price) : ""}</Text>
-                                    <Text style={[styles.td, styles.colTax]}>{isItem ? `${item.taxRate}%` : ""}</Text>
-                                    <Text style={[styles.td, styles.colTotal]}>{isItem ? formatCurrency(item.total) : ""}</Text>
+                                    <Text style={[styles.td, styles.colQty]}>{item.quantity}</Text>
+                                    <Text style={[styles.td, styles.colPrice]}>{formatCurrency(item.price)}</Text>
+                                    <Text style={[styles.td, styles.colTax]}>{`${item.taxRate}%`}</Text>
+                                    <Text style={[styles.td, styles.colTotal]}>{formatCurrency(item.total)}</Text>
                                 </View>
                             );
                         })}
