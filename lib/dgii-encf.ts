@@ -39,6 +39,7 @@ export interface DgiiEncfExtractedData {
   fechaFirma: string;
   estado: string;
   totalItbis: string;
+  razonSocialEmisor: string;
 }
 
 export interface DgiiEncfValidation {
@@ -146,6 +147,12 @@ export async function rebuildDgiiEncfTimbre(input: DgiiEncfInput): Promise<DgiiE
     margin: 1,
     width: 280,
   });
+
+  // Solo cuando el enlace quedó validado: si no lo está, la página del timbre no muestra
+  // la factura y la consulta sería un viaje perdido contra un servicio del gobierno.
+  if (validation.validated) {
+    extracted.razonSocialEmisor = await fetchRazonSocialEmisor(timbreUrl);
+  }
 
   return {
     message: "Factura encontrada. Se reconstruyó el enlace oficial del timbre DGII.",
@@ -280,7 +287,45 @@ function parseConsultaResult(html: string): DgiiEncfExtractedData {
     fechaFirma: normalizeDateTime(fechaFirma),
     estado: label("cphMain_lblEstadoFe"),
     totalItbis: normalizeAmount(label("cphMain_lblTotalItbis")),
+    // ncf.aspx no publica el nombre del emisor, solo su RNC. Se rellena después desde la
+    // página del timbre, que sí lo trae. Verificado contra el sitio real el 2026-08-31.
+    razonSocialEmisor: "",
   };
+}
+
+const EMISOR_NAME_LABEL = /(raz[oó]n\s*social|nombre)[^a-z]*emisor/i;
+
+/**
+ * La página del timbre arma sus datos como filas de dos celdas
+ * (`<th>Razón social emisor</th><td>ACABADOS AUTOMOTRICES SAS</td>`), el mismo formato
+ * que lee la constancia. Es best-effort a propósito: si la DGII renombra el rótulo o la
+ * página no carga, la reconstrucción sigue saliendo completa y lo único que falta es el
+ * nombre, que el formulario de compra deja escribir a mano.
+ */
+async function fetchRazonSocialEmisor(url: string): Promise<string> {
+  try {
+    const response = await dgiiFetch(url, {}, "la lectura del emisor");
+    if (!response.ok) return "";
+
+    const $ = cheerio.load(await response.text());
+    $("script, style").remove();
+
+    let found = "";
+
+    $("tr").each((_, row) => {
+      if (found) return;
+
+      const cells = $(row).find("th, td");
+      if (cells.length !== 2) return;
+      if (!EMISOR_NAME_LABEL.test(cleanText($(cells[0]).text()))) return;
+
+      found = cleanText($(cells[1]).text());
+    });
+
+    return found;
+  } catch {
+    return "";
+  }
 }
 
 // La DGII usa dos mensajes distintos y esa diferencia es la única señal disponible para

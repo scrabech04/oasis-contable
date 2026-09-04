@@ -26,6 +26,7 @@ interface EncfRebuildResponse {
     fechaFirma: string;
     estado?: string;
     totalItbis?: string;
+    razonSocialEmisor?: string;
   };
   validation?: {
     validated: boolean;
@@ -235,10 +236,15 @@ export function EncfRebuilderTool({ initialBuyerTaxId }: EncfRebuilderToolProps)
       JSON.stringify({
         ncf: form.encf.trim().toUpperCase(),
         supplierTaxId: form.rncEmisor.replace(/\D/g, ""),
-        supplierName: "",
+        supplierName: result.extracted.razonSocialEmisor || "",
         date: result.extracted.fechaEmision,
         total: Number(result.extracted.montoTotal || 0),
-        qrUrl: result.timbreUrl,
+        // El formulario reparte el total entre base e ITBIS con este monto; sin él la
+        // compra entraba con impuesto 0 aunque la DGII sí devolviera el ITBIS.
+        taxAmount: Number(result.extracted.totalItbis || 0),
+        // La clave es `timbreUrl`: es la que lee PurchaseForm, y con `qrUrl` el enlace
+        // oficial se perdía en el traspaso.
+        timbreUrl: result.timbreUrl,
         scannedAt: Date.now(),
       })
     );
