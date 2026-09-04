@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Defs, LinearGradient, Stop, Rect } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 type PdfOptions = {
@@ -6,7 +6,34 @@ type PdfOptions = {
     includeTermsPage?: boolean;
 };
 
-const blue = "#155dfc";
+/**
+ * Los dos tonos de Oasis Gate, muestreados del gradiente de la marca (el boton del sitio y
+ * la palabra "TE" del titular). Van juntos y en ese orden: el azul abre y el morado cierra.
+ */
+const brandBlue = "#76a8f7";
+const brandPurple = "#a468f5";
+
+/**
+ * El morado de marca sobre papel blanco se queda en 2.7:1 de contraste, flojo para un
+ * importe o un NCF. Este conserva el tono (262 grados, el mismo) y sube a 6.3:1, asi que el
+ * texto usa este y los rellenos decorativos usan los de arriba.
+ */
+const brandInk = "#7838d8";
+
+/** La franja de marca del borde superior: azul a la izquierda, morado a la derecha. */
+function BrandBar() {
+    return (
+        <Svg style={styles.topBar} viewBox="0 0 100 5" preserveAspectRatio="none">
+            <Defs>
+                <LinearGradient id="brandBar" x1="0" y1="0" x2="1" y2="0">
+                    <Stop offset="0" stopColor={brandBlue} />
+                    <Stop offset="1" stopColor={brandPurple} />
+                </LinearGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100" height="5" fill="url(#brandBar)" />
+        </Svg>
+    );
+}
 const slate900 = "#0f172a";
 const slate700 = "#334155";
 const slate500 = "#64748b";
@@ -23,8 +50,8 @@ const styles = StyleSheet.create({
         backgroundColor: "#ffffff",
     },
     topBar: {
+        width: "100%",
         height: 5,
-        backgroundColor: blue,
     },
     content: {
         paddingTop: 30,
@@ -37,40 +64,11 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         marginBottom: 26,
     },
-    brand: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 18,
-    },
-    brandMark: {
-        width: 14,
-        height: 14,
-        borderRadius: 2,
-        backgroundColor: blue,
-        color: "#ffffff",
-        fontSize: 9,
-        fontWeight: "bold",
-        textAlign: "center",
-        paddingTop: 2,
-        marginRight: 6,
-    },
-    brandName: {
-        fontSize: 13,
-        fontWeight: "bold",
-        color: slate900,
-    },
-    brandBy: {
-        fontSize: 7,
-        color: slate500,
-        letterSpacing: 2,
-        textTransform: "uppercase",
-        marginLeft: 4,
-    },
     companyLogo: {
-        width: 44,
-        height: 44,
+        width: 58,
+        height: 58,
         objectFit: "contain",
-        marginBottom: 10,
+        marginBottom: 12,
     },
     companyName: {
         fontSize: 10,
@@ -117,7 +115,15 @@ const styles = StyleSheet.create({
     ncf: {
         fontSize: 16,
         fontWeight: "bold",
-        color: blue,
+        color: brandInk,
+        marginBottom: 10,
+    },
+    ncfWithExpiry: {
+        marginBottom: 1,
+    },
+    ncfExpiry: {
+        fontSize: 6.5,
+        color: slate400,
         marginBottom: 10,
     },
     separator: {
@@ -280,7 +286,7 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: "bold",
         fontStyle: "italic",
-        color: blue,
+        color: brandInk,
     },
     footer: {
         position: "absolute",
@@ -303,6 +309,11 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         color: slate400,
         textTransform: "uppercase",
+    },
+    footerBrand: {
+        fontSize: 6,
+        color: "#cbd5e1",
+        letterSpacing: 0.4,
     },
     coverPage: {
         position: "relative",
@@ -376,7 +387,7 @@ const styles = StyleSheet.create({
     termsTitle: {
         fontSize: 22,
         fontWeight: "bold",
-        color: blue,
+        color: brandInk,
         marginBottom: 24,
     },
     termsText: {
@@ -396,9 +407,15 @@ function itemNumber(items: any[], index: number) {
     return items.slice(0, index).filter((item: any) => item.itemType === "ITEM").length + 1;
 }
 
+/**
+ * Se acepta tambien un logo incrustado como data URI, no solo una URL: el unico logo que
+ * habia guardado apuntaba a un dominio que responde 404, y una imagen que el PDF no puede
+ * descargar deja la cabecera vacia sin avisar.
+ */
 function companyLogo(company: any) {
     const logo = company.logoUrl || company.logo;
-    return typeof logo === "string" && /^https?:\/\//i.test(logo) ? logo : "";
+    if (typeof logo !== "string") return "";
+    return /^(https?:\/\/|data:image\/)/i.test(logo) ? logo : "";
 }
 
 function moneyPrefix(company: any) {
@@ -420,7 +437,7 @@ function coverImageFit(company: any) {
 
 function CoverPage({ document, company, label, secondaryDateLabel }: { document: any; company: any; label: string; secondaryDateLabel?: string }) {
     const textColor = company.coverTextColor || "#ffffff";
-    const accentColor = company.coverAccentColor || blue;
+    const accentColor = company.coverAccentColor || brandInk;
     const overlayOpacity = typeof company.coverOverlayOpacity === "number" ? company.coverOverlayOpacity : 0.35;
     const backgroundImage = typeof company.coverImageUrl === "string" ? company.coverImageUrl : "";
 
@@ -463,6 +480,9 @@ function TermsBlock({ text }: { text: string }) {
 export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, company: any, options?: PdfOptions }) => {
     const logo = companyLogo(company);
     const prefix = moneyPrefix(company);
+    // Lo pone la ruta desde la secuencia de numeracion; si esa serie no tiene fecha de
+    // vencimiento no se imprime nada, antes que inventar una fecha fiscal.
+    const ncfExpiry = invoice.ncfExpiresAt || null;
 
     return (
         <Document>
@@ -471,15 +491,10 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
             )}
 
             <Page size="A4" style={styles.page}>
-                <View style={styles.topBar} />
+                <BrandBar />
                 <View style={styles.content}>
                     <View style={styles.brandRow}>
                         <View style={{ width: "54%" }}>
-                            <View style={styles.brand}>
-                                <Text style={styles.brandMark}>C</Text>
-                                <Text style={styles.brandName}>oFlow</Text>
-                                <Text style={styles.brandBy}>by Oasis</Text>
-                            </View>
                             {logo ? <Image src={logo} style={styles.companyLogo} /> : null}
                             <Text style={styles.companyName}>{company.name}</Text>
                             <Text style={styles.companyLine}>RNC: {company.taxId || "N/A"}</Text>
@@ -493,7 +508,8 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
                             {invoice.ncf ? (
                                 <>
                                     <Text style={styles.eyebrow}>NCF</Text>
-                                    <Text style={styles.ncf}>{invoice.ncf}</Text>
+                                    <Text style={ncfExpiry ? [styles.ncf, styles.ncfWithExpiry] : styles.ncf}>{invoice.ncf}</Text>
+                                    {ncfExpiry ? <Text style={styles.ncfExpiry}>Valido hasta {formatDate(ncfExpiry)}</Text> : null}
                                 </>
                             ) : null}
                             <Text style={styles.eyebrow}>Numero de factura</Text>
@@ -586,6 +602,7 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
 
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>Valido solo con sello y firma - Original: Cliente</Text>
+                    <Text style={styles.footerBrand}>oFlow by Oasis</Text>
                     <Text style={styles.footerText}>Pagina 1 de 1</Text>
                 </View>
             </Page>
