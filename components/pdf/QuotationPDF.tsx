@@ -1,423 +1,144 @@
-
-
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import { formatCurrency, formatDate } from '@/lib/format';
-
-const styles = StyleSheet.create({
-    page: {
-        padding: 40,
-        fontFamily: 'Helvetica',
-        fontSize: 10,
-        color: '#334155',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 40,
-    },
-    companyInfo: {
-        flexDirection: 'column',
-    },
-    companyName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#0f172a',
-        marginBottom: 4,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#059669', // Green for Quotations
-        textAlign: 'right',
-    },
-    quoteInfo: {
-        textAlign: 'right',
-    },
-    sectionTitle: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: '#0f172a',
-        marginBottom: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
-        paddingBottom: 4,
-    },
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 4,
-    },
-    label: {
-        color: '#64748b',
-    },
-    value: {
-        fontWeight: 'bold',
-    },
-    table: {
-        display: 'table' as any,
-        width: 'auto',
-        marginBottom: 30,
-    },
-    tableRow: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: '#f1f5f9',
-        paddingVertical: 8,
-        alignItems: 'center',
-    },
-    tableHeader: {
-        backgroundColor: '#f8fafc',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e2e8f0',
-        fontWeight: 'bold',
-    },
-    colNo: { width: '5%', textAlign: 'center', paddingLeft: 5 },
-    colDescription: { width: '40%' },
-    colQty: { width: '10%', textAlign: 'center' },
-    colPrice: { width: '15%', textAlign: 'right' },
-    colTax: { width: '10%', textAlign: 'center' },
-    colTotal: { width: '20%', textAlign: 'right', paddingRight: 5 },
-
-    footer: {
-        position: 'absolute',
-        bottom: 30,
-        left: 40,
-        right: 40,
-        borderTopWidth: 1,
-        borderTopColor: '#f1f5f9',
-        paddingTop: 10,
-        textAlign: 'center',
-        color: '#94a3b8',
-        fontSize: 8,
-    },
-    totalsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-    },
-    totalsBox: {
-        width: 200,
-    },
-    totalRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 4,
-    },
-    grandTotal: {
-        borderTopWidth: 1,
-        borderTopColor: '#e2e8f0',
-        marginTop: 4,
-        paddingTop: 8,
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#059669',
-    },
-    statusBadge: {
-        backgroundColor: '#ecfdf5',
-        color: '#059669',
-        fontSize: 10,
-        padding: '4 8',
-        borderRadius: 4,
-        marginTop: 8,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    coverPage: {
-        position: 'relative',
-        padding: 0,
-        fontFamily: 'Helvetica',
-        color: '#ffffff',
-        backgroundColor: '#0f172a',
-    },
-    coverBackground: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-    },
-    coverBackdrop: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: '#000000',
-    },
-    coverContent: {
-        position: 'absolute',
-        maxWidth: 390,
-    },
-    coverBrand: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        marginBottom: 46,
-        letterSpacing: 2,
-        textTransform: 'uppercase',
-    },
-    coverTitle: {
-        fontSize: 38,
-        fontWeight: 'bold',
-        marginBottom: 18,
-    },
-    coverClient: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    coverMeta: {
-        fontSize: 10,
-        marginBottom: 5,
-    },
-    coverAccent: {
-        width: 80,
-        height: 4,
-        borderRadius: 4,
-        marginBottom: 28,
-    },
-    coverFooter: {
-        position: 'absolute',
-        left: 50,
-        right: 50,
-        bottom: 34,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(255,255,255,0.35)',
-        paddingTop: 12,
-    },
-    termsPage: {
-        padding: 40,
-        fontFamily: 'Helvetica',
-        fontSize: 10,
-        color: '#334155',
-    },
-    termsTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#059669',
-        marginBottom: 24,
-    },
-    termsText: {
-        fontSize: 10,
-        lineHeight: 1.55,
-        marginBottom: 8,
-    }
-});
-
-type PdfOptions = {
-    includeCoverPage?: boolean;
-    includeTermsPage?: boolean;
-};
+import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { BrandBar, CoverPage, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
 
 const defaultTerms = "Esta cotizacion tiene una validez de 30 dias.\nLos precios estan sujetos a cambios hasta la aprobacion formal.\nEl inicio del proyecto requiere aprobacion de la propuesta y condiciones de pago acordadas.";
 
-function TermsBlock({ text }: { text: string }) {
-    return (
-        <View>
-            {text.split(/\r?\n/).filter(Boolean).map((line, index) => (
-                <Text key={index} style={styles.termsText}>{line}</Text>
-            ))}
-        </View>
-    );
-}
-
-function coverTextPosition(company: any) {
-    const value = company.coverTextPosition || "BOTTOM_LEFT";
-    if (value === "TOP_RIGHT") return { top: 64, right: 50, alignItems: "flex-end", textAlign: "right" };
-    if (value === "CENTER") return { top: 300, left: 70, right: 70, maxWidth: 455, alignItems: "center", textAlign: "center" };
-    if (value === "BOTTOM_RIGHT") return { bottom: 92, right: 50, alignItems: "flex-end", textAlign: "right" };
-    if (value === "TOP_LEFT") return { top: 64, left: 50 };
-    return { bottom: 92, left: 50 };
-}
-
-function coverImageFit(company: any) {
-    return company.coverImageFit === "CONTAIN" ? "contain" : "cover";
-}
-
-function CoverPage({ quotation, company }: { quotation: any; company: any }) {
-    const textColor = company.coverTextColor || "#ffffff";
-    const accentColor = company.coverAccentColor || "#059669";
-    const overlayOpacity = typeof company.coverOverlayOpacity === "number" ? company.coverOverlayOpacity : 0.35;
-    const backgroundImage = typeof company.coverImageUrl === "string" ? company.coverImageUrl : "";
+export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: any, company: any, options?: PdfOptions }) => {
+    const logo = companyLogo(company);
+    const prefix = moneyPrefix(company);
+    const asunto = [quotation.title, quotation.subtitle].filter(Boolean).join(" - ");
 
     return (
-        <Page size="A4" style={styles.coverPage}>
-            {backgroundImage ? (
-                <Image src={backgroundImage} style={[styles.coverBackground, { objectFit: coverImageFit(company) }]} />
-            ) : null}
-            <View style={[styles.coverBackdrop, { opacity: overlayOpacity }]} />
-            <View style={[styles.coverContent, coverTextPosition(company), { color: textColor } as any]}>
-                <View style={[styles.coverAccent, { backgroundColor: accentColor }]} />
-                {company.coverShowLogo !== false ? (
-                    <Text style={[styles.coverBrand, { color: accentColor }]}>{company.name || "oFlow by Oasis"}</Text>
-                ) : null}
-                <Text style={{ fontSize: 9, fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase", color: accentColor, marginBottom: 12 }}>COTIZACION</Text>
-                <Text style={[styles.coverTitle, { color: textColor }]}>{quotation.title || "COTIZACION"}</Text>
-                {company.coverShowClient !== false ? <Text style={[styles.coverClient, { color: textColor }]}>{quotation.contact?.name || "Sin cliente"}</Text> : null}
-                {company.coverShowProject !== false && quotation.project?.name ? <Text style={[styles.coverMeta, { color: textColor }]}>Proyecto: {quotation.project.name}</Text> : null}
-                {company.coverShowDocumentNumber !== false ? <Text style={[styles.coverMeta, { color: textColor }]}>Documento: {quotation.number}</Text> : null}
-                {company.coverShowDate !== false && quotation.date ? <Text style={[styles.coverMeta, { color: textColor }]}>Fecha: {formatDate(quotation.date)}</Text> : null}
-                {quotation.validUntil ? <Text style={[styles.coverMeta, { color: textColor }]}>Valida hasta: {formatDate(quotation.validUntil)}</Text> : null}
-            </View>
-            <View style={styles.coverFooter}>
-                <Text style={{ fontSize: 8, color: textColor }}>{[company.taxId && `RNC: ${company.taxId}`, company.email, company.phone, company.address].filter(Boolean).join(" | ")}</Text>
-            </View>
-        </Page>
-    );
-}
-
-export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: any, company: any, options?: PdfOptions }) => (
-    <Document>
-        {options.includeCoverPage && (
-            <CoverPage quotation={quotation} company={company} />
-        )}
-        <Page size="A4" style={styles.page}>
-            {/* Header / Brand */}
-            <View style={styles.header}>
-                <View style={styles.companyInfo}>
-                    <Text style={styles.companyName}>{company.name}</Text>
-                    <Text>RNC: {company.taxId}</Text>
-                    <Text>{company.address}</Text>
-                    <Text>Tel: {company.phone}</Text>
-                    <Text>Email: {company.email}</Text>
-                </View>
-                <View style={styles.quoteInfo}>
-                    <Text style={styles.title}>{quotation.title || "COTIZACIÓN"}</Text>
-                    {quotation.subtitle && (
-                        <Text style={{ fontSize: 10, color: '#64748b', textAlign: 'right', marginTop: 2 }}>
-                            {quotation.subtitle}
-                        </Text>
-                    )}
-                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#334155', marginTop: 4 }}>
-                        {quotation.number}
-                    </Text>
-                    <View style={styles.statusBadge}>
-                        <Text>{quotation.status}</Text>
-                    </View>
-                </View>
-            </View>
-
-            {/* Separator */}
-            <View style={{ borderBottomWidth: 2, borderBottomColor: '#10b981', marginBottom: 25 }} />
-
-            {/* Client and Dates */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 40 }}>
-                <View style={{ flex: 1.5 }}>
-                    <Text style={[styles.sectionTitle, { borderBottomColor: '#10b981' }]}>DIRIGIDO A</Text>
-                    <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#0f172a', marginBottom: 4 }}>
-                        {quotation.contact?.name || 'Sin cliente'}
-                    </Text>
-                    <Text style={{ color: '#64748b', marginBottom: 2 }}>
-                        RNC/Cédula: {quotation.contact?.taxId || 'N/A'}
-                    </Text>
-                    <Text style={{ color: '#64748b' }}>
-                        {quotation.contact?.address || 'Sin dirección registrada'}
-                    </Text>
-                </View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={styles.sectionTitle}>VALIDEZ Y FECHAS</Text>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Fecha Cotización: </Text>
-                        <Text style={styles.value}>{formatDate(quotation.date)}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Válida Hasta: </Text>
-                        <Text style={styles.value}>{quotation.validUntil ? formatDate(quotation.validUntil) : 'N/A'}</Text>
-                    </View>
-                </View>
-            </View>
-
-            {/* Items Table */}
-            <View style={styles.table}>
-                <View style={[styles.tableRow, styles.tableHeader]}>
-                    <Text style={styles.colNo}>#</Text>
-                    <Text style={[styles.colDescription, { paddingLeft: 10 }]}>Descripción del Trabajo / Producto</Text>
-                    <Text style={styles.colQty}>Cant.</Text>
-                    <Text style={styles.colPrice}>Precio Unit.</Text>
-                    <Text style={styles.colTax}>ITBIS %</Text>
-                    <Text style={styles.colTotal}>Total</Text>
-                </View>
-                {quotation.items.map((item: any, index: number) => {
-                    const isItem = item.itemType === 'ITEM';
-                    const isHeading = item.itemType === 'HEADING';
-                    const isSubheading = item.itemType === 'SUBHEADING';
-                    const itemNumber = quotation.items.slice(0, index).filter((i: any) => i.itemType === 'ITEM').length + 1;
-                    
-                    return (
-                        <View key={index} style={[styles.tableRow, { backgroundColor: isHeading || isSubheading ? '#f8fafc' : (index % 2 === 0 ? '#ffffff' : '#f0fdf4') }]}>
-                            <Text style={styles.colNo}>{isItem ? itemNumber : ''}</Text>
-                            <Text style={[styles.colDescription, { 
-                                paddingLeft: isSubheading ? 20 : 10,
-                                fontWeight: isHeading ? 'bold' : 'normal',
-                                fontSize: isHeading ? 11 : 10,
-                                color: isHeading ? '#0f172a' : '#334155'
-                            }]}>
-                                {item.description}
-                            </Text>
-                            <Text style={styles.colQty}>{isItem ? item.quantity : ''}</Text>
-                            <Text style={styles.colPrice}>{isItem ? formatCurrency(item.price) : ''}</Text>
-                            <Text style={styles.colTax}>{isItem ? `${item.taxRate}%` : ''}</Text>
-                            <Text style={[styles.colTotal, { fontWeight: 'bold' }]}>
-                                {isItem ? formatCurrency(item.total) : ''}
-                            </Text>
-                        </View>
-                    );
-                })}
-            </View>
-
-            {/* Footer Totals */}
-            <View style={styles.totalsContainer}>
-                <View style={[styles.totalsBox, { backgroundColor: '#f0fdf4', padding: 15, borderRadius: 8 }]}>
-                    <View style={styles.totalRow}>
-                        <Text style={styles.label}>Subtotal:</Text>
-                        <Text style={styles.value}>{company.currency} {formatCurrency(quotation.subtotal)}</Text>
-                    </View>
-                    <View style={styles.totalRow}>
-                        <Text style={styles.label}>ITBIS Estimado (18%):</Text>
-                        <Text style={styles.value}>{company.currency} {formatCurrency(quotation.tax)}</Text>
-                    </View>
-                    <View style={[styles.totalRow, styles.grandTotal, { marginTop: 10, paddingTop: 10, borderTopColor: '#dcfce7' }]}>
-                        <Text style={{ fontSize: 12, color: '#065f46' }}>TOTAL ESTIMADO:</Text>
-                        <Text style={{ fontSize: 16, color: '#059669' }}>{company.currency} {formatCurrency(quotation.total)}</Text>
-                    </View>
-                </View>
-            </View>
-
-            {/* Notes */}
-            {quotation.notes && (
-                <View style={{ marginTop: 30, padding: 10, backgroundColor: '#f0f9ff', borderRadius: 4, borderLeftWidth: 3, borderLeftColor: '#0ea5e9' }}>
-                    <Text style={{ fontSize: 9, fontWeight: 'bold', color: '#0369a1', marginBottom: 2 }}>NOTAS ADICIONALES:</Text>
-                    <Text style={{ fontSize: 9, color: '#075985', lineHeight: 1.4 }}>{quotation.notes}</Text>
-                </View>
+        <Document>
+            {options.includeCoverPage && (
+                <CoverPage document={quotation} company={company} label="COTIZACION" secondaryDateLabel="Valida hasta" />
             )}
 
-            {/* Footer */}
-            <View style={styles.footer}>
-                <Text style={{ marginBottom: 2 }}>{company.name} • {company.taxId} • {company.email}</Text>
-                <Text>Esta cotización no constituye una factura legal y está sujeta a cambios.</Text>
-                <Text style={{ marginTop: 4, color: '#cbd5e1' }}>Generado por oFlow by Oasis</Text>
-            </View>
-        </Page>
-        {options.includeTermsPage && (
-            <Page size="A4" style={styles.termsPage}>
-                <View style={styles.header}>
-                    <View style={styles.companyInfo}>
-                        <Text style={styles.companyName}>{company.name}</Text>
-                        <Text>RNC: {company.taxId}</Text>
-                        <Text>{company.address}</Text>
-                        <Text>Tel: {company.phone}</Text>
-                        <Text>Email: {company.email}</Text>
+            <Page size="A4" style={styles.page}>
+                <BrandBar />
+                <View style={styles.content}>
+                    <View style={styles.brandRow}>
+                        <View style={{ width: "54%" }}>
+                            {logo ? <Image src={logo} style={styles.companyLogo} /> : null}
+                            <Text style={styles.companyName}>{company.name}</Text>
+                            <Text style={styles.companyLine}>RNC: {company.taxId || "N/A"}</Text>
+                            {company.address ? <Text style={styles.companyLine}>{company.address}</Text> : null}
+                            {company.email ? <Text style={styles.companyLine}>{company.email}</Text> : null}
+                            {company.phone ? <Text style={styles.companyLine}>{company.phone}</Text> : null}
+                        </View>
+
+                        <View style={styles.invoiceSide}>
+                            <Text style={styles.watermarkTitle}>COTIZACION</Text>
+                            <Text style={styles.eyebrow}>Numero de cotizacion</Text>
+                            <Text style={styles.invoiceNumber}>{quotation.number || "COT-" + quotation.id}</Text>
+                            {asunto ? <Text style={styles.documentSubject}>{asunto}</Text> : null}
+                        </View>
                     </View>
-                    <View style={styles.quoteInfo}>
-                        <Text style={styles.title}>{quotation.number}</Text>
-                        <Text style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>Anexo contractual</Text>
+
+                    <View style={styles.separator} />
+
+                    <View style={styles.metaGrid}>
+                        <View style={styles.clientBlock}>
+                            <Text style={styles.eyebrow}>Dirigido a:</Text>
+                            <Text style={styles.clientName}>{quotation.contact?.name || "Sin cliente"}</Text>
+                            {quotation.contact?.taxId ? <Text style={styles.clientLine}>RNC/Cedula: {quotation.contact.taxId}</Text> : null}
+                            {quotation.contact?.address ? <Text style={styles.clientLine}>{quotation.contact.address}</Text> : null}
+                            {quotation.contact?.email ? <Text style={styles.clientLine}>{quotation.contact.email}</Text> : null}
+                        </View>
+
+                        <View style={styles.datesBlock}>
+                            <View style={styles.dateCell}>
+                                <Text style={styles.eyebrow}>Fecha cotizacion</Text>
+                                <Text style={styles.dateValue}>{formatDate(quotation.date)}</Text>
+                            </View>
+                            {/*
+                              * Sin fecha de validez no se pinta la celda. Antes salia "N/A" en rojo
+                              * y en grande donde va una fecha limite, que se lee como si algo
+                              * estuviera mal en la cotizacion en vez de como un dato que falta.
+                              */}
+                            {quotation.validUntil ? (
+                                <View style={styles.dateCell}>
+                                    <Text style={styles.eyebrow}>Valida hasta</Text>
+                                    <Text style={[styles.dateValue, styles.dueDate]}>{formatDate(quotation.validUntil)}</Text>
+                                </View>
+                            ) : null}
+                        </View>
+                    </View>
+
+                    <View style={styles.table}>
+                        <View style={styles.tableHeader}>
+                            <Text style={[styles.th, styles.colNo]}>#</Text>
+                            <Text style={[styles.th, styles.colDesc]}>Descripcion</Text>
+                            <Text style={[styles.th, styles.colQty]}>Cantidad</Text>
+                            <Text style={[styles.th, styles.colPrice]}>Precio Unit.</Text>
+                            <Text style={[styles.th, styles.colTax]}>ITBIS %</Text>
+                            <Text style={[styles.th, styles.colTotal]}>Total</Text>
+                        </View>
+                        {quotation.items.map((item: any, index: number) => {
+                            const isHeading = item.itemType === "HEADING";
+                            const isSubheading = item.itemType === "SUBHEADING";
+
+                            if (isHeading || isSubheading) {
+                                return (
+                                    <View key={item.id || index} style={[styles.tableRow, isHeading ? styles.sectionRow : styles.subsectionRow]}>
+                                        <View style={styles.colNo} />
+                                        <Text style={isHeading ? styles.headingText : styles.subheadingText}>{item.description}</Text>
+                                    </View>
+                                );
+                            }
+
+                            return (
+                                <View key={item.id || index} style={styles.tableRow}>
+                                    <Text style={[styles.td, styles.colNo]}>{itemNumber(quotation.items, index)}</Text>
+                                    <Text style={[styles.td, styles.colDesc]}>{item.description}</Text>
+                                    <Text style={[styles.td, styles.colQty]}>{item.quantity}</Text>
+                                    <Text style={[styles.td, styles.colPrice]}>{formatCurrency(item.price)}</Text>
+                                    <Text style={[styles.td, styles.colTax]}>{item.taxRate + "%"}</Text>
+                                    <Text style={[styles.td, styles.colTotal]}>{formatCurrency(item.total)}</Text>
+                                </View>
+                            );
+                        })}
+                    </View>
+
+                    <View style={styles.lower}>
+                        <View style={styles.notes}>
+                            <Text style={styles.eyebrow}>Notas</Text>
+                            <Text style={styles.notesText}>
+                                {quotation.notes || "Los montos son estimados y quedan sujetos a la aprobacion formal de esta propuesta."}
+                            </Text>
+                        </View>
+
+                        <View style={styles.totals}>
+                            <View style={styles.totalLine}>
+                                <Text style={styles.totalLabel}>Subtotal</Text>
+                                <Text style={styles.totalValue}>{prefix} {formatCurrency(quotation.subtotal)}</Text>
+                            </View>
+                            <View style={styles.totalLine}>
+                                <Text style={styles.totalLabel}>ITBIS estimado (18%)</Text>
+                                <Text style={styles.totalValue}>{prefix} {formatCurrency(quotation.tax)}</Text>
+                            </View>
+                            <View style={styles.grandTotal}>
+                                <Text style={styles.grandLabel}>Total estimado</Text>
+                                <Text style={styles.grandValue}>{prefix} {formatCurrency(quotation.total)}</Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
-                <Text style={styles.termsTitle}>TERMINOS Y CONDICIONES</Text>
-                <TermsBlock text={quotation.termsAndConditions || defaultTerms} />
+
                 <View style={styles.footer}>
-                    <Text>{company.name} | {company.taxId} | {company.email}</Text>
+                    <Text style={styles.footerText}>No constituye una factura legal - Sujeta a cambios</Text>
+                    <Text style={styles.footerBrand}>oFlow by Oasis</Text>
+                    <Text style={styles.footerText}>Pagina 1 de 1</Text>
                 </View>
             </Page>
-        )}
-    </Document>
-);
+
+            {options.includeTermsPage && (
+                <Page size="A4" style={styles.termsPage}>
+                    <Text style={styles.termsTitle}>TERMINOS Y CONDICIONES</Text>
+                    <TermsBlock text={quotation.termsAndConditions || defaultTerms} />
+                </Page>
+            )}
+        </Document>
+    );
+};
