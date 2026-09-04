@@ -675,7 +675,13 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
     };
 
     const processSelectedFile = async (file: File | undefined) => {
-        if (!file) return;
+        // El selector puede volver sin archivo: la cámara se cerró sin guardar, o el
+        // teléfono descartó la foto. Callarlo deja la pantalla igual que antes y parece
+        // que la app no hizo nada, así que se dice.
+        if (!file) {
+            setError("No llegó ninguna foto. Vuelve a intentarlo o usa Galería/PDF.");
+            return;
+        }
 
         setError(null);
         if (isImageFile(file)) {
@@ -870,11 +876,18 @@ export function InvoiceUploader({ onDataExtracted }: InvoiceUploaderProps) {
                                     <Camera className="mr-2 h-4 w-4" />
                                     Tomar foto
                                 </div>
+                                {/*
+                                  * `accept` genérico a propósito: junto a `capture`, una lista de
+                                  * MIME concretos hace que algunos Android devuelvan la foto y el
+                                  * navegador la descarte por no coincidir, así que la cámara se
+                                  * abría, tomaba la foto y no llegaba nada. El tipo real se valida
+                                  * igual más abajo con isImageFile.
+                                  */}
                                 <input
                                     id="purchase-ai-camera"
                                     type="file"
                                     className="hidden"
-                                    accept="image/jpeg,image/png,image/webp"
+                                    accept="image/*"
                                     capture="environment"
                                     onChange={handleFileChange}
                                 />
