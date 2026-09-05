@@ -14,6 +14,9 @@ export function SequenceForm({ initialData, onClose }: { initialData?: any, onCl
     const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
     const [isPreferred, setIsPreferred] = useState(initialData?.isPreferred || false);
+    // Las cotizaciones no llevan NCF: su numero es "0630" pelado, sin prefijo obligatorio.
+    const [docType, setDocType] = useState<string>(initialData?.docType || "INVOICE");
+    const isQuotation = docType === "QUOTATION";
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -60,7 +63,8 @@ export function SequenceForm({ initialData, onClose }: { initialData?: any, onCl
                     <select
                         name="docType"
                         required
-                        defaultValue={initialData?.docType || "INVOICE"}
+                        value={docType}
+                        onChange={(e) => setDocType(e.target.value)}
                         className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md focus:ring-2 focus:ring-blue-500"
                     >
                         <option value="INVOICE">Factura de venta</option>
@@ -89,8 +93,13 @@ export function SequenceForm({ initialData, onClose }: { initialData?: any, onCl
                     <Input name="name" required placeholder="Ej: Crédito fiscal (01)" defaultValue={initialData?.name} />
                 </div>
                 <div className="space-y-2">
-                    <Label>Prefijo *</Label>
-                    <Input name="prefix" required placeholder="Ej: B01" defaultValue={initialData?.prefix} />
+                    <Label>{isQuotation ? "Prefijo" : "Prefijo *"}</Label>
+                    <Input
+                        name="prefix"
+                        required={!isQuotation}
+                        placeholder={isQuotation ? "Opcional, ej: COT-" : "Ej: B01"}
+                        defaultValue={initialData?.prefix}
+                    />
                 </div>
 
                 <div className="space-y-2">

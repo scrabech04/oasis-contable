@@ -15,6 +15,7 @@ import { allowedProfileIds, requireWriteAccess } from "@/lib/authz";
 import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber, normalizeNcf, splitNcf } from "@/lib/ncf";
+import { formatQuotationNumber, parseQuotationNumber } from "@/lib/quotation-number";
 import { ATTACHMENT_MAX_BYTES, COVER_IMAGE_MAX_BYTES, attachmentProblem, purchaseAttachmentProblem } from "@/lib/attachments";
 import { BUYER_TAX_ID_PARAMS, qrParamReader } from "@/lib/dgii-qr";
 import { buildDgiiConstancia, ConstanciaError, isDgiiTimbreUrl } from "@/lib/dgii-constancia";
@@ -3864,12 +3865,52 @@ export async function getExpenses(options?: PeriodParams & { profileId?: number;
   });
 }
 
+// La numeracion de cotizaciones que se configura en Ajustes > Numeraciones. Solo puede
+// haber una en uso por perfil: la marcada como preferida, o la unica que exista.
+async function quotationSequence(profileId: number) {
+  const sequences = await prisma.numberingSequence.findMany({
+    where: { profileId, docType: "QUOTATION" },
+    orderBy: [{ isPreferred: "desc" }, { id: "asc" }],
+  });
+  return sequences[0] ?? null;
+}
+
+async function highestQuotationNumber(profileId: number) {
+  const quotations = await prisma.quotation.findMany({ where: { profileId }, select: { number: true } });
+  return quotations.reduce((max, quotation) => Math.max(max, parseQuotationNumber(quotation.number) ?? 0), 0);
+}
+
 // El formulario web pide el numero antes de guardar y lo manda en el submit; los
 // llamadores MCP no lo hacen, asi que createQuotation necesita generarlo por su cuenta
 // con el perfil ya resuelto (que no siempre es el de la cookie).
+//
+// La serie es la del negocio ("0617", "0629"), no el id de la fila: contar con el id se
+// salta numeros en cuanto se borra una cotizacion y no sabe nada de las que se emitieron
+// antes de usar la app. Manda la numeracion configurada, y si no hay ninguna se sigue el
+// numero mas alto ya emitido en el perfil. El maximo entre ambos evita repetir un numero
+// cuando la secuencia se quedo atras.
 async function nextQuotationNumber(profileId: number) {
-  const last = await prisma.quotation.findFirst({ where: { profileId }, orderBy: { id: "desc" } });
-  return `COT-${String((last?.id || 0) + 1).padStart(4, "0")}`;
+  const [sequence, highest] = await Promise.all([
+    quotationSequence(profileId),
+    highestQuotationNumber(profileId),
+  ]);
+  return formatQuotationNumber(
+    sequence?.prefix ?? "",
+    Math.max(sequence?.nextNumber ?? 0, highest + 1)
+  );
+}
+
+// El formulario manda el numero que vio al abrirse, y se puede escribir a mano, asi que la
+// secuencia se pone al dia con el numero realmente usado en vez de incrementarse a ciegas.
+async function advanceQuotationSequence(profileId: number, used: string) {
+  const sequence = await quotationSequence(profileId);
+  if (!sequence) return;
+  const value = parseQuotationNumber(used);
+  if (value === null || value < sequence.nextNumber) return;
+  await prisma.numberingSequence.updateMany({
+    where: { id: sequence.id, nextNumber: sequence.nextNumber },
+    data: { nextNumber: value + 1 },
+  });
 }
 
 export async function getNextQuotationNumber() {
@@ -3942,8 +3983,23 @@ export async function createQuotation(formData: FormData): Promise<ActionResult>
       items: { create: items.map((item) => ({ ...item, total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + (Number(item.taxRate) || 0) / 100) })) },
     },
   });
+  await advanceQuotationSequence(profileId, quotation.number);
   revalidatePath("/quotations");
   return { success: true, id: quotation.id };
+}
+
+const QUOTATION_STATUSES = ["DRAFT", "SENT", "WAITING", "ACCEPTED", "REJECTED", "INVOICED"];
+
+// Cambiar el estado desde el listado, sin abrir la cotizacion a editar.
+export async function updateQuotationStatus(id: number, status: string) {
+  await requireWriteAccess();
+  if (!QUOTATION_STATUSES.includes(status)) return { success: false, error: "Estado no valido." };
+  const profileId = await getActiveProfileId();
+  const result = await prisma.quotation.updateMany({ where: { id, profileId }, data: { status } });
+  if (result.count === 0) return { success: false, error: "Cotización no encontrada para el perfil activo." };
+  revalidatePath("/quotations");
+  revalidatePath(`/quotations/${id}`);
+  return { success: true };
 }
 
 export async function updateQuotation(id: number, formData: FormData): Promise<ActionResult> {

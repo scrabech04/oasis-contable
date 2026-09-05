@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/format";
 import { DeleteButton } from "@/components/DeleteButton";
-import { deleteQuotation, convertQuotationToInvoice, convertQuotationToProject, duplicateQuotation } from "@/app/actions";
+import { deleteQuotation, convertQuotationToInvoice, convertQuotationToProject, duplicateQuotation, updateQuotationStatus } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { useToast } from "@/components/ui/toast";
@@ -28,6 +28,67 @@ function quotationStatusClass(status: string) {
             "bg-red-50 text-red-700 border-red-100 dark:bg-red-900/40 dark:text-red-300": status === "REJECTED",
             "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800": status === "DRAFT" || !status,
         }
+    );
+}
+
+const QUOTATION_STATUSES = ["DRAFT", "SENT", "WAITING", "ACCEPTED", "REJECTED", "INVOICED"];
+
+// El estado se cambia desde el listado, sin abrir la cotizacion. Se pinta optimista y se
+// revierte si el servidor lo rechaza, para que el badge no mienta.
+function QuotationStatusSelect({ quote }: { quote: { id: number; status?: string | null } }) {
+    const router = useRouter();
+    const toast = useToast();
+    const [status, setStatus] = useState<string>(quote.status || "DRAFT");
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setStatus(quote.status || "DRAFT");
+    }, [quote.status]);
+
+    const handleChange = async (next: string) => {
+        const previous = status;
+        setStatus(next);
+        setSaving(true);
+        try {
+            const result = await updateQuotationStatus(quote.id, next);
+            if (!result.success) {
+                setStatus(previous);
+                toast.error("No se pudo cambiar el estado", result.error);
+                return;
+            }
+            router.refresh();
+        } catch (error) {
+            console.error("Error updating quotation status:", error);
+            setStatus(previous);
+            toast.error("No se pudo cambiar el estado", "Revisa tu conexion e intenta de nuevo.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <span className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+            <select
+                value={status}
+                disabled={saving}
+                onChange={(e) => handleChange(e.target.value)}
+                title="Cambiar estado"
+                className={clsx(
+                    quotationStatusClass(status),
+                    "cursor-pointer appearance-none pr-6 outline-none focus:ring-2 focus:ring-blue-500",
+                    saving && "cursor-wait opacity-60"
+                )}
+            >
+                {QUOTATION_STATUSES.map((value) => (
+                    <option key={value} value={value} className="font-sans text-xs normal-case tracking-normal text-slate-900">
+                        {quotationStatusLabel(value)}
+                    </option>
+                ))}
+            </select>
+            <span className="material-icons-round pointer-events-none absolute right-1 text-[12px] opacity-60">
+                {saving ? "sync" : "expand_more"}
+            </span>
+        </span>
     );
 }
 
@@ -132,8 +193,8 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
                             </div>
                             <div className="text-right">
                                 <p className="font-mono text-sm font-black text-slate-900 dark:text-white">RD${formatCurrency(quote.total)}</p>
-                                <span className={clsx("mt-2", quotationStatusClass(quote.status))}>
-                                    {quotationStatusLabel(quote.status)}
+                                <span className="mt-2 block">
+                                    <QuotationStatusSelect quote={quote} />
                                 </span>
                             </div>
                         </div>
@@ -199,9 +260,7 @@ export function QuotationsTable({ quotations }: { quotations: any[] }) {
                                     <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">{new Date(quote.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</span>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden sm:table-cell">
-                                    <span className={quotationStatusClass(quote.status)}>
-                                        {quotationStatusLabel(quote.status)}
-                                    </span>
+                                    <QuotationStatusSelect quote={quote} />
                                 </td>
                                 <td className="px-6 py-5 text-right">
                                     <span className="text-sm font-black text-slate-900 dark:text-white font-mono tabular-nums">RD${formatCurrency(quote.total)}</span>

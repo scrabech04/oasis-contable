@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { chromium } from "playwright";
+import { inlinePdfDisposition } from "@/lib/pdf-filename";
 
 function requestOrigin(request: Request) {
   const url = new URL(request.url);
@@ -64,7 +65,7 @@ export async function renderRouteToPdfResponse(request: Request, route: string, 
     return new Response(new Uint8Array(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${filename}"`,
+        "Content-Disposition": inlinePdfDisposition(filename),
         "Cache-Control": "no-store",
         "X-PDF-Renderer": "html-playwright",
       },

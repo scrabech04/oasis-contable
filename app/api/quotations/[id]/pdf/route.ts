@@ -4,6 +4,7 @@ import { pdf } from "@react-pdf/renderer";
 import { QuotationPDF } from "@/components/pdf/QuotationPDF";
 import { prisma } from "@/lib/prisma";
 import { getActiveProfileId, getScopedCompanySettings } from "@/lib/account-profiles";
+import { buildQuotationPdfFilename, inlinePdfDisposition } from "@/lib/pdf-filename";
 
 export const runtime = "nodejs";
 
@@ -50,7 +51,13 @@ export async function GET(
     includeTermsPage: optionValue("terms", quotation.includeTermsPage),
   };
 
-  const filename = `${quotation.number || `cotizacion-${quotation.id}`}.pdf`;
+  const filename = buildQuotationPdfFilename({
+    emitter: pdfCompany.name,
+    number: quotation.number,
+    client: quotation.contact?.name,
+    subject: quotation.project?.name || quotation.title,
+    fallback: `cotizacion-${quotation.id}`,
+  });
   const useHtmlRenderer = searchParams.get("renderer") === "html";
 
   if (useHtmlRenderer) {
@@ -73,7 +80,7 @@ export async function GET(
   return new Response(blob, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"`,
+      "Content-Disposition": inlinePdfDisposition(filename),
       "Cache-Control": "no-store",
       "X-PDF-Renderer": "react-pdf-fallback",
     },
