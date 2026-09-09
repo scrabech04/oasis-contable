@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Mail, Phone, MapPin, DollarSign, Fingerprint, Settings2, Hash, Percent } from "lucide-react";
+import { Building2, Mail, Phone, MapPin, DollarSign, Fingerprint, Settings2, Hash, Percent, Target } from "lucide-react";
 import Link from "next/link";
 import IdentitiesClient from "./IdentitiesClient";
 import ProfilesClient from "./ProfilesClient";
@@ -96,6 +96,25 @@ export default async function SettingsPage() {
                                         <DollarSign className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                                         <Input id="currency" name="currency" defaultValue={settings.currency} className="pl-10" required />
                                     </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="monthlyIncomeGoal">Meta Mensual de Ingresos</Label>
+                                    <div className="relative">
+                                        <Target className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                                        <Input
+                                            id="monthlyIncomeGoal"
+                                            name="monthlyIncomeGoal"
+                                            type="number"
+                                            min="0"
+                                            step="1000"
+                                            placeholder="Sin meta definida"
+                                            defaultValue={settings.monthlyIncomeGoal ?? ""}
+                                            className="pl-10"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-400">
+                                        Cuanto quieres facturar al mes. El resumen mide el avance contra este monto; dejalo vacio para ocultar la meta.
+                                    </p>
                                 </div>
                                 <IncomeTaxFields regime={selectedIncomeTaxRegime} rate={Number(((settings.incomeTaxRate ?? 0.27) * 100).toFixed(2))} />
                             </div>

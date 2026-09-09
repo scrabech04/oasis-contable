@@ -383,6 +383,7 @@ model CompanySettings {
   coverShowProject Boolean @default(true)
   incomeTaxRegime String @default("LEGAL_ENTITY") // LEGAL_ENTITY, INDIVIDUAL, CUSTOM
   incomeTaxRate Float @default(0.27)
+  monthlyIncomeGoal Float?  // Meta de ingresos del mes; null = sin meta definida
   profileId Int?     @unique
   profile   AccountProfile? @relation(fields: [profileId], references: [id])
   updatedAt DateTime @updatedAt

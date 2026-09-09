@@ -12,7 +12,16 @@ import {
   normalizeProfileTaxId,
 } from "@/lib/account-profiles";
 import { allowedProfileIds, requireWriteAccess } from "@/lib/authz";
-import { getPeriodDateRange, type PeriodParams } from "@/lib/list-period";
+import {
+  currentMonthPeriod,
+  formatPeriodLabel,
+  getPeriodDateRange,
+  getPreviousPeriod,
+  MONTH_NAMES,
+  type PeriodParams,
+} from "@/lib/list-period";
+import { costTypeLabel } from "@/lib/cost-types";
+import { formatCurrency } from "@/lib/format";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber, normalizeNcf, splitNcf } from "@/lib/ncf";
 import { formatQuotationNumber, parseQuotationNumber } from "@/lib/quotation-number";
@@ -1949,6 +1958,12 @@ function incomeTaxFrom(formData: FormData) {
   };
 }
 
+/** Meta de ingresos del mes. Negativa o vacia se guarda como null: no hay meta. */
+function monthlyIncomeGoalFrom(formData: FormData) {
+  const goal = optionalNumber(formData, "monthlyIncomeGoal");
+  return goal !== null && goal > 0 ? goal : null;
+}
+
 export async function updateCompanySettings(formData: FormData) {
   await requireWriteAccess();
   const settings = await getScopedCompanySettings();
@@ -1975,6 +1990,9 @@ export async function updateCompanySettings(formData: FormData) {
       phone: optionalText(formData, "phone"),
       address: optionalText(formData, "address"),
       currency: text(formData, "currency", "RD$"),
+      // Vaciar el campo borra la meta; el resumen entiende null como "sin meta definida" y
+      // ofrece configurarla en vez de dibujar una barra inventada.
+      monthlyIncomeGoal: monthlyIncomeGoalFrom(formData),
       ...incomeTaxFrom(formData),
       coverImageFit: boundedText(formData, "coverImageFit", ["COVER", "CONTAIN"], "COVER"),
       coverImagePosition: boundedText(formData, "coverImagePosition", ["CENTER", "TOP", "BOTTOM", "LEFT", "RIGHT"], "CENTER"),
@@ -4317,34 +4335,332 @@ export async function getPayables(options?: PeriodParams & { search?: string; so
   return purchases.filter((purchase) => purchase.total > purchase.paidAmount);
 }
 
-export async function getDashboardStats() {
+type RankedEntity = { name: string; total: number; count: number };
+
+type DashboardInsight = {
+  id: string;
+  tone: "danger" | "warning" | "info" | "good";
+  icon: string;
+  title: string;
+  detail: string;
+};
+
+const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Devuelve la prueba de "esta fecha cae en el periodo elegido". Sin periodo pasa todo, que
+ * es la vista general del resumen.
+ */
+function periodMatcher(period: PeriodParams) {
+  const { gte, lt } = getPeriodDateRange(period) as { gte?: Date; lt?: Date };
+  if (!gte || !lt) return () => true;
+  return (date: Date) => date >= gte && date < lt;
+}
+
+/**
+ * Ventana del grafico de Ingresos vs Gastos.
+ *
+ * Con un mes elegido es una sola columna (ingresos y gastos de ese mes, sin mas ruido); con
+ * un ano, sus doce meses; y sin filtro, los ultimos doce meses moviles. Ese ultimo caso
+ * antes agrupaba por `getMonth()` sin mirar el ano, asi que en cuanto hubiera datos de dos
+ * anos distintos se sumaban en la misma barra.
+ */
+function chartWindow(period: PeriodParams) {
+  if (period.year && period.month) return { year: period.year, month: period.month - 1, length: 1 };
+  if (period.year) return { year: period.year, month: 0, length: 12 };
+
+  const now = new Date();
+  return { year: now.getUTCFullYear(), month: now.getUTCMonth() - 11, length: 12 };
+}
+
+function monthLabel(start: Date, spansYears: boolean, single: boolean) {
+  if (single) return `${MONTH_NAMES[start.getUTCMonth()]} ${start.getUTCFullYear()}`;
+
+  const short = start.toLocaleString("es", { month: "short", timeZone: "UTC" });
+  return spansYears ? `${short} ${String(start.getUTCFullYear()).slice(2)}` : short;
+}
+
+function rankEntities<T>(docs: T[], nameOf: (doc: T) => string, amountOf: (doc: T) => number): RankedEntity[] {
+  const grouped = docs.reduce((acc: Record<string, RankedEntity>, doc) => {
+    const name = nameOf(doc);
+    acc[name] = acc[name] || { name, total: 0, count: 0 };
+    acc[name].total += amountOf(doc);
+    acc[name].count += 1;
+    return acc;
+  }, {});
+
+  return Object.values(grouped).sort((a, b) => b.total - a.total);
+}
+
+function supplierNameOf(purchase: { contact: { name: string } | null; supplierName: string | null }) {
+  return purchase.contact?.name || purchase.supplierName || "Proveedor sin nombre";
+}
+
+function percentChange(current: number, previous: number) {
+  if (previous <= 0) return null;
+  return ((current - previous) / previous) * 100;
+}
+
+/**
+ * Antiguedad de lo que falta por cobrar. Mira siempre todas las facturas abiertas, no solo
+ * las del periodo elegido: una factura de mayo sigue vencida en agosto, y esconderla al
+ * filtrar por agosto seria justo lo contrario de para lo que sirve el indicador.
+ */
+function receivableAging(invoices: { total: number; paidAmount: number; dueDate: Date }[]) {
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const buckets = [
+    { name: "Por vencer", value: 0, count: 0 },
+    { name: "1-30 dias", value: 0, count: 0 },
+    { name: "31-60 dias", value: 0, count: 0 },
+    { name: "61-90 dias", value: 0, count: 0 },
+    { name: "+90 dias", value: 0, count: 0 },
+  ];
+
+  for (const invoice of invoices) {
+    const pending = invoice.total - invoice.paidAmount;
+    if (pending <= 0.01) continue;
+
+    const overdueDays = Math.floor((today - invoice.dueDate.getTime()) / MILLIS_PER_DAY);
+    const index =
+      overdueDays <= 0 ? 0 :
+        overdueDays <= 30 ? 1 :
+          overdueDays <= 60 ? 2 :
+            overdueDays <= 90 ? 3 : 4;
+
+    buckets[index].value += pending;
+    buckets[index].count += 1;
+  }
+
+  return buckets;
+}
+
+/**
+ * Las tarjetas de "Sugerencia IA": frases sacadas de los propios numeros, no de un modelo.
+ *
+ * Se generan mas de las que caben y solo se muestran las tres primeras, por eso el orden
+ * importa: primero lo que cuesta dinero (vencido, perdida), luego los riesgos
+ * (concentracion, NCF sin asignar) y al final lo informativo. El fallback del final evita
+ * dejar el hueco vacio cuando no hay nada que senalar.
+ */
+function buildInsights(input: {
+  periodLabel: string;
+  totalIncome: number;
+  totalExpenses: number;
+  overdueAmount: number;
+  overdueCount: number;
+  oldestOverdueDays: number;
+  topClient: RankedEntity | null;
+  clientCount: number;
+  topSupplier: RankedEntity | null;
+  invoicesWithoutNcf: number;
+  incomeChange: number | null;
+  previousLabel: string;
+}): DashboardInsight[] {
+  const insights: DashboardInsight[] = [];
+  const money = (amount: number) => `RD$${formatCurrency(amount)}`;
+
+  if (input.overdueAmount > 0) {
+    insights.push({
+      id: "overdue",
+      tone: "danger",
+      icon: "schedule",
+      title: `${money(input.overdueAmount)} vencidos sin cobrar`,
+      detail: `${input.overdueCount} ${input.overdueCount === 1 ? "factura pasada" : "facturas pasadas"} de su fecha de pago. La mas antigua lleva ${input.oldestOverdueDays} dias.`,
+    });
+  }
+
+  if (input.totalExpenses > input.totalIncome && input.totalExpenses > 0) {
+    insights.push({
+      id: "loss",
+      tone: "danger",
+      icon: "trending_down",
+      title: "Gastaste mas de lo que facturaste",
+      detail: `En ${input.periodLabel} los gastos superan a los ingresos por ${money(input.totalExpenses - input.totalIncome)}.`,
+    });
+  }
+
+  if (input.topClient && input.clientCount > 1 && input.totalIncome > 0) {
+    const share = (input.topClient.total / input.totalIncome) * 100;
+    if (share >= 50) {
+      insights.push({
+        id: "concentration",
+        tone: "warning",
+        icon: "pie_chart",
+        title: `${Math.round(share)}% de tus ingresos viene de un solo cliente`,
+        detail: `${input.topClient.name} concentra ${money(input.topClient.total)} de ${input.periodLabel}.`,
+      });
+    }
+  }
+
+  if (input.invoicesWithoutNcf > 0) {
+    insights.push({
+      id: "no-ncf",
+      tone: "warning",
+      icon: "receipt_long",
+      title: `${input.invoicesWithoutNcf} ${input.invoicesWithoutNcf === 1 ? "factura sin NCF" : "facturas sin NCF"}`,
+      detail: `Sin comprobante no entran en el 607. Asignales uno antes de reportar ${input.periodLabel}.`,
+    });
+  }
+
+  if (input.incomeChange !== null && Math.abs(input.incomeChange) >= 15) {
+    const up = input.incomeChange > 0;
+    const previousIncome = input.totalIncome / (1 + input.incomeChange / 100);
+    insights.push({
+      id: "trend",
+      tone: up ? "good" : "warning",
+      icon: up ? "trending_up" : "trending_down",
+      title: `Facturaste un ${Math.abs(Math.round(input.incomeChange))}% ${up ? "mas" : "menos"} que en ${input.previousLabel}`,
+      detail: `${money(input.totalIncome)} en ${input.periodLabel}, frente a ${money(previousIncome)} del periodo anterior.`,
+    });
+  }
+
+  if (input.topSupplier && input.totalExpenses > 0) {
+    const share = (input.topSupplier.total / input.totalExpenses) * 100;
+    if (share >= 40) {
+      insights.push({
+        id: "supplier",
+        tone: "info",
+        icon: "local_shipping",
+        title: `${input.topSupplier.name} se lleva el ${Math.round(share)}% de tus gastos`,
+        detail: `${money(input.topSupplier.total)} en ${input.topSupplier.count} ${input.topSupplier.count === 1 ? "compra" : "compras"} durante ${input.periodLabel}.`,
+      });
+    }
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      id: "clear",
+      tone: "good",
+      icon: "check_circle",
+      title: "Nada urgente por aqui",
+      detail: `No hay facturas vencidas ni desbalances en ${input.periodLabel}.`,
+    });
+  }
+
+  return insights.slice(0, 3);
+}
+
+export async function getDashboardStats(period: PeriodParams = {}) {
   const profileId = await getActiveProfileId();
-  const [invoices, purchases] = await Promise.all([
+  const [invoices, purchases, settings] = await Promise.all([
     prisma.invoice.findMany({ where: { profileId }, include: { contact: true } }),
     prisma.purchase.findMany({ where: { profileId }, include: { contact: true } }),
+    getScopedCompanySettings(),
   ]);
-  const totalIncome = invoices.reduce((sum, item) => sum + item.total, 0);
-  const totalExpenses = purchases.reduce((sum, item) => sum + item.total, 0);
-  const totalReceivable = invoices.reduce((sum, item) => sum + Math.max(0, item.total - item.paidAmount), 0);
-  const totalPayable = purchases.reduce((sum, item) => sum + Math.max(0, item.total - item.paidAmount), 0);
-  const monthlyData = Array.from({ length: 12 }, (_, month) => ({
-    name: new Date(2026, month, 1).toLocaleString("es", { month: "short" }),
-    ingresos: invoices.filter((i) => i.date.getMonth() === month).reduce((sum, i) => sum + i.total, 0),
-    gastos: purchases.filter((p) => p.date.getMonth() === month).reduce((sum, p) => sum + p.total, 0),
-  }));
-  const categoryData = Object.values(
-    purchases.reduce((acc: Record<string, { name: string; value: number }>, purchase) => {
-      const name = purchase.costType || "Otros";
-      acc[name] = acc[name] || { name, value: 0 };
-      acc[name].value += purchase.total;
-      return acc;
-    }, {})
-  );
+
+  const inPeriod = periodMatcher(period);
+  const previous = getPreviousPeriod(period);
+  const inPrevious = previous ? periodMatcher(previous) : () => false;
+
+  const periodInvoices = invoices.filter((invoice) => inPeriod(invoice.date));
+  const periodPurchases = purchases.filter((purchase) => inPeriod(purchase.date));
+  const previousInvoices = invoices.filter((invoice) => inPrevious(invoice.date));
+  const previousPurchases = purchases.filter((purchase) => inPrevious(purchase.date));
+
+  const totalIncome = periodInvoices.reduce((sum, item) => sum + item.total, 0);
+  const totalExpenses = periodPurchases.reduce((sum, item) => sum + item.total, 0);
+  const totalReceivable = periodInvoices.reduce((sum, item) => sum + Math.max(0, item.total - item.paidAmount), 0);
+  const totalPayable = periodPurchases.reduce((sum, item) => sum + Math.max(0, item.total - item.paidAmount), 0);
+
+  const previousIncome = previousInvoices.reduce((sum, item) => sum + item.total, 0);
+  const previousExpenses = previousPurchases.reduce((sum, item) => sum + item.total, 0);
+
+  const window = chartWindow(period);
+  const firstMonth = new Date(Date.UTC(window.year, window.month, 1));
+  const lastMonth = new Date(Date.UTC(window.year, window.month + window.length - 1, 1));
+  const spansYears = firstMonth.getUTCFullYear() !== lastMonth.getUTCFullYear();
+
+  const monthlyData = Array.from({ length: window.length }, (_, index) => {
+    const start = new Date(Date.UTC(window.year, window.month + index, 1));
+    const end = new Date(Date.UTC(window.year, window.month + index + 1, 1));
+    const within = (date: Date) => date >= start && date < end;
+    const ingresos = invoices.filter((invoice) => within(invoice.date)).reduce((sum, item) => sum + item.total, 0);
+    const gastos = purchases.filter((purchase) => within(purchase.date)).reduce((sum, item) => sum + item.total, 0);
+
+    // El margen se dibuja como area sobre las barras, y un area de un solo punto no es una
+    // linea: con un mes elegido se omite para que el grafico quede en las dos barras.
+    return window.length === 1
+      ? { name: monthLabel(start, spansYears, true), ingresos, gastos }
+      : { name: monthLabel(start, spansYears, false), ingresos, gastos, margen: ingresos - gastos };
+  });
+
+  const categoryData = rankEntities(
+    periodPurchases,
+    (purchase) => costTypeLabel(purchase.costType),
+    (purchase) => purchase.total
+  ).map(({ name, total }) => ({ name, value: total }));
+
+  const clientRanking = rankEntities(periodInvoices, (invoice) => invoice.contact.name, (invoice) => invoice.total);
+  const previousClientRanking = rankEntities(previousInvoices, (invoice) => invoice.contact.name, (invoice) => invoice.total);
+  const supplierRanking = rankEntities(periodPurchases, supplierNameOf, (purchase) => purchase.total);
+
+  const aging = receivableAging(invoices);
+  const overdue = aging.slice(1);
+  const overdueAmount = overdue.reduce((sum, bucket) => sum + bucket.value, 0);
+  const overdueCount = overdue.reduce((sum, bucket) => sum + bucket.count, 0);
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const oldestOverdueDays = invoices
+    .filter((invoice) => invoice.total - invoice.paidAmount > 0.01)
+    .reduce((worst, invoice) => Math.max(worst, Math.floor((today - invoice.dueDate.getTime()) / MILLIS_PER_DAY)), 0);
+
+  // La meta es mensual, asi que sin mes elegido se mide contra el mes en curso: el resto del
+  // resumen puede estar mirando todo el historial sin que eso convierta la meta en anual.
+  const goalPeriod = period.month && period.year ? period : currentMonthPeriod();
+  const inGoalPeriod = periodMatcher(goalPeriod);
+  const goalIncome = invoices.filter((invoice) => inGoalPeriod(invoice.date)).reduce((sum, item) => sum + item.total, 0);
+
+  const periodLabel = formatPeriodLabel(period);
+  const insights = buildInsights({
+    periodLabel: periodLabel === "Todo el historial" ? "todo el historial" : periodLabel,
+    totalIncome,
+    totalExpenses,
+    overdueAmount,
+    overdueCount,
+    oldestOverdueDays,
+    topClient: clientRanking[0] || null,
+    clientCount: clientRanking.length,
+    topSupplier: supplierRanking[0] || null,
+    invoicesWithoutNcf: periodInvoices.filter((invoice) => !invoice.ncf).length,
+    incomeChange: previous ? percentChange(totalIncome, previousIncome) : null,
+    previousLabel: previous ? formatPeriodLabel(previous) : "",
+  });
+
   const activity = [
-    ...invoices.map((invoice) => ({ id: `i-${invoice.id}`, type: "INVOICE", title: invoice.number, subtitle: invoice.contact.name, amount: invoice.total, date: invoice.date })),
-    ...purchases.map((purchase) => ({ id: `p-${purchase.id}`, type: "PURCHASE", title: purchase.number || purchase.ncf || "Compra", subtitle: purchase.contact?.name || purchase.supplierName || "Proveedor", amount: -purchase.total, date: purchase.date })),
+    ...periodInvoices.map((invoice) => ({ id: `i-${invoice.id}`, type: "INVOICE", title: invoice.number, subtitle: invoice.contact.name, amount: invoice.total, date: invoice.date })),
+    ...periodPurchases.map((purchase) => ({ id: `p-${purchase.id}`, type: "PURCHASE", title: purchase.number || purchase.ncf || "Compra", subtitle: supplierNameOf(purchase), amount: -purchase.total, date: purchase.date })),
   ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
-  return { totalIncome, totalExpenses, netProfit: totalIncome - totalExpenses, totalReceivable, totalPayable, monthlyData, categoryData, activity };
+
+  return {
+    periodLabel,
+    previousLabel: previous ? formatPeriodLabel(previous) : null,
+    totalIncome,
+    totalExpenses,
+    netProfit: totalIncome - totalExpenses,
+    totalReceivable,
+    totalPayable,
+    incomeChange: previous ? percentChange(totalIncome, previousIncome) : null,
+    expenseChange: previous ? percentChange(totalExpenses, previousExpenses) : null,
+    monthlyData,
+    categoryData,
+    topClient: clientRanking[0] || null,
+    topClientShare: totalIncome > 0 && clientRanking[0] ? (clientRanking[0].total / totalIncome) * 100 : null,
+    previousTopClient: previousClientRanking[0] || null,
+    clientRanking: clientRanking.slice(0, 5),
+    topSuppliers: supplierRanking.slice(0, 6),
+    receivableAging: aging,
+    overdueAmount,
+    overdueCount,
+    insights,
+    monthlyGoal: {
+      amount: settings.monthlyIncomeGoal ?? null,
+      income: goalIncome,
+      label: formatPeriodLabel(goalPeriod),
+      progress: settings.monthlyIncomeGoal ? (goalIncome / settings.monthlyIncomeGoal) * 100 : null,
+    },
+    activity,
+  };
 }
 
 function periodRange(period: string) {

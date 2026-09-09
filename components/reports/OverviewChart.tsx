@@ -9,9 +9,11 @@ interface OverviewChartProps {
         gastos: number;
         margen?: number;
     }[];
+    /** Con un solo mes en pantalla el area de margen seria un punto suelto: se apaga. */
+    showMargin?: boolean;
 }
 
-export function OverviewChart({ data }: OverviewChartProps) {
+export function OverviewChart({ data, showMargin = true }: OverviewChartProps) {
     return (
         <ResponsiveContainer width="100%" height={350}>
             <ComposedChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
@@ -57,14 +59,16 @@ export function OverviewChart({ data }: OverviewChartProps) {
                     name="Gastos"
                     barSize={24}
                 />
-                <Area
-                    type="monotone"
-                    dataKey="margen"
-                    fill="url(#colorIngresos)"
-                    stroke="#10b981"
-                    strokeWidth={3}
-                    name="Margen Neto"
-                />
+                {showMargin ? (
+                    <Area
+                        type="monotone"
+                        dataKey="margen"
+                        fill="url(#colorIngresos)"
+                        stroke="#10b981"
+                        strokeWidth={3}
+                        name="Margen Neto"
+                    />
+                ) : null}
             </ComposedChart>
         </ResponsiveContainer>
     );
