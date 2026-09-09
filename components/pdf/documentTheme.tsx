@@ -345,20 +345,31 @@ export const styles = StyleSheet.create({
         color: "#ffffff",
         backgroundColor: slate900,
     },
+    /*
+     * El fondo se estira con los cuatro lados (left/top/right/bottom), no con
+     * width/height al 100%.
+     *
+     * Con los porcentajes, react-pdf no resolvia la altura contra la pagina: veia una
+     * imagen mas alta que el hueco disponible y, como una imagen no se puede partir entre
+     * paginas ("Node of type IMAGE can't wrap between pages"), la mandaba sola a una
+     * pagina y empujaba los datos de la portada a la siguiente. El PDF salia con la foto
+     * en una hoja, los datos en otra y el documento en la tercera, mientras la vista de
+     * impresion (que es HTML y si entiende el porcentaje) se veia bien.
+     */
     coverBackground: {
         position: "absolute",
         left: 0,
         top: 0,
-        width: "100%",
-        height: "100%",
+        right: 0,
+        bottom: 0,
         objectFit: "cover",
     },
     coverBackdrop: {
         position: "absolute",
         left: 0,
         top: 0,
-        width: "100%",
-        height: "100%",
+        right: 0,
+        bottom: 0,
         backgroundColor: "#000000",
     },
     coverContent: {
