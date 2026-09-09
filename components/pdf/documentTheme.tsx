@@ -6,8 +6,47 @@
  * de la misma empresa: la cotizacion seguia en verde, sin logo y con otra tipografia. Con
  * los estilos aqui, un cambio de marca alcanza a los dos documentos a la vez.
  */
-import { Page, Text, View, StyleSheet, Image, Svg, Defs, LinearGradient, Stop, Rect } from "@react-pdf/renderer";
+import fs from "node:fs";
+import path from "node:path";
+import { Font, Page, Text, View, StyleSheet, Image, Svg, Defs, LinearGradient, Stop, Rect } from "@react-pdf/renderer";
 import { formatDate } from "@/lib/format";
+
+/**
+ * Montserrat, la tipografia de las cotizaciones de la casa. react-pdf no trae mas que las
+ * catorce fuentes base del PDF, asi que los .ttf viven en public/fonts y se registran aqui.
+ *
+ * Si por lo que sea no estuvieran (un despliegue que no copie public/), se sigue con
+ * Helvetica en vez de reventar: un PDF con la fuente fea es un problema, un PDF que no se
+ * genera es otro bastante peor.
+ */
+function registerDocumentFont() {
+    const dir = path.join(process.cwd(), "public", "fonts");
+    /*
+     * Las cursivas no son un adorno: react-pdf no las simula inclinando la redonda, y si un
+     * estilo pide una combinacion que no esta registrada revienta el render entero con
+     * "Could not resolve font". El documento usa negrita cursiva (la marca de agua, el
+     * total) y cursiva normal (las notas), asi que las cinco tienen que estar.
+     */
+    const pesos = [
+        { file: "Montserrat-Regular.ttf", fontWeight: 400 as const, fontStyle: "normal" as const },
+        { file: "Montserrat-SemiBold.ttf", fontWeight: 600 as const, fontStyle: "normal" as const },
+        { file: "Montserrat-Bold.ttf", fontWeight: 700 as const, fontStyle: "normal" as const },
+        { file: "Montserrat-Italic.ttf", fontWeight: 400 as const, fontStyle: "italic" as const },
+        { file: "Montserrat-BoldItalic.ttf", fontWeight: 700 as const, fontStyle: "italic" as const },
+    ];
+
+    try {
+        const fonts = pesos.map(({ file, ...rest }) => ({ src: path.join(dir, file), ...rest }));
+        if (!fonts.every((font) => fs.existsSync(font.src))) return "Helvetica";
+
+        Font.register({ family: "Montserrat", fonts });
+        return "Montserrat";
+    } catch {
+        return "Helvetica";
+    }
+}
+
+export const documentFont = registerDocumentFont();
 
 
 export type PdfOptions = {
@@ -61,7 +100,7 @@ export const styles = StyleSheet.create({
     },
     page: {
         padding: 0,
-        fontFamily: "Helvetica",
+        fontFamily: documentFont,
         fontSize: 9,
         color: slate700,
         backgroundColor: "#ffffff",
@@ -268,7 +307,7 @@ export const styles = StyleSheet.create({
         fontStyle: "italic",
     },
     totals: {
-        width: "38%",
+        width: "44%",
     },
     totalLine: {
         flexDirection: "row",
@@ -294,18 +333,20 @@ export const styles = StyleSheet.create({
         alignItems: "center",
     },
     grandLabel: {
-        fontSize: 9,
+        fontSize: 8.5,
         fontWeight: "bold",
         color: slate900,
         textTransform: "uppercase",
         // Sin esto el rotulo y el importe se encimaban: react-pdf no encoge un texto que
         // no cabe, lo desborda. Se veia con "TOTAL ESTIMADO" de la cotizacion, que es mas
-        // largo que el "TOTAL" de la factura.
+        // largo que el "TOTAL" de la factura, y volvio a verse al pasar a Montserrat, que
+        // es mas ancha que Helvetica. La columna da 232pt y el par mas largo que puede
+        // salir ("TOTAL ESTIMADO" + un importe de ocho cifras) ocupa 228.
         flexShrink: 1,
         paddingRight: 6,
     },
     grandValue: {
-        fontSize: 17,
+        fontSize: 15,
         fontWeight: "bold",
         fontStyle: "italic",
         color: brandInk,
@@ -341,7 +382,7 @@ export const styles = StyleSheet.create({
     coverPage: {
         position: "relative",
         padding: 0,
-        fontFamily: "Helvetica",
+        fontFamily: documentFont,
         color: "#ffffff",
         backgroundColor: slate900,
     },
@@ -377,31 +418,38 @@ export const styles = StyleSheet.create({
         maxWidth: 390,
     },
     coverBrand: {
-        fontSize: 13,
+        fontSize: 11,
         fontWeight: "bold",
-        marginBottom: 46,
+        marginBottom: 34,
         letterSpacing: 2,
         textTransform: "uppercase",
     },
-    coverTitle: {
-        fontSize: 38,
+    coverLabel: {
+        fontSize: 9,
         fontWeight: "bold",
-        marginBottom: 18,
+        letterSpacing: 2,
+        textTransform: "uppercase",
+        marginBottom: 12,
+    },
+    coverTitle: {
+        fontSize: 25,
+        fontWeight: "bold",
+        marginBottom: 12,
     },
     coverClient: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: "bold",
         marginBottom: 8,
     },
     coverMeta: {
-        fontSize: 10,
+        fontSize: 9,
         marginBottom: 5,
     },
     coverAccent: {
         width: 80,
         height: 4,
         borderRadius: 4,
-        marginBottom: 28,
+        marginBottom: 20,
     },
     coverFooter: {
         position: "absolute",
@@ -409,12 +457,15 @@ export const styles = StyleSheet.create({
         right: 50,
         bottom: 34,
         borderTopWidth: 1,
-        borderTopColor: "rgba(255,255,255,0.35)",
+        // react-pdf no entiende rgba(): con "rgba(255,255,255,0.35)" la linea salia verde.
+        // El blanco va solido y la transparencia por opacity, que si respeta.
+        borderTopColor: "#ffffff",
+        opacity: 0.35,
         paddingTop: 12,
     },
     termsPage: {
         padding: 42,
-        fontFamily: "Helvetica",
+        fontFamily: documentFont,
         fontSize: 10,
         color: slate700,
     },
@@ -473,6 +524,14 @@ export function CoverPage({ document, company, label, secondaryDateLabel }: { do
     const accentColor = company.coverAccentColor || brandInk;
     const overlayOpacity = typeof company.coverOverlayOpacity === "number" ? company.coverOverlayOpacity : 0.35;
     const backgroundImage = typeof company.coverImageUrl === "string" ? company.coverImageUrl : "";
+    /*
+     * El rotulo pequeno solo aparece cuando el documento tiene titulo propio.
+     *
+     * Sin titulo, el grande cae al mismo texto que el rotulo y la portada decia
+     * "C O T I Z A C I O N" arriba y "COTIZACION" debajo, la misma palabra dos veces.
+     */
+    const title = document.title || label;
+    const showLabel = title !== label;
 
     return (
         <Page size="A4" style={styles.coverPage}>
@@ -485,8 +544,10 @@ export function CoverPage({ document, company, label, secondaryDateLabel }: { do
                 {company.coverShowLogo !== false ? (
                     <Text style={[styles.coverBrand, { color: accentColor }]}>{company.name || "oFlow by Oasis"}</Text>
                 ) : null}
-                <Text style={{ fontSize: 9, fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase", color: accentColor, marginBottom: 12 }}>{label}</Text>
-                <Text style={[styles.coverTitle, { color: textColor }]}>{document.title || label}</Text>
+                {showLabel ? (
+                    <Text style={[styles.coverLabel, { color: accentColor }]}>{label}</Text>
+                ) : null}
+                <Text style={[styles.coverTitle, { color: textColor }]}>{title}</Text>
                 {company.coverShowClient !== false ? <Text style={[styles.coverClient, { color: textColor }]}>{document.contact?.name || "Sin cliente"}</Text> : null}
                 {company.coverShowProject !== false && document.project?.name ? <Text style={[styles.coverMeta, { color: textColor }]}>Proyecto: {document.project.name}</Text> : null}
                 {company.coverShowDocumentNumber !== false ? <Text style={[styles.coverMeta, { color: textColor }]}>Documento: {document.number || document.id}</Text> : null}
