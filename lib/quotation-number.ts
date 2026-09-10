@@ -1,4 +1,8 @@
-export const QUOTATION_NUMBER_PAD = 4;
+/**
+ * Cinco digitos, que es como va la serie de la casa: "COT-00628", "COT-00629". Estuvo en
+ * cuatro y las cotizaciones nuevas salian "COT-0630" junto a las viejas de cinco.
+ */
+export const QUOTATION_NUMBER_PAD = 5;
 
 /**
  * La serie real del negocio va en el numero ("0617", "0629"), no en el id de la fila. Solo
@@ -22,7 +26,7 @@ export function formatQuotationNumber(prefix: string, value: number) {
   return `${prefix ?? ""}${String(value).padStart(QUOTATION_NUMBER_PAD, "0")}`;
 }
 
-/** "COT-0002" y "0630" se ven igual en el nombre del PDF: "0002" y "0630". */
+/** "COT-00630" y "0630" se ven igual en el nombre del PDF: "00630". */
 export function quotationNumberLabel(value: string | null | undefined) {
   const parsed = parseQuotationNumber(value);
   return parsed === null ? String(value ?? "").trim() : formatQuotationNumber("", parsed);
