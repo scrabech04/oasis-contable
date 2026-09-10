@@ -243,8 +243,22 @@ export function InvoiceViewer({ invoice, identities = [], companySettings }: Inv
                         <div className="space-y-3 md:w-64">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">Subtotal</span>
-                                <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount(subtotal))}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount((invoice.discount || 0) > 0 ? subtotal + invoice.discount : subtotal))}</span>
                             </div>
+                            {(invoice.discount || 0) > 0 ? (
+                                <>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-emerald-600 dark:text-emerald-500">
+                                            {invoice.discountRate ? `Descuento (${invoice.discountRate}%)` : "Descuento"}
+                                        </span>
+                                        <span className="font-medium text-emerald-600 dark:text-emerald-500 font-mono">- {currencyPrefix} {formatCurrency(convertAmount(invoice.discount))}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-500">Base imponible</span>
+                                        <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount(subtotal))}</span>
+                                    </div>
+                                </>
+                            ) : null}
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">ITBIS (18%)</span>
                                 <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount(tax))}</span>

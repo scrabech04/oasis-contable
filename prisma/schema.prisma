@@ -110,6 +110,11 @@ model Quotation {
   subtotal    Float
   tax         Float
   total       Float
+  /// Descuento aplicado sobre la base, antes del ITBIS. Importe en la moneda del documento.
+  discount    Float     @default(0)
+  /// El porcentaje que tecleo el usuario, solo para rotular ("Descuento 5%"). Null cuando
+  /// el descuento se escribio como importe fijo.
+  discountRate Float?
   title       String?
   subtitle    String?
   notes       String?
@@ -152,6 +157,11 @@ model Invoice {
   subtotal    Float
   tax         Float
   total       Float
+  /// Descuento aplicado sobre la base, antes del ITBIS. Importe en la moneda del documento.
+  discount    Float     @default(0)
+  /// El porcentaje que tecleo el usuario, solo para rotular ("Descuento 5%"). Null cuando
+  /// el descuento se escribio como importe fijo.
+  discountRate Float?
   paidAmount  Float         @default(0)
   incomeType  String?       @default("01") // DGII Classification (01, 02, etc.)
   title       String?
@@ -187,6 +197,11 @@ model ProformaInvoice {
   subtotal    Float
   tax         Float
   total       Float
+  /// Descuento aplicado sobre la base, antes del ITBIS. Importe en la moneda del documento.
+  discount    Float     @default(0)
+  /// El porcentaje que tecleo el usuario, solo para rotular ("Descuento 5%"). Null cuando
+  /// el descuento se escribio como importe fijo.
+  discountRate Float?
   paidAmount  Float         @default(0)
   title       String?
   subtitle    String?

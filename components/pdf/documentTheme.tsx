@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Font, Page, Text, View, StyleSheet, Image, Svg, Defs, LinearGradient, Stop, Rect } from "@react-pdf/renderer";
-import { formatDate } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 
 /**
  * Montserrat, la tipografia de las cotizaciones de la casa. react-pdf no trae mas que las
@@ -323,6 +323,11 @@ export const styles = StyleSheet.create({
         color: slate900,
         fontWeight: "bold",
     },
+    discountValue: {
+        fontSize: 8.5,
+        color: "#059669",
+        fontWeight: "bold",
+    },
     grandTotal: {
         borderTopWidth: 1,
         borderTopColor: slate100,
@@ -558,6 +563,38 @@ export function CoverPage({ document, company, label, secondaryDateLabel }: { do
                 <Text style={{ fontSize: 8, color: textColor }}>{[company.taxId && `RNC: ${company.taxId}`, company.email, company.phone, company.address].filter(Boolean).join(" | ")}</Text>
             </View>
         </Page>
+    );
+}
+
+/**
+ * Las dos filas del descuento en el bloque de totales, o nada si el documento no lleva.
+ *
+ * El descuento se resta de la base ANTES del impuesto, asi que despues de restarlo hay que
+ * enseñar la base imponible: si no, quien lea el documento no puede reconstruir de donde
+ * sale el ITBIS.
+ */
+export function DiscountLines({
+    document,
+    prefix,
+}: {
+    document: { subtotal: number; discount?: number | null; discountRate?: number | null };
+    prefix: string;
+}) {
+    const discount = Number(document.discount) || 0;
+    if (discount <= 0) return null;
+
+    const rate = Number(document.discountRate) || 0;
+    return (
+        <>
+            <View style={styles.totalLine}>
+                <Text style={styles.totalLabel}>{rate > 0 ? `Descuento (${rate}%)` : "Descuento"}</Text>
+                <Text style={styles.discountValue}>- {prefix} {formatCurrency(discount)}</Text>
+            </View>
+            <View style={styles.totalLine}>
+                <Text style={styles.totalLabel}>Base imponible</Text>
+                <Text style={styles.totalValue}>{prefix} {formatCurrency(document.subtotal)}</Text>
+            </View>
+        </>
     );
 }
 

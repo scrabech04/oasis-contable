@@ -221,8 +221,22 @@ export function QuotationViewer({ quotation, identities = [], companySettings }:
                         <div className="space-y-3 md:w-64">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">Subtotal</span>
-                                <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount(quotation.subtotal))}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount((quotation.discount || 0) > 0 ? quotation.subtotal + quotation.discount : quotation.subtotal))}</span>
                             </div>
+                            {(quotation.discount || 0) > 0 ? (
+                                <>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-emerald-600 dark:text-emerald-500">
+                                            {quotation.discountRate ? `Descuento (${quotation.discountRate}%)` : "Descuento"}
+                                        </span>
+                                        <span className="font-medium text-emerald-600 dark:text-emerald-500 font-mono">- {currencyPrefix} {formatCurrency(convertAmount(quotation.discount))}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-500">Base imponible</span>
+                                        <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount(quotation.subtotal))}</span>
+                                    </div>
+                                </>
+                            ) : null}
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500">Impuestos</span>
                                 <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{currencyPrefix} {formatCurrency(convertAmount(quotation.tax))}</span>

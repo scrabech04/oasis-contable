@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { BrandBar, CoverPage, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
+import { BrandBar, CoverPage, DiscountLines, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
 
 const defaultTerms = "Esta cotizacion tiene una validez de 30 dias.\nLos precios estan sujetos a cambios hasta la aprobacion formal.\nEl inicio del proyecto requiere aprobacion de la propuesta y condiciones de pago acordadas.";
 
@@ -112,8 +112,9 @@ export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: 
                         <View style={styles.totals}>
                             <View style={styles.totalLine}>
                                 <Text style={styles.totalLabel}>Subtotal</Text>
-                                <Text style={styles.totalValue}>{prefix} {formatCurrency(quotation.subtotal)}</Text>
+                                <Text style={styles.totalValue}>{prefix} {formatCurrency((quotation.discount || 0) > 0 ? quotation.subtotal + quotation.discount : quotation.subtotal)}</Text>
                             </View>
+                            <DiscountLines document={quotation} prefix={prefix} />
                             <View style={styles.totalLine}>
                                 <Text style={styles.totalLabel}>ITBIS estimado (18%)</Text>
                                 <Text style={styles.totalValue}>{prefix} {formatCurrency(quotation.tax)}</Text>

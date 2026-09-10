@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { BrandBar, CoverPage, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
+import { BrandBar, CoverPage, DiscountLines, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
 
 const defaultTerms = "Esta factura se emite segun los servicios o productos descritos.\nLos pagos deben realizarse antes de la fecha de vencimiento indicada.\nCualquier cambio, reclamacion o ajuste debe solicitarse por escrito.";
 
@@ -113,8 +113,9 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
                         <View style={styles.totals}>
                             <View style={styles.totalLine}>
                                 <Text style={styles.totalLabel}>Subtotal</Text>
-                                <Text style={styles.totalValue}>{prefix} {formatCurrency(invoice.subtotal)}</Text>
+                                <Text style={styles.totalValue}>{prefix} {formatCurrency((invoice.discount || 0) > 0 ? invoice.subtotal + invoice.discount : invoice.subtotal)}</Text>
                             </View>
+                            <DiscountLines document={invoice} prefix={prefix} />
                             <View style={styles.totalLine}>
                                 <Text style={styles.totalLabel}>ITBIS (18%)</Text>
                                 <Text style={styles.totalValue}>{prefix} {formatCurrency(invoice.tax)}</Text>

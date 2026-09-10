@@ -21,6 +21,7 @@ import {
   type PeriodParams,
 } from "@/lib/list-period";
 import { costTypeLabel } from "@/lib/cost-types";
+import { discountFromRate, documentTotals, grossSubtotal, normalizeTaxRate } from "@/lib/document-totals";
 import { formatCurrency } from "@/lib/format";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
 import { formatNcf, nextFreeNumber, normalizeNcf, splitNcf } from "@/lib/ncf";
@@ -144,23 +145,26 @@ function purchaseNotes(formData: FormData) {
   return category && description ? `${category}: ${description}` : category || description;
 }
 
-function normalizeTaxRateValue(value: unknown) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
-  return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
-}
+/**
+ * El calculo vive en lib/document-totals para que el servidor y los formularios no puedan
+ * discrepar. Aqui se reexporta con el nombre que ya usaban las acciones.
+ */
+const totals = documentTotals;
 
-function totals(items: any[]) {
-  const subtotal = items.reduce((sum, item) => {
-    if (item.itemType && item.itemType !== "ITEM") return sum;
-    return sum + (Number(item.quantity) || 0) * (Number(item.price) || 0);
-  }, 0);
-  const tax = items.reduce((sum, item) => {
-    if (item.itemType && item.itemType !== "ITEM") return sum;
-    const line = (Number(item.quantity) || 0) * (Number(item.price) || 0);
-    return sum + line * (normalizeTaxRateValue(item.taxRate) / 100);
-  }, 0);
-  return { subtotal, tax, total: subtotal + tax };
+/**
+ * El descuento que manda el formulario. Se acepta como porcentaje o como importe fijo; si
+ * viene el porcentaje manda ese y el importe se recalcula aqui, para no fiarse de la cuenta
+ * que hizo el navegador. El porcentaje se guarda solo para poder rotular "Descuento 5%".
+ */
+function documentDiscount(formData: FormData, gross: number) {
+  const rate = optionalNumber(formData, "discountRate");
+  if (rate !== null && rate > 0) {
+    const clamped = clampNumber(rate, 0, 100);
+    return { discount: discountFromRate(gross, clamped), discountRate: clamped };
+  }
+
+  const amount = optionalNumber(formData, "discount") ?? 0;
+  return { discount: roundMoney(clampNumber(amount, 0, Math.max(gross, 0))), discountRate: null };
 }
 
 function moneyContext(formData: FormData) {
@@ -206,7 +210,7 @@ function invoiceItemsData(items: any[]) {
 
     const quantity = Number(item.quantity) || 0;
     const price = Number(item.price) || 0;
-    const taxRate = normalizeTaxRateValue(item.taxRate);
+    const taxRate = normalizeTaxRate(item.taxRate);
 
     return {
       description: String(item.description || ""),
@@ -225,7 +229,7 @@ function recurringInvoiceItemsData(items: any[]) {
     .map((item) => {
       const quantity = Number(item.quantity) || 0;
       const price = Number(item.price) || 0;
-      const taxRate = normalizeTaxRateValue(item.taxRate);
+      const taxRate = normalizeTaxRate(item.taxRate);
 
       return {
         description: String(item.description || ""),
@@ -1022,7 +1026,7 @@ function normalizeImportedItems(items: any[], fallbackDescription: string) {
     const unitPrice = normalizeMoney(item.price ?? item.unitPrice ?? 0);
     const baseAmount = explicitBaseAmount > 0 ? explicitBaseAmount : unitPrice * quantity;
     const taxAmount = normalizeMoney(item.taxAmount ?? item.itbis ?? item.tax ?? item.impuesto ?? 0);
-    const rawTaxRate = normalizeTaxRateValue(item.taxRate);
+    const rawTaxRate = normalizeTaxRate(item.taxRate);
     const taxRate = rawTaxRate > 0
       ? rawTaxRate
       : baseAmount > 0
@@ -2937,7 +2941,8 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const items = parseItems(formData);
-    const total = totals(items);
+    const descuento = documentDiscount(formData, grossSubtotal(items));
+    const total = totals(items, descuento.discount);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
     const ncfSequenceId = optionalNumber(formData, "ncfSequenceId");
@@ -2965,6 +2970,8 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
             contactId,
             projectId,
             subtotal: total.subtotal,
+            discount: descuento.discount,
+            discountRate: descuento.discountRate,
             tax: total.tax,
             total: total.total,
             incomeType: text(formData, "incomeType", "01"),
@@ -3054,7 +3061,8 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
     const ncf = numbering.ncf;
 
     const items = parseItems(formData);
-    const total = totals(items);
+    const descuento = documentDiscount(formData, grossSubtotal(items));
+    const total = totals(items, descuento.discount);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
     await prisma.invoice.update({
@@ -3066,6 +3074,8 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
         contactId,
         projectId,
         subtotal: total.subtotal,
+        discount: descuento.discount,
+        discountRate: descuento.discountRate,
         tax: total.tax,
         total: total.total,
         status: statusFor(total.total, existing.paidAmount || 0),
@@ -3111,6 +3121,8 @@ export async function duplicateInvoice(id: number) {
       subtotal: source.subtotal,
       tax: source.tax,
       total: source.total,
+      discount: source.discount,
+      discountRate: source.discountRate,
       incomeType: source.incomeType,
       title: source.title,
       subtitle: source.subtitle,
@@ -3175,7 +3187,8 @@ export async function createProforma(formData: FormData): Promise<ActionResult> 
   try {
     const profileId = await resolveExplicitOrActiveProfileId(formData);
     const items = parseItems(formData);
-    const total = totals(items);
+    const descuento = documentDiscount(formData, grossSubtotal(items));
+    const total = totals(items, descuento.discount);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
     const number = await getNextProformaNumber(profileId);
@@ -3188,6 +3201,8 @@ export async function createProforma(formData: FormData): Promise<ActionResult> 
         contactId,
         projectId,
         subtotal: total.subtotal,
+        discount: descuento.discount,
+        discountRate: descuento.discountRate,
         tax: total.tax,
         total: total.total,
         title: optionalText(formData, "title"),
@@ -3216,7 +3231,8 @@ export async function updateProforma(id: number, formData: FormData): Promise<Ac
     if (!existing) return { success: false, error: "Prefactura no encontrada para el perfil activo." };
     if (existing.status === "CONVERTED") return { success: false, error: "No se puede editar una prefactura ya convertida a factura fiscal." };
     const items = parseItems(formData);
-    const total = totals(items);
+    const descuento = documentDiscount(formData, grossSubtotal(items));
+    const total = totals(items, descuento.discount);
     const contactId = await resolveContact(formData, profileId, "CLIENT");
     const projectId = await resolveProject(formData, profileId, contactId);
     const requestedStatus = text(formData, "status", existing.status);
@@ -3229,6 +3245,8 @@ export async function updateProforma(id: number, formData: FormData): Promise<Ac
         contactId,
         projectId,
         subtotal: total.subtotal,
+        discount: descuento.discount,
+        discountRate: descuento.discountRate,
         tax: total.tax,
         total: total.total,
         title: optionalText(formData, "title"),
@@ -3300,6 +3318,8 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
         subtotal: proforma.subtotal,
         tax: proforma.tax,
         total: proforma.total,
+        discount: proforma.discount,
+        discountRate: proforma.discountRate,
         paidAmount: proforma.paidAmount,
         incomeType: formData ? text(formData, "incomeType", "01") : "01",
         title: proforma.title,
@@ -3567,7 +3587,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       ...taxClassification,
       notes: purchaseNotes(formData),
       profileId,
-      items: { create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
+      items: { create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRate(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRate(item.taxRate) / 100) })) },
       ...(attachment ? { attachments: { create: attachment } } : {}),
     },
   });
@@ -3636,7 +3656,7 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       type: text(formData, "type", existing.type),
       ...taxClassification,
       notes: purchaseNotes(formData),
-      items: { deleteMany: {}, create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRateValue(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRateValue(item.taxRate) / 100) })) },
+      items: { deleteMany: {}, create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRate(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRate(item.taxRate) / 100) })) },
     },
   });
   revalidatePath("/purchases");
@@ -3977,7 +3997,8 @@ export async function createQuotation(formData: FormData): Promise<ActionResult>
   await requireWriteAccess();
   const profileId = await resolveExplicitOrActiveProfileId(formData);
   const items = parseItems(formData);
-  const total = totals(items);
+  const descuento = documentDiscount(formData, grossSubtotal(items));
+  const total = totals(items, descuento.discount);
   const contactId = await resolveContact(formData, profileId, "CLIENT");
   const projectId = await resolveProject(formData, profileId, contactId);
   const quotation = await prisma.quotation.create({
@@ -3989,6 +4010,8 @@ export async function createQuotation(formData: FormData): Promise<ActionResult>
       contactId,
       projectId,
       subtotal: total.subtotal,
+      discount: descuento.discount,
+      discountRate: descuento.discountRate,
       tax: total.tax,
       total: total.total,
       title: optionalText(formData, "title"),
@@ -4026,7 +4049,8 @@ export async function updateQuotation(id: number, formData: FormData): Promise<A
   const existing = await prisma.quotation.findFirst({ where: { id, profileId }, select: { id: true, number: true } });
   if (!existing) return { success: false, error: "Cotización no encontrada para el perfil activo." };
   const items = parseItems(formData);
-  const total = totals(items);
+  const descuento = documentDiscount(formData, grossSubtotal(items));
+  const total = totals(items, descuento.discount);
   const contactId = await resolveContact(formData, profileId, "CLIENT");
   const projectId = await resolveProject(formData, profileId, contactId);
   await prisma.quotation.update({
@@ -4041,6 +4065,8 @@ export async function updateQuotation(id: number, formData: FormData): Promise<A
       contactId,
       projectId,
       subtotal: total.subtotal,
+      discount: descuento.discount,
+      discountRate: descuento.discountRate,
       tax: total.tax,
       total: total.total,
       title: optionalText(formData, "title"),
@@ -4081,6 +4107,8 @@ export async function duplicateQuotation(id: number) {
       subtotal: source.subtotal,
       tax: source.tax,
       total: source.total,
+      discount: source.discount,
+      discountRate: source.discountRate,
       title: source.title,
       subtitle: source.subtitle,
       notes: source.notes,
@@ -4120,6 +4148,10 @@ export async function convertQuotationToInvoice(id: number) {
       subtotal: quote.subtotal,
       tax: quote.tax,
       total: quote.total,
+      // El descuento viaja con el documento: si se quedara atras, la factura cobraria
+      // mas que la cotizacion que el cliente aprobo.
+      discount: quote.discount,
+      discountRate: quote.discountRate,
       title: quote.title,
       subtitle: quote.subtitle,
       notes: quote.notes,

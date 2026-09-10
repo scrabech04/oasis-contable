@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createProforma, updateProforma } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
+import { discountFromRate, documentTotals, grossSubtotal } from "@/lib/document-totals";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
@@ -42,16 +43,14 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
   })) : [{ ...defaultItem }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  /* El descuento se teclea en porcentaje; el importe lo deriva el calculo. */
+  const [discountRate, setDiscountRate] = useState(initialData?.discountRate ? String(initialData.discountRate) : "");
 
-  const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
-    const tax = items.reduce((sum, item) => {
-      const line = (Number(item.quantity) || 0) * (Number(item.price) || 0);
-      const rate = Number(item.taxRate) > 0 && Number(item.taxRate) <= 1 ? Number(item.taxRate) * 100 : Number(item.taxRate) || 0;
-      return sum + line * (rate / 100);
-    }, 0);
-    return { subtotal, tax, total: subtotal + tax };
-  }, [items]);
+  // Los mismos numeros que calculara el servidor al guardar: la formula es una sola.
+  const totals = useMemo(
+    () => documentTotals(items, discountFromRate(grossSubtotal(items), Number(discountRate) || 0)),
+    [items, discountRate]
+  );
 
   const setItem = (index: number, key: string, value: string) => {
     setItems((current) => current.map((item, i) => i === index ? { ...item, [key]: value } : item));
@@ -73,6 +72,7 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
     formData.set("notes", notes);
     formData.set("termsAndConditions", termsAndConditions);
     formData.set("items", JSON.stringify(items));
+    formData.set("discountRate", String(Number(discountRate) || 0));
 
     const result = initialData?.id ? await updateProforma(initialData.id, formData) : await createProforma(formData);
     setIsSubmitting(false);
@@ -229,7 +229,30 @@ export function ProformaForm({ contacts, projects, initialData }: ProformaFormPr
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm dark:border-blue-900/40 dark:bg-blue-900/20">
           <p className="text-xs font-black uppercase tracking-wider text-blue-600">Totales proforma</p>
           <div className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between"><span>Subtotal</span><strong>RD$ {formatCurrency(totals.subtotal)}</strong></div>
+            <div className="flex justify-between"><span>Subtotal</span><strong>RD$ {formatCurrency(totals.gross)}</strong></div>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="discountRate">Descuento</label>
+              <div className="relative w-24 shrink-0">
+                <input
+                  id="discountRate"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="0"
+                  value={discountRate}
+                  onChange={(event) => setDiscountRate(event.target.value)}
+                  className="w-full rounded-lg border border-blue-200 bg-white py-1 pl-2 pr-6 text-right font-mono text-sm font-bold text-slate-800 focus:border-blue-600 focus:outline-none dark:border-blue-900/40 dark:bg-slate-900 dark:text-slate-200"
+                />
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+              </div>
+            </div>
+            {totals.discount > 0 ? (
+              <>
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-500"><span>Descuento aplicado</span><strong>- RD$ {formatCurrency(totals.discount)}</strong></div>
+                <div className="flex justify-between"><span>Base imponible</span><strong>RD$ {formatCurrency(totals.subtotal)}</strong></div>
+              </>
+            ) : null}
             <div className="flex justify-between"><span>ITBIS estimado</span><strong>RD$ {formatCurrency(totals.tax)}</strong></div>
             <div className="border-t border-blue-100 pt-3 text-lg font-black text-blue-700 dark:border-blue-900/40 dark:text-blue-300">
               <div className="flex justify-between"><span>Total</span><span>RD$ {formatCurrency(totals.total)}</span></div>

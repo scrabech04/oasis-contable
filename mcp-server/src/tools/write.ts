@@ -157,6 +157,8 @@ export function registerWriteTools(server: McpServer) {
         projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
+        discountRate: z.number().min(0).max(100).optional()
+          .describe("Descuento comercial en porcentaje sobre la base imponible. Baja la base, asi que el ITBIS se calcula sobre el importe ya descontado."),
         ncfSequenceId: z.number().int().positive().optional().describe("Preferred: atomically issues the next NCF from this sequence. Use preview_next_ncf first to show the user what it will be."),
         date: z.string().describe("YYYY-MM-DD"),
         dueDate: z.string().describe("YYYY-MM-DD"),
@@ -196,6 +198,8 @@ export function registerWriteTools(server: McpServer) {
         projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
+        discountRate: z.number().min(0).max(100).optional()
+          .describe("Descuento comercial en porcentaje sobre la base imponible. Baja la base, asi que el ITBIS se calcula sobre el importe ya descontado."),
         number: z.string().optional().describe("Leave unset to let the app assign the next COT-xxxx for this profile."),
         date: z.string().describe("YYYY-MM-DD"),
         validUntil: z.string().optional().describe("YYYY-MM-DD"),
@@ -236,6 +240,8 @@ export function registerWriteTools(server: McpServer) {
         projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
+        discountRate: z.number().min(0).max(100).optional()
+          .describe("Descuento comercial en porcentaje sobre la base imponible. Baja la base, asi que el ITBIS se calcula sobre el importe ya descontado."),
         date: z.string().describe("YYYY-MM-DD"),
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         status: z.enum(["DRAFT", "SENT", "PARTIAL", "PAID", "CANCELLED"]).optional(),
@@ -361,6 +367,8 @@ export function registerWriteTools(server: McpServer) {
         projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
+        discountRate: z.number().min(0).max(100).optional()
+          .describe("Descuento comercial en porcentaje sobre la base imponible. Baja la base, asi que el ITBIS se calcula sobre el importe ya descontado."),
         date: z.string().optional().describe("YYYY-MM-DD"),
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         incomeType: z.string().optional().describe("DGII 606/607 income-type code, e.g. 01"),
@@ -402,6 +410,8 @@ export function registerWriteTools(server: McpServer) {
         projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
+        discountRate: z.number().min(0).max(100).optional()
+          .describe("Descuento comercial en porcentaje sobre la base imponible. Baja la base, asi que el ITBIS se calcula sobre el importe ya descontado."),
         date: z.string().optional().describe("YYYY-MM-DD"),
         validUntil: z.string().optional().describe("YYYY-MM-DD"),
         status: z.enum(["DRAFT", "SENT", "ACCEPTED", "REJECTED", "INVOICED"]).optional(),
@@ -444,6 +454,8 @@ export function registerWriteTools(server: McpServer) {
         projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
+        discountRate: z.number().min(0).max(100).optional()
+          .describe("Descuento comercial en porcentaje sobre la base imponible. Baja la base, asi que el ITBIS se calcula sobre el importe ya descontado."),
         date: z.string().optional().describe("YYYY-MM-DD"),
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         status: z.enum(["DRAFT", "SENT", "PARTIAL", "PAID", "CANCELLED"]).optional(),

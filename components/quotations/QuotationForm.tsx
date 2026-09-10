@@ -5,6 +5,7 @@ import { Plus, Trash2, User, FileText, Calendar, LayoutGrid, Calculator, Chevron
 import { useDragReorder } from "@/hooks/useDragReorder";
 import { createQuotation, updateQuotation, getNextQuotationNumber } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
+import { discountFromRate, documentTotals, grossSubtotal } from "@/lib/document-totals";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 
@@ -55,6 +56,12 @@ export function QuotationForm({ contacts, projects = [], initialData }: Quotatio
     const [includeTermsPage, setIncludeTermsPage] = useState(false);
     const [title, setTitle] = useState("");
     const [subtitle, setSubtitle] = useState("");
+    /*
+     * El descuento se teclea en porcentaje, que es como se pacta ("te hago un 5%"). El
+     * importe lo deriva el calculo, y el servidor lo vuelve a derivar al guardar para no
+     * fiarse de la cuenta del navegador.
+     */
+    const [discountRate, setDiscountRate] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -84,6 +91,7 @@ export function QuotationForm({ contacts, projects = [], initialData }: Quotatio
             setIncludeTermsPage(Boolean(initialData.includeTermsPage));
             setTitle(initialData.title || "");
             setSubtitle(initialData.subtitle || "");
+            setDiscountRate(initialData.discountRate ? String(initialData.discountRate) : "");
         }
     }, [initialData]);
 
@@ -117,9 +125,9 @@ export function QuotationForm({ contacts, projects = [], initialData }: Quotatio
 
     const { dragIndex, dragOverIndex, handleDragStart, handleDragOver, handleDragEnter, handleDrop, handleDragEnd } = useDragReorder(items, setItems);
 
-    const subtotal = items.reduce((acc, item) => acc + (item.itemType === "ITEM" ? item.quantity * item.price : 0), 0);
-    const tax = items.reduce((acc, item) => acc + (item.itemType === "ITEM" ? (item.quantity * item.price * (item.taxRate / 100)) : 0), 0);
-    const total = subtotal + tax;
+    // Los mismos numeros que calculara el servidor al guardar: la formula es una sola.
+    const discountAmount = discountFromRate(grossSubtotal(items), Number(discountRate) || 0);
+    const { gross, subtotal, tax, total } = documentTotals(items, discountAmount);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -140,6 +148,7 @@ export function QuotationForm({ contacts, projects = [], initialData }: Quotatio
         }
         formData.append("status", status);
         formData.append("items", JSON.stringify(items));
+        formData.append("discountRate", String(Number(discountRate) || 0));
         formData.append("notes", notes);
         formData.append("termsAndConditions", termsAndConditions);
         formData.append("includeCoverPage", String(includeCoverPage));
@@ -738,8 +747,42 @@ export function QuotationForm({ contacts, projects = [], initialData }: Quotatio
                         <div className="p-8 space-y-4 flex-grow">
                             <div className="flex justify-between items-center text-sm">
                                 <span className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tighter text-[11px]">Subtotal Bruto</span>
-                                <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-base">RD$ {formatCurrency(subtotal)}</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-base">RD$ {formatCurrency(gross)}</span>
                             </div>
+
+                            <div className="flex justify-between items-center gap-3 text-sm">
+                                <label htmlFor="discountRate" className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tighter text-[11px] shrink-0">
+                                    Descuento
+                                </label>
+                                <div className="relative w-24 shrink-0">
+                                    <input
+                                        id="discountRate"
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.01"
+                                        placeholder="0"
+                                        value={discountRate}
+                                        onChange={(e) => setDiscountRate(e.target.value)}
+                                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-2 pr-6 text-right font-mono text-sm font-bold text-slate-800 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                    />
+                                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                                </div>
+                            </div>
+
+                            {discountAmount > 0 ? (
+                                <>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-tighter text-[11px]">Descuento aplicado</span>
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-500 font-mono text-base">- RD$ {formatCurrency(discountAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tighter text-[11px]">Base imponible</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-base">RD$ {formatCurrency(subtotal)}</span>
+                                    </div>
+                                </>
+                            ) : null}
+
                             <div className="flex justify-between items-center text-sm pb-6 border-b border-slate-100 dark:border-slate-800">
                                 <span className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tighter text-[11px]">Impuestos (ITBIS)</span>
                                 <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-base">RD$ {formatCurrency(tax)}</span>
