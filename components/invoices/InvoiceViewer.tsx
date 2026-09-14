@@ -197,6 +197,7 @@ export function InvoiceViewer({ invoice, identities = [], companySettings }: Inv
                                             </td>
                                             <td className="px-4 py-3 print:px-2 print:py-1.5">
                                                 <div className={clsx(
+                                                    "whitespace-pre-line",
                                                     {
                                                         "text-base font-bold text-slate-900 dark:text-white tracking-tight print:text-sm": item.itemType === "HEADING",
                                                         "text-sm font-semibold text-slate-700 dark:text-slate-300 pl-4 print:text-xs": item.itemType === "SUBHEADING",

@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/format";
 import { discountFromRate, documentTotals, grossSubtotal } from "@/lib/document-totals";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -618,9 +619,9 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                                 {item.itemType === "ITEM" ? "Descripcion" : "Titulo"}
                                             </span>
-                                            <input
+                                            <AutoGrowTextarea
                                                 className={clsx(
-                                                    "mt-1 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800",
+                                                    "mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800",
                                                     item.itemType === "HEADING" ? "text-sm font-black uppercase text-slate-900 dark:text-white" : "text-sm font-medium text-slate-800 dark:text-slate-100"
                                                 )}
                                                 placeholder={item.itemType === "HEADING" ? "Nombre de seccion..." : item.itemType === "SUBHEADING" ? "Sub-seccion..." : "Descripcion del producto..."}
@@ -729,7 +730,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <input
+                                                <AutoGrowTextarea
                                                     className={clsx(
                                                         "w-full bg-transparent border-0 border-b border-transparent focus:border-blue-600 focus:ring-0 p-0 transition-all",
                                                         {

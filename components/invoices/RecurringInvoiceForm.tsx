@@ -7,6 +7,7 @@ import { createRecurringInvoice } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
+import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -430,7 +431,7 @@ export function RecurringInvoiceForm({ contacts, projects = [], numberingSequenc
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <input
+                                        <AutoGrowTextarea
                                             className={clsx(
                                                 "w-full bg-transparent border-0 border-b border-transparent focus:border-blue-600 focus:ring-0 p-0 transition-all placeholder:text-slate-300",
                                                 {
