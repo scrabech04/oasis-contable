@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { BrandBar, CoverPage, DiscountLines, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
+import { BrandBar, CoverPage, DiscountLines, PageFooter, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
 
 const defaultTerms = "Esta cotizacion tiene una validez de 30 dias.\nLos precios estan sujetos a cambios hasta la aprobacion formal.\nEl inicio del proyecto requiere aprobacion de la propuesta y condiciones de pago acordadas.";
 
@@ -81,7 +81,7 @@ export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: 
 
                             if (isHeading || isSubheading) {
                                 return (
-                                    <View key={item.id || index} style={[styles.tableRow, isHeading ? styles.sectionRow : styles.subsectionRow]}>
+                                    <View key={item.id || index} wrap={false} style={[styles.tableRow, isHeading ? styles.sectionRow : styles.subsectionRow]}>
                                         <View style={styles.colNo} />
                                         <Text style={isHeading ? styles.headingText : styles.subheadingText}>{item.description}</Text>
                                     </View>
@@ -89,7 +89,7 @@ export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: 
                             }
 
                             return (
-                                <View key={item.id || index} style={styles.tableRow}>
+                                <View key={item.id || index} wrap={false} style={styles.tableRow}>
                                     <Text style={[styles.td, styles.colNo]}>{itemNumber(quotation.items, index)}</Text>
                                     <Text style={[styles.td, styles.colDesc]}>{item.description}</Text>
                                     <Text style={[styles.td, styles.colQty]}>{item.quantity}</Text>
@@ -127,11 +127,7 @@ export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: 
                     </View>
                 </View>
 
-                <View style={styles.footer}>
-                    <Text style={styles.footerText}>No constituye una factura legal - Sujeta a cambios</Text>
-                    <Text style={styles.footerBrand}>oFlow by Oasis</Text>
-                    <Text style={styles.footerText}>Pagina 1 de 1</Text>
-                </View>
+                <PageFooter note="No constituye una factura legal - Sujeta a cambios" />
             </Page>
 
             {options.includeTermsPage && (

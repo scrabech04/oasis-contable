@@ -71,15 +71,32 @@ export const brandInk = "#7838d8";
 /** La franja de marca del borde superior: azul a la izquierda, morado a la derecha. */
 export function BrandBar() {
     return (
-        <Svg style={styles.topBar} viewBox="0 0 100 5" preserveAspectRatio="none">
-            <Defs>
-                <LinearGradient id="brandBar" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0" stopColor={brandBlue} />
-                    <Stop offset="1" stopColor={brandPurple} />
-                </LinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100" height="5" fill="url(#brandBar)" />
-        </Svg>
+        <View style={styles.topBar} fixed>
+            <Svg style={styles.topBarFill} viewBox="0 0 100 5" preserveAspectRatio="none">
+                <Defs>
+                    <LinearGradient id="brandBar" x1="0" y1="0" x2="1" y2="0">
+                        <Stop offset="0" stopColor={brandBlue} />
+                        <Stop offset="1" stopColor={brandPurple} />
+                    </LinearGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100" height="5" fill="url(#brandBar)" />
+            </Svg>
+        </View>
+    );
+}
+
+/**
+ * Pie de pagina que se repite en cada hoja, con el numero real de pagina. Antes era un
+ * bloque absoluto sin `fixed`: solo salia en la ultima hoja y decia "Pagina 1 de 1"
+ * aunque el documento tuviera dos, y en la primera la tabla corria hasta el borde.
+ */
+export function PageFooter({ note }: { note: string }) {
+    return (
+        <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{note}</Text>
+            <Text style={styles.footerBrand}>oFlow by Oasis</Text>
+            <Text style={styles.footerText} render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} de ${totalPages}`} />
+        </View>
     );
 }
 export const slate900 = "#0f172a";
@@ -98,19 +115,34 @@ export const styles = StyleSheet.create({
         marginTop: -6,
         marginBottom: 10,
     },
+    /**
+     * Los margenes verticales van en la pagina y no en `content`: cuando react-pdf parte
+     * el contenido en dos hojas, el padding del bloque partido no se repite y la segunda
+     * hoja arrancaba pegada a la barra de marca. Abajo queda hueco para el pie fijo (42).
+     */
     page: {
         padding: 0,
+        paddingTop: 30,
+        paddingBottom: 58,
         fontFamily: documentFont,
         fontSize: 9,
         color: slate700,
         backgroundColor: "#ffffff",
     },
+    // Pegada al borde superior de cada hoja, fuera del padding de la pagina.
     topBar: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 5,
+    },
+    topBarFill: {
         width: "100%",
         height: 5,
     },
     content: {
-        paddingTop: 30,
+        paddingTop: 0,
         paddingRight: 34,
         paddingBottom: 0,
         paddingLeft: 34,
@@ -223,8 +255,17 @@ export const styles = StyleSheet.create({
     dueDate: {
         color: "#ef4444",
     },
+    /**
+     * Bordes arriba y abajo de la tabla: cuando react-pdf la parte entre dos paginas, cada
+     * mitad conserva sus bordes, asi que el trozo de la primera hoja cierra por abajo y el
+     * de la segunda abre por arriba en vez de quedar el texto suelto contra el borde.
+     */
     table: {
         marginBottom: 26,
+        borderTopWidth: 1,
+        borderTopColor: slate100,
+        borderBottomWidth: 1,
+        borderBottomColor: slate100,
     },
     tableHeader: {
         flexDirection: "row",
@@ -240,21 +281,12 @@ export const styles = StyleSheet.create({
         borderBottomColor: "#edf2f7",
         paddingTop: 10,
         paddingBottom: 12,
-        minHeight: 72,
     },
-    /**
-     * Un titulo es una linea de texto, no una fila de tabla. El `minHeight` de arriba esta
-     * para que a un item no se le venga encima la descripcion larga de la siguiente linea;
-     * en un titulo de una sola linea deja 72 puntos de aire debajo, que era el hueco
-     * enorme entre cada seccion y sus items.
-     */
     sectionRow: {
-        minHeight: 0,
         paddingTop: 11,
         paddingBottom: 5,
     },
     subsectionRow: {
-        minHeight: 0,
         paddingTop: 6,
         paddingBottom: 5,
     },
