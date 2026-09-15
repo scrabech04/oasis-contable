@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Font, Page, Text, View, StyleSheet, Image, Svg, Defs, LinearGradient, Stop, Rect } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { splitSubheading } from "@/lib/subheading";
 
 /**
  * Montserrat, la tipografia de las cotizaciones de la casa. react-pdf no trae mas que las
@@ -304,6 +305,9 @@ export const styles = StyleSheet.create({
         fontWeight: "bold",
         color: slate700,
         lineHeight: 1.28,
+    },
+    subheadingBody: {
+        fontWeight: "normal",
     },
     th: {
         fontSize: 6.5,
@@ -627,6 +631,16 @@ export function DiscountLines({
                 <Text style={styles.totalValue}>{prefix} {formatCurrency(document.subtotal)}</Text>
             </View>
         </>
+    );
+}
+
+export function SubheadingText({ text }: { text: string }) {
+    const parts = splitSubheading(text);
+    if (!parts) return <Text style={styles.subheadingText}>{text}</Text>;
+    return (
+        <Text style={styles.subheadingText}>
+            {parts.label}: <Text style={styles.subheadingBody}>{parts.body}</Text>
+        </Text>
     );
 }
 

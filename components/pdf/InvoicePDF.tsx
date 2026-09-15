@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { BrandBar, CoverPage, DiscountLines, PageFooter, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
+import { BrandBar, CoverPage, DiscountLines, PageFooter, PdfOptions, SubheadingText, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
 
 const defaultTerms = "Esta factura se emite segun los servicios o productos descritos.\nLos pagos deben realizarse antes de la fecha de vencimiento indicada.\nCualquier cambio, reclamacion o ajuste debe solicitarse por escrito.";
 
@@ -84,7 +84,7 @@ export const InvoicePDF = ({ invoice, company, options = {} }: { invoice: any, c
                                 return (
                                     <View key={item.id || index} wrap={false} style={[styles.tableRow, isHeading ? styles.sectionRow : styles.subsectionRow]}>
                                         <View style={styles.colNo} />
-                                        <Text style={isHeading ? styles.headingText : styles.subheadingText}>{item.description}</Text>
+                                        {isHeading ? <Text style={styles.headingText}>{item.description}</Text> : <SubheadingText text={item.description} />}
                                     </View>
                                 );
                             }

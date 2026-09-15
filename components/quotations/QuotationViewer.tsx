@@ -1,5 +1,6 @@
 "use client";
 
+import { SubheadingText } from "@/components/documents/SubheadingText";
 import { useState } from "react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import clsx from "clsx";
@@ -182,7 +183,7 @@ export function QuotationViewer({ quotation, identities = [], companySettings }:
                                                         "text-slate-600 dark:text-slate-400 print:text-xs": item.itemType === "ITEM"
                                                     }
                                                 )}>
-                                                    {item.description}
+                                                    {item.itemType === "SUBHEADING" ? <SubheadingText text={item.description} /> : item.description}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 print:px-2 print:py-1.5 text-center text-slate-500 print:text-xs">

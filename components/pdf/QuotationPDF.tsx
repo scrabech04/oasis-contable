@@ -1,6 +1,6 @@
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { BrandBar, CoverPage, DiscountLines, PageFooter, PdfOptions, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
+import { BrandBar, CoverPage, DiscountLines, PageFooter, PdfOptions, SubheadingText, TermsBlock, companyLogo, itemNumber, moneyPrefix, styles } from "./documentTheme";
 
 const defaultTerms = "Esta cotizacion tiene una validez de 30 dias.\nLos precios estan sujetos a cambios hasta la aprobacion formal.\nEl inicio del proyecto requiere aprobacion de la propuesta y condiciones de pago acordadas.";
 
@@ -83,7 +83,7 @@ export const QuotationPDF = ({ quotation, company, options = {} }: { quotation: 
                                 return (
                                     <View key={item.id || index} wrap={false} style={[styles.tableRow, isHeading ? styles.sectionRow : styles.subsectionRow]}>
                                         <View style={styles.colNo} />
-                                        <Text style={isHeading ? styles.headingText : styles.subheadingText}>{item.description}</Text>
+                                        {isHeading ? <Text style={styles.headingText}>{item.description}</Text> : <SubheadingText text={item.description} />}
                                     </View>
                                 );
                             }
