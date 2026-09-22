@@ -2968,6 +2968,15 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
           data: {
             number,
             ncf,
+            /**
+             * Una factura con NCF ya es un comprobante emitido: nace pendiente de cobro, no
+             * en borrador. Sin NCF todavia no existe para la DGII y el borrador es el sitio
+             * correcto hasta que se le asigne uno.
+             *
+             * Antes no se mandaba nada y caia al `@default("DRAFT")` del esquema, asi que
+             * toda factura nacia en borrador aunque llevara su comprobante encima.
+             */
+            status: ncf ? "OPEN" : "DRAFT",
             date: dateValue(formData, "date"),
             dueDate: dateValue(formData, "dueDate"),
             contactId,
@@ -3098,6 +3107,34 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
     const message = error instanceof Error ? error.message : "No fue posible actualizar la factura.";
     return { success: false, error: message };
   }
+}
+
+/**
+ * Los estados que se pueden poner a mano desde el listado.
+ *
+ * `PAID` y `PARTIAL` quedan fuera a proposito: los calcula `statusFor` a partir de lo
+ * cobrado, y cualquier recalculo (registrar un pago, editar la factura) pisaria lo que se
+ * hubiera elegido aqui. Un estado que el propio sistema deshace al rato miente mas de lo
+ * que ayuda; para saldar una factura se registra el cobro.
+ */
+const INVOICE_MANUAL_STATUSES = ["DRAFT", "OPEN"];
+
+export async function updateInvoiceStatus(id: number, status: string) {
+  await requireWriteAccess();
+  if (!INVOICE_MANUAL_STATUSES.includes(status)) return { success: false, error: "Estado no valido." };
+  const profileId = await getActiveProfileId();
+
+  const existing = await prisma.invoice.findFirst({ where: { id, profileId }, select: { paidAmount: true } });
+  if (!existing) return { success: false, error: "Factura no encontrada para el perfil activo." };
+  if ((existing.paidAmount || 0) > 0) {
+    return { success: false, error: "Esta factura ya tiene cobros: su estado sale de lo pagado." };
+  }
+
+  await prisma.invoice.update({ where: { id }, data: { status } });
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${id}`);
+  revalidatePath("/receivables");
+  return { success: true };
 }
 
 export async function deleteInvoice(id: number) {

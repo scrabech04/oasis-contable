@@ -1,15 +1,113 @@
 "use client";
 
 import clsx from "clsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/format";
 import { DeleteButton } from "@/components/DeleteButton";
-import { deleteInvoice, duplicateInvoice } from "@/app/actions";
+import { deleteInvoice, duplicateInvoice, updateInvoiceStatus } from "@/app/actions";
 import { PaymentDialog } from "@/components/payments/PaymentDialog";
 import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurringButton";
 import { useToast } from "@/components/ui/toast";
+
+/**
+ * El rotulo era una cadena de ternarios sin rama para `OPEN`, asi que toda factura que no
+ * estuviera cobrada se pintaba "Borrador" — incluso las que el servidor ya habia puesto en
+ * pendiente. Cada estado tiene ahora su propio caso.
+ */
+function invoiceStatusLabel(status: string | null | undefined) {
+    return status === "PAID" ? "Saldada" :
+        status === "PARTIAL" ? "Parcial" :
+            status === "OPEN" ? "Pendiente" : "Borrador";
+}
+
+function invoiceStatusClass(status: string | null | undefined) {
+    return {
+        "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300": status === "PAID",
+        "bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-900/40 dark:text-orange-300": status === "PARTIAL",
+        "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-900/40 dark:text-blue-300": status === "OPEN",
+        "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800": status === "DRAFT" || !status,
+    };
+}
+
+const INVOICE_MANUAL_STATUSES = ["DRAFT", "OPEN"];
+
+/**
+ * El estado se cambia desde el listado, sin abrir la factura, igual que en cotizaciones.
+ *
+ * Solo cuando no hay cobros: con un pago encima el estado lo manda lo cobrado, y dejar
+ * elegirlo seria ofrecer algo que el proximo recalculo deshace. En ese caso se pinta el
+ * badge de siempre, sin select.
+ */
+function InvoiceStatusSelect({ invoice, className }: {
+    invoice: { id: number; status?: string | null; paidAmount?: number | null };
+    className: string;
+}) {
+    const router = useRouter();
+    const toast = useToast();
+    const [status, setStatus] = useState<string>(invoice.status || "DRAFT");
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        setStatus(invoice.status || "DRAFT");
+    }, [invoice.status]);
+
+    if ((invoice.paidAmount || 0) > 0) {
+        return (
+            <span className={clsx(className, invoiceStatusClass(invoice.status))}>
+                {invoiceStatusLabel(invoice.status)}
+            </span>
+        );
+    }
+
+    const handleChange = async (next: string) => {
+        const previous = status;
+        setStatus(next);
+        setSaving(true);
+        try {
+            const result = await updateInvoiceStatus(invoice.id, next);
+            if (!result.success) {
+                setStatus(previous);
+                toast.error("No se pudo cambiar el estado", result.error);
+                return;
+            }
+            router.refresh();
+        } catch (error) {
+            console.error("Error updating invoice status:", error);
+            setStatus(previous);
+            toast.error("No se pudo cambiar el estado", "Revisa tu conexion e intenta de nuevo.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <span className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+            <select
+                value={status}
+                disabled={saving}
+                onChange={(e) => handleChange(e.target.value)}
+                title="Cambiar estado"
+                className={clsx(
+                    className,
+                    invoiceStatusClass(status),
+                    "cursor-pointer appearance-none pr-6 outline-none focus:ring-2 focus:ring-blue-500",
+                    saving && "cursor-wait opacity-60"
+                )}
+            >
+                {INVOICE_MANUAL_STATUSES.map((value) => (
+                    <option key={value} value={value} className="font-sans text-xs normal-case tracking-normal text-slate-900">
+                        {invoiceStatusLabel(value)}
+                    </option>
+                ))}
+            </select>
+            <span className="material-icons-round pointer-events-none absolute right-1 text-[12px] opacity-60">
+                {saving ? "sync" : "expand_more"}
+            </span>
+        </span>
+    );
+}
 
 export function InvoicesTable({ invoices }: { invoices: any[] }) {
     const router = useRouter();
@@ -72,15 +170,11 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                 <p className="font-mono text-sm font-black text-slate-900 dark:text-white">
                                     RD${formatCurrency(invoice.total)}
                                 </p>
-                                <span className={clsx(
-                                    "mt-2 inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
-                                    {
-                                        "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300": invoice.status === "PAID",
-                                        "bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-900/40 dark:text-orange-300": invoice.status === "PARTIAL",
-                                        "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800": invoice.status === "DRAFT" || !invoice.status,
-                                    }
-                                )}>
-                                    {invoice.status === "PAID" ? "Saldada" : invoice.status === "PARTIAL" ? "Parcial" : "Borrador"}
+                                <span className="mt-2 inline-flex">
+                                    <InvoiceStatusSelect
+                                        invoice={invoice}
+                                        className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider"
+                                    />
                                 </span>
                             </div>
                         </div>
@@ -170,16 +264,10 @@ export function InvoicesTable({ invoices }: { invoices: any[] }) {
                                     <span className="text-sm text-slate-600 dark:text-slate-400 font-numeric">{new Date(invoice.date).toLocaleDateString(undefined, { timeZone: "UTC" })}</span>
                                 </td>
                                 <td className="px-6 py-5 text-center hidden sm:table-cell">
-                                    <span className={clsx(
-                                        "inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black border uppercase tracking-wider",
-                                        {
-                                            "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300": invoice.status === "PAID",
-                                            "bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-900/40 dark:text-orange-300": invoice.status === "PARTIAL",
-                                            "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800": invoice.status === "DRAFT" || !invoice.status,
-                                        }
-                                    )}>
-                                        {invoice.status === "PAID" ? "Saldada" : invoice.status === "PARTIAL" ? "Parcial" : "Borrador"}
-                                    </span>
+                                    <InvoiceStatusSelect
+                                        invoice={invoice}
+                                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black border uppercase tracking-wider"
+                                    />
                                 </td>
                                 <td className="px-4 md:px-6 py-4 md:py-5 text-right">
                                     <div className="flex flex-col items-end">
