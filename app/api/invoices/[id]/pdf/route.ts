@@ -4,6 +4,7 @@ import { pdf } from "@react-pdf/renderer";
 import { InvoicePDF } from "@/components/pdf/InvoicePDF";
 import { prisma } from "@/lib/prisma";
 import { getActiveProfileId, getScopedCompanySettings } from "@/lib/account-profiles";
+import { buildInvoicePdfFilename, inlinePdfDisposition } from "@/lib/pdf-filename";
 import { readFile } from "fs/promises";
 import path from "path";
 
@@ -90,7 +91,14 @@ export async function GET(
     includeTermsPage: optionValue("terms", invoice.includeTermsPage),
   };
 
-  const filename = `${invoice.number || `factura-${invoice.id}`}.pdf`;
+  const filename = buildInvoicePdfFilename({
+    emitter: pdfCompany.name,
+    ncf: invoice.ncf,
+    number: invoice.number,
+    client: invoice.contact?.name,
+    subject: invoice.project?.name || invoice.title,
+    fallback: `factura-${invoice.id}`,
+  });
   const useHtmlRenderer = searchParams.get("renderer") === "html";
 
   if (useHtmlRenderer) {
@@ -113,7 +121,7 @@ export async function GET(
   return new Response(blob, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"`,
+      "Content-Disposition": inlinePdfDisposition(filename),
       "Cache-Control": "no-store",
       "X-PDF-Renderer": "react-pdf-fallback",
     },

@@ -22,10 +22,29 @@ export function sanitizeFilenamePart(value: string | null | undefined) {
 /**
  * "OASIS GATE  COT 0629 - MINISTERIO DE ENERGIA Y MINAS - FERIA DEL LIBRO ESTACIONES VR"
  *
- * Emisor y numero van pegados por dos espacios, como en los PDF que ya circulan; el cliente
- * y el asunto (el proyecto, o el titulo si la cotizacion no tiene proyecto) cuelgan con
- * " - ". Las partes vacias no dejan separadores sueltos.
+ * Emisor y etiqueta van pegados por dos espacios, como en los PDF que ya circulan; el
+ * cliente y el asunto (el proyecto, o el titulo si el documento no tiene proyecto) cuelgan
+ * con " - ". Las partes vacias no dejan separadores sueltos.
+ *
+ * Lo que cambia entre cotizacion y factura es solo la etiqueta ("COT 00629" contra
+ * "FACT B0100000045"); el resto del nombre se arma igual y por eso vive aqui.
  */
+function buildDocumentPdfFilename(parts: {
+  emitter?: string | null;
+  label?: string | null;
+  client?: string | null;
+  subject?: string | null;
+  fallback: string;
+}) {
+  const head = [sanitizeFilenamePart(parts.emitter), sanitizeFilenamePart(parts.label)]
+    .filter(Boolean)
+    .join("  ");
+  const name = [head, sanitizeFilenamePart(parts.client), sanitizeFilenamePart(parts.subject)]
+    .filter(Boolean)
+    .join(" - ");
+  return name || sanitizeFilenamePart(parts.fallback) || "documento";
+}
+
 export function buildQuotationPdfFilename(parts: {
   emitter?: string | null;
   number?: string | null;
@@ -33,13 +52,40 @@ export function buildQuotationPdfFilename(parts: {
   subject?: string | null;
   fallback: string;
 }) {
-  const emitter = sanitizeFilenamePart(parts.emitter);
   const number = sanitizeFilenamePart(quotationNumberLabel(parts.number));
-  const head = [emitter, number ? `COT ${number}` : ""].filter(Boolean).join("  ");
-  const name = [head, sanitizeFilenamePart(parts.client), sanitizeFilenamePart(parts.subject)]
-    .filter(Boolean)
-    .join(" - ");
-  return name || sanitizeFilenamePart(parts.fallback) || "documento";
+  return buildDocumentPdfFilename({
+    emitter: parts.emitter,
+    label: number ? `COT ${number}` : "",
+    client: parts.client,
+    subject: parts.subject,
+    fallback: parts.fallback,
+  });
+}
+
+/**
+ * "OASIS GATE  FACT B0100000045 - DUMA GROUP SRL - MESYCT 10 BECAS"
+ *
+ * El numero que identifica una factura frente al cliente y frente a la DGII es el NCF, no
+ * el correlativo interno, asi que ese es el que va en el nombre. El `number` ("INV-00012")
+ * queda de respaldo para las facturas que todavia no tienen NCF asignado, que en el esquema
+ * es un campo opcional: sin ese respaldo se quedarian con el nombre pelado del emisor.
+ */
+export function buildInvoicePdfFilename(parts: {
+  emitter?: string | null;
+  ncf?: string | null;
+  number?: string | null;
+  client?: string | null;
+  subject?: string | null;
+  fallback: string;
+}) {
+  const reference = sanitizeFilenamePart(parts.ncf) || sanitizeFilenamePart(parts.number);
+  return buildDocumentPdfFilename({
+    emitter: parts.emitter,
+    label: reference ? `FACT ${reference}` : "",
+    client: parts.client,
+    subject: parts.subject,
+    fallback: parts.fallback,
+  });
 }
 
 /**
