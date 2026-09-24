@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { Activity, PieChart as PieIcon } from "lucide-react";
-import { getDashboardStats, processRecurringInvoices } from "@/app/actions";
+import { getDashboardStats, getItbisSummary, processRecurringInvoices } from "@/app/actions";
 import { OverviewChart } from "@/components/reports/OverviewChart";
 import { ExpenseDistributionChart } from "@/components/reports/ExpenseDistributionChart";
 import { ReceivableAgingChart } from "@/components/reports/ReceivableAgingChart";
 import { TopSuppliersChart } from "@/components/reports/TopSuppliersChart";
 import { DashboardFilters } from "@/components/reports/DashboardFilters";
+import { ItbisPanel } from "@/components/reports/ItbisPanel";
 import { formatCurrency } from "@/lib/format";
-import { getPeriodParams } from "@/lib/list-period";
+import { periodKeyFromParts } from "@/lib/itbis";
+import { currentMonthPeriod, getPeriodParams } from "@/lib/list-period";
 import { getActiveProfile } from "@/lib/account-profiles";
 
 const cardClass =
@@ -20,10 +22,16 @@ export default async function DashboardPage(props: {
   const period = getPeriodParams(searchParams);
 
   await processRecurringInvoices();
-  const [stats, activeProfile] = await Promise.all([
+  const [stats, itbis, activeProfile] = await Promise.all([
     getDashboardStats(period),
+    getItbisSummary(period),
     getActiveProfile(),
   ]);
+
+  // La IT-1 se declara por mes, asi que un filtro de ano o de todo el historial no tiene un
+  // mes al que enlazar: en ese caso se abre la del mes en curso.
+  const itbisLinkPeriod = period.year && period.month ? period : currentMonthPeriod();
+  const itbisMonth = periodKeyFromParts(itbisLinkPeriod.year!, itbisLinkPeriod.month!);
 
   return (
     <div className="flex flex-col gap-6 md:gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -138,8 +146,8 @@ export default async function DashboardPage(props: {
         </section>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        <section className={`${cardClass} lg:col-span-2`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+        <section className={`${cardClass} md:col-span-2`}>
           <SectionHeading
             kicker="Cobros"
             title="Antiguedad de lo pendiente"
@@ -194,6 +202,13 @@ export default async function DashboardPage(props: {
             </div>
           )}
         </section>
+
+        <ItbisPanel
+          data={itbis}
+          label={itbis.label}
+          href={`/reports/it1?period=${itbisMonth}`}
+          className={cardClass}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 pb-12">

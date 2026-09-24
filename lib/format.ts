@@ -1,5 +1,9 @@
 export const formatCurrency = (amount: number): string => {
-    const safeAmount = Number.isFinite(amount) ? amount : 0;
+    const finite = Number.isFinite(amount) ? amount : 0;
+    // El -0 existe en JS y se formatea como "-0.00". Sale solo al negar un cero para
+    // presentarlo como resta ("(-) Deducible" sobre un mes sin compras), y un "-0.00" en
+    // pantalla parece un error de calculo.
+    const safeAmount = Object.is(finite, -0) ? 0 : finite;
     return new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,

@@ -21,6 +21,16 @@ import {
   type PeriodParams,
 } from "@/lib/list-period";
 import { costTypeLabel } from "@/lib/cost-types";
+import {
+  aggregateItbis,
+  buildItbisLedger,
+  emptyItbisPeriod,
+  itbisPeriodOf,
+  periodKeyFromDate,
+  periodKeyFromParts,
+  type ItbisPeriod,
+  type ItbisPeriodInput,
+} from "@/lib/itbis";
 import { discountFromRate, documentTotals, grossSubtotal, normalizeTaxRate } from "@/lib/document-totals";
 import { formatCurrency } from "@/lib/format";
 import { amountFilter, likeTerm, parseAmountTerm } from "@/lib/list-search";
@@ -4742,30 +4752,124 @@ export async function getDashboardStats(period: PeriodParams = {}) {
   };
 }
 
+/**
+ * Los limites en UTC, por el mismo motivo que `getPeriodDateRange`: las fechas de negocio se
+ * guardan como medianoche UTC, asi que `new Date(year, month, 1)` dejaba el corte a las 04:00
+ * UTC en Republica Dominicana y una factura del dia 1 se caia al mes anterior.
+ */
 function periodRange(period: string) {
-  const year = Number(period.slice(0, 4));
-  const month = Number(period.slice(4, 6)) - 1;
-  return { gte: new Date(year, month, 1), lt: new Date(year, month + 1, 1) };
+  const { year, month } = periodParts(period);
+  return { gte: new Date(Date.UTC(year, month - 1, 1)), lt: new Date(Date.UTC(year, month, 1)) };
 }
 
+/**
+ * "202609" -> { year: 2026, month: 9 }. El periodo llega de la URL, asi que cualquier cosa que
+ * no sean seis digitos con un mes real cae al mes en curso en vez de propagar un NaN que
+ * terminaria devolviendo el historial completo.
+ */
+function periodParts(period: string) {
+  const year = Number(period.slice(0, 4));
+  const month = Number(period.slice(4, 6));
+  if (!/^\d{6}$/.test(period) || month < 1 || month > 12) {
+    const now = currentMonthPeriod();
+    return { year: now.year as number, month: now.month as number };
+  }
+  return { year, month };
+}
+
+/**
+ * Las compras y ventas de un mes para el 606/607.
+ *
+ * Las facturas en borrador quedan fuera: el 607 declara comprobantes emitidos, y un borrador
+ * todavia no lo es. Antes se colaban y solo se marcaban con el aviso de datos incompletos,
+ * asi que salian tambien en el TXT que se le sube a la DGII.
+ */
 export async function getReportData(period: string) {
   const profileId = await getActiveProfileId();
   const range = periodRange(period);
   const [purchases, invoices] = await Promise.all([
     prisma.purchase.findMany({ where: { profileId, date: range, report606: true }, include: { contact: true, payments: { include: { withholdings: true } } }, orderBy: { date: "asc" } }),
-    prisma.invoice.findMany({ where: { profileId, date: range }, include: { contact: true, payments: { include: { withholdings: true } } }, orderBy: { date: "asc" } }),
+    prisma.invoice.findMany({ where: { profileId, date: range, status: { not: "DRAFT" } }, include: { contact: true, payments: { include: { withholdings: true } } }, orderBy: { date: "asc" } }),
   ]);
   return { purchases, invoices };
 }
 
+/**
+ * El ITBIS de todo el historial del perfil, mes a mes y con el saldo a favor ya arrastrado.
+ *
+ * Se lee el historial completo y no solo el periodo pedido porque el arrastre lo exige: para
+ * saber cuanto se debe en septiembre hay que saber cuanto credito sobrevivio desde el primer
+ * mes con movimiento.
+ *
+ * Que entra:
+ * - facturado: las facturas del mes que NO estan en borrador. Un borrador no se ha emitido,
+ *   asi que su ITBIS no se debe todavia;
+ * - deducible: las compras que van al 606 y tienen credito fiscal;
+ * - retenciones: por la fecha del pago, no la del documento (ver lib/itbis). Se descartan las
+ *   de prefacturas, que no entran a la IT-1 hasta convertirlas.
+ */
+async function getItbisLedger(profileId: number): Promise<ItbisPeriod[]> {
+  const [invoices, purchases, withholdings] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { profileId, status: { not: "DRAFT" } },
+      select: { date: true, tax: true },
+    }),
+    prisma.purchase.findMany({
+      where: { profileId, report606: true, hasFiscalCredit: true },
+      select: { date: true, tax: true },
+    }),
+    prisma.withholding.findMany({
+      where: { payment: { OR: [{ invoice: { profileId } }, { purchase: { profileId } }] } },
+      select: { type: true, amount: true, payment: { select: { date: true } } },
+    }),
+  ]);
+
+  const months = new Map<string, ItbisPeriodInput>();
+  const bucket = (date: Date) => {
+    const key = periodKeyFromDate(date);
+    const existing = months.get(key);
+    if (existing) return existing;
+    const created = emptyItbisPeriod(key);
+    months.set(key, created);
+    return created;
+  };
+
+  for (const invoice of invoices) bucket(invoice.date).itbisFacturado += invoice.tax;
+  for (const purchase of purchases) bucket(purchase.date).itbisPagado += purchase.tax;
+  for (const withholding of withholdings) {
+    const row = bucket(withholding.payment.date);
+    if (String(withholding.type).startsWith("ITBIS")) row.retencionesITBIS += withholding.amount;
+    else if (String(withholding.type).startsWith("ISR")) row.retencionesISR += withholding.amount;
+  }
+
+  return buildItbisLedger([...months.values()]);
+}
+
 export async function getIT1Data(period: string) {
-  const { purchases, invoices } = await getReportData(period);
-  const retenciones = [...purchases, ...invoices].flatMap((doc: any) => doc.payments || []).flatMap((p: any) => p.withholdings || []);
-  const retencionesITBIS = retenciones.filter((w: any) => String(w.type).startsWith("ITBIS")).reduce((s: number, w: any) => s + w.amount, 0);
-  const retencionesISR = retenciones.filter((w: any) => String(w.type).startsWith("ISR")).reduce((s: number, w: any) => s + w.amount, 0);
-  const itbisFacturado = invoices.reduce((sum, invoice) => sum + invoice.tax, 0);
-  const itbisPagado = purchases.reduce((sum, purchase) => sum + (purchase.hasFiscalCredit ? purchase.tax : 0), 0);
-  return { itbisFacturado, itbisPagado, retencionesITBIS, retencionesISR, balance: itbisFacturado - itbisPagado - retencionesITBIS };
+  const profileId = await getActiveProfileId();
+  const ledger = await getItbisLedger(profileId);
+  const { year, month } = periodParts(period);
+  const current = itbisPeriodOf(ledger, periodKeyFromParts(year, month));
+
+  return {
+    ...current,
+    /** El ano completo hasta el mes elegido, para ver el acumulado sin cambiar de pantalla. */
+    yearToDate: aggregateItbis(ledger, periodKeyFromParts(year, 1), current.period),
+    /** Los meses anteriores con movimiento, del mas reciente al mas viejo. */
+    history: ledger.filter((row) => row.period < current.period).reverse().slice(0, 6),
+  };
+}
+
+/** El ITBIS del tramo que tenga elegido el resumen: un mes, un ano, o todo el historial. */
+export async function getItbisSummary(period: PeriodParams) {
+  const profileId = await getActiveProfileId();
+  const ledger = await getItbisLedger(profileId);
+
+  if (!period.year) return { ...aggregateItbis(ledger), label: formatPeriodLabel(period) };
+
+  const from = periodKeyFromParts(period.year, period.month ?? 1);
+  const to = periodKeyFromParts(period.year, period.month ?? 12);
+  return { ...aggregateItbis(ledger, from, to), label: formatPeriodLabel(period) };
 }
 
 export async function createRecurringInvoice(formData: FormData) {

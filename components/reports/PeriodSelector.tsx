@@ -6,10 +6,17 @@ import { useRouter } from "next/navigation";
 interface PeriodSelectorProps {
     currentPeriod: string;
     tab: string;
+    /**
+     * La pantalla a la que se vuelve al cambiar de mes. Hacia falta porque estaba fijo en
+     * "/reports": desde la IT-1, elegir otro mes te sacaba al 606/607, asi que la IT-1 solo se
+     * podia ver en el mes en curso.
+     */
+    basePath?: string;
 }
 
-export function PeriodSelector({ currentPeriod, tab }: PeriodSelectorProps) {
+export function PeriodSelector({ currentPeriod, tab, basePath = "/reports" }: PeriodSelectorProps) {
     const router = useRouter();
+    const go = (value: string) => router.push(`${basePath}?period=${value}&tab=${tab}`);
 
     const formatPeriod = (p: string) => {
         const year = p.substring(0, 4);
@@ -31,9 +38,7 @@ export function PeriodSelector({ currentPeriod, tab }: PeriodSelectorProps) {
             <select
                 value={currentPeriod}
                 className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
-                onChange={(e) => {
-                    router.push(`/reports?period=${e.target.value}&tab=${tab}`);
-                }}
+                onChange={(e) => go(e.target.value)}
             >
                 {periods.map((p) => (
                     <option key={p.value} value={p.value}>{p.label}</option>
@@ -44,7 +49,7 @@ export function PeriodSelector({ currentPeriod, tab }: PeriodSelectorProps) {
                 {periods.slice(0, 4).reverse().map((p) => (
                     <button
                         key={p.value}
-                        onClick={() => router.push(`/reports?period=${p.value}&tab=${tab}`)}
+                        onClick={() => go(p.value)}
                         className={`px-2 py-1 rounded text-xs transition-colors ${currentPeriod === p.value ? 'bg-blue-600 text-white' : 'hover:bg-muted text-muted-foreground'}`}
                     >
                         {p.short}
