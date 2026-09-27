@@ -43,6 +43,35 @@ const updateConfirmSchema = z.boolean().describe(
 
 const idSchema = z.number().int().positive().describe("id of the existing record to update.");
 
+/**
+ * Referencias a un registro existente, que ademas aceptan las palabras de control con las
+ * que el API crea o desvincula ("new", "manual", "none").
+ *
+ * El `z.coerce` no es cosmetico: el host del MCP coacciona el tipo cuando el campo es un
+ * `z.number()` suelto (por eso `profileId` siempre funciono), pero cuando es una union no
+ * sabe por cual rama decidir y manda el numero como texto. Con `z.number()` a secas, un
+ * `contactId: 11` llegaba como "11" y Zod lo rechazaba con "Invalid input at contactId",
+ * asi que NINGUNA tool podia apuntar a un contacto o proyecto que ya existiera: solo
+ * servia crear uno nuevo. Detectado el 2026-09-25 intentando cotizar a un cliente ya
+ * registrado.
+ *
+ * Coaccionar primero y dejar los literales despues funciona porque "new" se convierte en
+ * NaN, falla el `.int()` y la union sigue probando ramas hasta dar con el literal.
+ */
+const numericId = z.coerce.number().int().positive();
+
+/** Contacto de una compra o gasto: existente, nuevo, o escrito a mano sin crear contacto. */
+const contactRefSchema = z.union([numericId, z.literal("new"), z.literal("manual")]);
+
+/** Proyecto de una compra o gasto. */
+const projectRefSchema = z.union([numericId, z.literal("new"), z.literal("manual"), z.literal("none")]);
+
+/** Cliente de una factura, prefactura o cotizacion. */
+const clientRefSchema = z.union([numericId, z.literal("new")]);
+
+/** Proyecto de una factura, prefactura o cotizacion. */
+const clientProjectRefSchema = z.union([numericId, z.literal("new"), z.literal("none")]);
+
 const attachmentPathSchema = z
   .string()
   .optional()
@@ -72,11 +101,11 @@ export function registerWriteTools(server: McpServer) {
         "and get an explicit yes from the user before calling this with confirm: true.",
       inputSchema: {
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new"), z.literal("manual")]).optional(),
+        contactId: contactRefSchema.optional(),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
         supplierWebsiteUrl: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("manual"), z.literal("none")]).optional(),
+        projectId: projectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
         currency: z.enum(["DOP", "USD"]).optional(),
@@ -109,11 +138,11 @@ export function registerWriteTools(server: McpServer) {
         "supplier, NCF/RNC) and get an explicit yes from the user before calling this with confirm: true.",
       inputSchema: {
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new"), z.literal("manual")]).optional(),
+        contactId: contactRefSchema.optional(),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
         supplierWebsiteUrl: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("manual"), z.literal("none")]).optional(),
+        projectId: projectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
         currency: z.enum(["DOP", "USD"]).optional(),
@@ -151,10 +180,10 @@ export function registerWriteTools(server: McpServer) {
         "free-typed ncf is not validated against any sequence.",
       inputSchema: {
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new")]).describe("Client contact id, or \"new\" with contactName to create one."),
+        contactId: clientRefSchema.describe("Client contact id, or \"new\" with contactName to create one."),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectId: clientProjectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
         discountRate: z.number().min(0).max(100).optional()
@@ -192,10 +221,10 @@ export function registerWriteTools(server: McpServer) {
         "and get an explicit yes from the user before calling this with confirm: true.",
       inputSchema: {
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new")]).describe("Client contact id, or \"new\" with contactName to create one."),
+        contactId: clientRefSchema.describe("Client contact id, or \"new\" with contactName to create one."),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectId: clientProjectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
         discountRate: z.number().min(0).max(100).optional()
@@ -234,10 +263,10 @@ export function registerWriteTools(server: McpServer) {
         "and get an explicit yes from the user before calling this with confirm: true.",
       inputSchema: {
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new")]).describe("Client contact id, or \"new\" with contactName to create one."),
+        contactId: clientRefSchema.describe("Client contact id, or \"new\" with contactName to create one."),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectId: clientProjectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1),
         discountRate: z.number().min(0).max(100).optional()
@@ -277,11 +306,11 @@ export function registerWriteTools(server: McpServer) {
       inputSchema: {
         id: idSchema,
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new"), z.literal("manual")]).optional(),
+        contactId: contactRefSchema.optional(),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
         supplierWebsiteUrl: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("manual"), z.literal("none")]).optional(),
+        projectId: projectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
         currency: z.enum(["DOP", "USD"]).optional(),
@@ -318,11 +347,11 @@ export function registerWriteTools(server: McpServer) {
       inputSchema: {
         id: idSchema,
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new"), z.literal("manual")]).optional(),
+        contactId: contactRefSchema.optional(),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
         supplierWebsiteUrl: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("manual"), z.literal("none")]).optional(),
+        projectId: projectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
         currency: z.enum(["DOP", "USD"]).optional(),
@@ -361,10 +390,10 @@ export function registerWriteTools(server: McpServer) {
       inputSchema: {
         id: idSchema,
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new")]).optional().describe("Client contact id, or \"new\" with contactName to create one."),
+        contactId: clientRefSchema.optional().describe("Client contact id, or \"new\" with contactName to create one."),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectId: clientProjectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
         discountRate: z.number().min(0).max(100).optional()
@@ -404,10 +433,10 @@ export function registerWriteTools(server: McpServer) {
       inputSchema: {
         id: idSchema,
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new")]).optional().describe("Client contact id, or \"new\" with contactName to create one."),
+        contactId: clientRefSchema.optional().describe("Client contact id, or \"new\" with contactName to create one."),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectId: clientProjectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
         discountRate: z.number().min(0).max(100).optional()
@@ -448,10 +477,10 @@ export function registerWriteTools(server: McpServer) {
       inputSchema: {
         id: idSchema,
         profileId: profileIdSchema.optional(),
-        contactId: z.union([z.number(), z.literal("new")]).optional().describe("Client contact id, or \"new\" with contactName to create one."),
+        contactId: clientRefSchema.optional().describe("Client contact id, or \"new\" with contactName to create one."),
         contactName: z.string().optional(),
         contactTaxId: z.string().optional(),
-        projectId: z.union([z.number(), z.literal("new"), z.literal("none")]).optional(),
+        projectId: clientProjectRefSchema.optional(),
         projectName: z.string().optional(),
         items: z.array(itemSchema).min(1).optional(),
         discountRate: z.number().min(0).max(100).optional()
