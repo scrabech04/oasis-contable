@@ -5,6 +5,7 @@ import { Plus, Trash2, Calendar, LayoutGrid, Calculator, Repeat, Clock, Heading1
 import { useDragReorder } from "@/hooks/useDragReorder";
 import { createRecurringInvoice } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
+import { DYNAMIC_FIELDS_HINT } from "@/lib/dynamic-fields";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { AutoGrowTextarea } from "@/components/ui/AutoGrowTextarea";
@@ -511,6 +512,7 @@ export function RecurringInvoiceForm({ contacts, projects = [], numberingSequenc
                         </tbody>
                     </table>
                 </div>
+                <p className="px-6 py-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">{DYNAMIC_FIELDS_HINT}</p>
             </div>
         </form>
     );

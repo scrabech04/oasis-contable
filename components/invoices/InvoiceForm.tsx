@@ -5,6 +5,7 @@ import { Plus, Trash2, User, FileText, Calendar, LayoutGrid, Calculator, Heading
 import { useDragReorder } from "@/hooks/useDragReorder";
 import { createInvoice, updateInvoice, getNextNcf, deletePayment } from "@/app/actions";
 import { formatCurrency } from "@/lib/format";
+import { DYNAMIC_FIELDS_HINT } from "@/lib/dynamic-fields";
 import { discountFromRate, documentTotals, grossSubtotal } from "@/lib/document-totals";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
@@ -806,6 +807,7 @@ export function InvoiceForm({ contacts, projects = [], initialData, numberingSeq
                                 </tbody>
                             </table>
                         </div>
+                        <p className="px-6 py-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">{DYNAMIC_FIELDS_HINT}</p>
                     </div>
                 </div>
 

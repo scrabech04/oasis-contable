@@ -49,6 +49,13 @@ function registerDocumentFont() {
 
 export const documentFont = registerDocumentFont();
 
+/*
+ * react-pdf parte las palabras con guion para llenar la linea ("Optimi-zación"), y en una
+ * descripcion se ve descuidado. Devolver la palabra entera como unica silaba la obliga a
+ * bajar completa al renglon siguiente.
+ */
+Font.registerHyphenationCallback((word) => [word]);
+
 
 export type PdfOptions = {
     includeCoverPage?: boolean;

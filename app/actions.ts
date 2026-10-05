@@ -21,6 +21,7 @@ import {
   type PeriodParams,
 } from "@/lib/list-period";
 import { costTypeLabel } from "@/lib/cost-types";
+import { resolveDynamicFields } from "@/lib/dynamic-fields";
 import {
   aggregateItbis,
   buildItbisLedger,
@@ -211,11 +212,12 @@ function normalizeItemType(value: unknown) {
  * En un titulo se guardan los importes en cero: `totals` ya los excluye del subtotal, asi
  * que un numero ahi no se cobra pero tampoco significa nada.
  */
-function invoiceItemsData(items: any[]) {
+function invoiceItemsData(items: any[], date: Date) {
   return items.map((item) => {
     const itemType = normalizeItemType(item.itemType);
+    const description = resolveDynamicFields(String(item.description || ""), date);
     if (itemType !== "ITEM") {
-      return { description: String(item.description || ""), itemType, quantity: 0, price: 0, taxRate: 0, total: 0 };
+      return { description, itemType, quantity: 0, price: 0, taxRate: 0, total: 0 };
     }
 
     const quantity = Number(item.quantity) || 0;
@@ -223,7 +225,7 @@ function invoiceItemsData(items: any[]) {
     const taxRate = normalizeTaxRate(item.taxRate);
 
     return {
-      description: String(item.description || ""),
+      description,
       itemType,
       quantity,
       price,
@@ -3004,7 +3006,7 @@ export async function createInvoice(formData: FormData): Promise<ActionResult> {
             includeCoverPage: checkboxValue(formData, "includeCoverPage"),
             includeTermsPage: checkboxValue(formData, "includeTermsPage"),
             profileId,
-            items: { create: invoiceItemsData(items) },
+            items: { create: invoiceItemsData(items, dateValue(formData, "date")) },
           },
         });
         break;
@@ -3108,7 +3110,7 @@ export async function updateInvoice(id: number, formData: FormData): Promise<Act
         termsAndConditions: optionalText(formData, "termsAndConditions"),
         includeCoverPage: checkboxValue(formData, "includeCoverPage"),
         includeTermsPage: checkboxValue(formData, "includeTermsPage"),
-        items: { deleteMany: {}, create: invoiceItemsData(items) },
+        items: { deleteMany: {}, create: invoiceItemsData(items, dateValue(formData, "date")) },
       },
     });
     revalidatePath("/invoices");
@@ -3181,7 +3183,7 @@ export async function duplicateInvoice(id: number) {
       includeCoverPage: source.includeCoverPage,
       includeTermsPage: source.includeTermsPage,
       profileId: source.profileId,
-      items: { create: invoiceItemsData(source.items) },
+      items: { create: invoiceItemsData(source.items, new Date()) },
     },
   });
   revalidatePath("/invoices");
@@ -3265,7 +3267,7 @@ export async function createProforma(formData: FormData): Promise<ActionResult> 
         includeCoverPage: checkboxValue(formData, "includeCoverPage"),
         includeTermsPage: checkboxValue(formData, "includeTermsPage"),
         profileId,
-        items: { create: invoiceItemsData(items) },
+        items: { create: invoiceItemsData(items, dateValue(formData, "date")) },
       },
     });
     revalidatePath("/proformas");
@@ -3308,7 +3310,7 @@ export async function updateProforma(id: number, formData: FormData): Promise<Ac
         termsAndConditions: optionalText(formData, "termsAndConditions"),
         includeCoverPage: checkboxValue(formData, "includeCoverPage"),
         includeTermsPage: checkboxValue(formData, "includeTermsPage"),
-        items: { deleteMany: {}, create: invoiceItemsData(items) },
+        items: { deleteMany: {}, create: invoiceItemsData(items, dateValue(formData, "date")) },
       },
     });
     revalidatePath("/proformas");
@@ -3358,12 +3360,13 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   }
 
   const number = await getNextInvoiceNumber();
+  const date = formData ? dateValue(formData, "date") : new Date();
   const invoice = await prisma.$transaction(async (tx) => {
     const created = await tx.invoice.create({
       data: {
         number,
         ncf,
-        date: formData ? dateValue(formData, "date") : new Date(),
+        date,
         dueDate: formData ? dateValue(formData, "dueDate") : new Date(),
         status: "PAID",
         contactId: proforma.contactId,
@@ -3383,7 +3386,7 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
         includeTermsPage: proforma.includeTermsPage,
         proformaInvoiceId: proforma.id,
         profileId,
-        items: { create: invoiceItemsData(proforma.items) },
+        items: { create: invoiceItemsData(proforma.items, date) },
       },
     });
     await tx.payment.updateMany({
@@ -4216,7 +4219,7 @@ export async function convertQuotationToInvoice(id: number) {
       includeCoverPage: quote.includeCoverPage,
       includeTermsPage: quote.includeTermsPage,
       profileId: quote.profileId,
-      items: { create: invoiceItemsData(quote.items) },
+      items: { create: invoiceItemsData(quote.items, new Date()) },
     },
   });
   await prisma.quotation.update({ where: { id: quote.id }, data: { status: "INVOICED" } });
@@ -5022,7 +5025,7 @@ async function createInvoiceFromRecurringTemplate(template: any, issueDate: Date
       notes: template.notes,
       profileId,
       items: {
-        create: invoiceItemsData(template.items),
+        create: invoiceItemsData(template.items, date),
       },
     },
   });
