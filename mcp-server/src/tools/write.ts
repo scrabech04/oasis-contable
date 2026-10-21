@@ -83,6 +83,15 @@ const attachmentPathSchema = z
     "purchase has a single supplier invoice."
   );
 
+const tagsSchema = z
+  .array(z.string())
+  .optional()
+  .describe(
+    "Free-form labels to group purchases without a project, e.g. [\"Evento Comic-Con\", \"Misu Amore\"]. " +
+    "Reuse the exact spelling of tags already present on other purchases (see list_purchases / list_expenses). " +
+    "On an update the list REPLACES the current tags: pass the full set, or omit it to keep them."
+  );
+
 const updateNote =
   " This is a full update: any field you omit is preserved from the current record (call list_expenses / " +
   "list_purchases / list_invoices first if you need to see current values), but items - when you DO pass " +
@@ -114,6 +123,7 @@ export function registerWriteTools(server: McpServer) {
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         ncf: z.string().optional(),
         notes: z.string().optional(),
+        tags: tagsSchema,
         attachmentPath: attachmentPathSchema,
         confirm: confirmSchema,
       },
@@ -153,6 +163,7 @@ export function registerWriteTools(server: McpServer) {
         costType: z.string().optional().describe("DGII 606 cost-type code, e.g. 02"),
         taxTreatment: z.enum(["LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"]).optional(),
         notes: z.string().optional(),
+        tags: tagsSchema,
         attachmentPath: attachmentPathSchema,
         confirm: confirmSchema,
       },
@@ -319,6 +330,7 @@ export function registerWriteTools(server: McpServer) {
         dueDate: z.string().optional().describe("YYYY-MM-DD"),
         ncf: z.string().optional(),
         notes: z.string().optional(),
+        tags: tagsSchema,
         attachmentPath: attachmentPathSchema,
         confirm: updateConfirmSchema,
       },
@@ -362,6 +374,7 @@ export function registerWriteTools(server: McpServer) {
         costType: z.string().optional().describe("DGII 606 cost-type code, e.g. 02"),
         taxTreatment: z.enum(["LOCAL_CREDIT", "LOCAL_NO_CREDIT", "FOREIGN_EXPENSE", "IMPORT_GOODS", "FOREIGN_WITHHOLDING"]).optional(),
         notes: z.string().optional(),
+        tags: tagsSchema,
         attachmentPath: attachmentPathSchema,
         confirm: updateConfirmSchema,
       },

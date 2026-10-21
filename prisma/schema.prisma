@@ -280,6 +280,8 @@ model Purchase {
   affectsISR  Boolean        @default(true)
   
   notes       String?
+  // Etiquetas libres para agrupar compras sin crear un proyecto (ej. "Evento Comic-Con")
+  tags        String[]       @default([])
   payments    Payment[]
   attachments PurchaseAttachment[]
   profileId   Int?

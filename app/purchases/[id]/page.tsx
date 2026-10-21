@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText } from "lucide-react";
+import { ArrowLeft, CalendarDays, Edit2, ExternalLink, FileText, FolderOpen, Paperclip, ReceiptText, Tag } from "lucide-react";
 import { deletePurchase, getPurchase } from "@/app/actions";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { Button } from "@/components/ui/button";
@@ -179,6 +179,23 @@ export default async function PurchaseDetailPage({ params }: PurchaseDetailPageP
                   <FolderOpen className="h-4 w-4" />
                   Proyecto: {purchase.project.name}
                 </Link>
+              </div>
+            )}
+            {purchase.tags.length > 0 && (
+              <div className="sm:col-span-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Etiquetas</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {purchase.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/purchases?tag=${encodeURIComponent(tag)}`}
+                      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300"
+                    >
+                      <Tag className="h-3 w-3" />
+                      {tag}
+                    </Link>
+                  ))}
+                </div>
               </div>
             )}
             {supplierWebsite && (

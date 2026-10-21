@@ -17,15 +17,17 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
+import { PurchaseTagsInput } from "@/components/purchases/PurchaseTagsInput";
 
 interface QuickPurchaseFormProps {
     projects?: { id: number; name: string }[];
     initialData?: any;
     /** Ruta a la que volver tras guardar; por defecto el listado de compras. */
     successRedirect?: string;
+    tagSuggestions?: string[];
 }
 
-export function QuickPurchaseForm({ projects = [], initialData, successRedirect }: QuickPurchaseFormProps) {
+export function QuickPurchaseForm({ projects = [], initialData, successRedirect, tagSuggestions = [] }: QuickPurchaseFormProps) {
     const router = useRouter();
     const toast = useToast();
     const [description, setDescription] = useState("");
@@ -34,6 +36,7 @@ export function QuickPurchaseForm({ projects = [], initialData, successRedirect 
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [projectId, setProjectId] = useState<string>("");
     const [projectName, setProjectName] = useState("");
+    const [tags, setTags] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -47,6 +50,7 @@ export function QuickPurchaseForm({ projects = [], initialData, successRedirect 
             setCategory(cat);
             setDate(new Date(initialData.date).toISOString().split('T')[0]);
             setProjectId(initialData.projectId?.toString() || "");
+            setTags(Array.isArray(initialData.tags) ? initialData.tags : []);
         }
     }, [initialData]);
 
@@ -66,6 +70,7 @@ export function QuickPurchaseForm({ projects = [], initialData, successRedirect 
             formData.append("projectName", projectName);
         }
         formData.append("notes", "");
+        formData.append("tags", JSON.stringify(tags));
 
         try {
             let result;
@@ -213,6 +218,13 @@ export function QuickPurchaseForm({ projects = [], initialData, successRedirect 
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="flex items-center gap-1 text-slate-500">
+                            Etiquetas (Opcional)
+                        </Label>
+                        <PurchaseTagsInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
                     </div>
                 </CardContent>
             </Card>

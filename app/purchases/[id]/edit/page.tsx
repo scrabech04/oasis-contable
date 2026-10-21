@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PurchaseForm } from "@/components/purchases/PurchaseForm";
 import { QuickPurchaseForm } from "@/components/purchases/QuickPurchaseForm";
-import { getContacts, getPurchase, getProjects } from "@/app/actions";
+import { getContacts, getPurchase, getProjects, getPurchaseTags } from "@/app/actions";
 import { safeReturnTo } from "@/lib/return-to";
 import { notFound } from "next/navigation";
 
@@ -18,11 +18,12 @@ export default async function EditPurchasePage({ params, searchParams }: EditPur
         notFound();
     }
 
-    const [purchase, contacts, projects, query] = await Promise.all([
+    const [purchase, contacts, projects, query, tagSuggestions] = await Promise.all([
         getPurchase(purchaseId),
         getContacts({ type: 'SUPPLIER' as any }),
         getProjects(),
         searchParams,
+        getPurchaseTags(),
     ]);
 
     if (!purchase) {
@@ -45,10 +46,10 @@ export default async function EditPurchasePage({ params, searchParams }: EditPur
     return (
         <div className="animate-in fade-in duration-500">
             {useFullForm ? (
-                <PurchaseForm contacts={contacts} projects={projects} initialData={purchase} successRedirect={successRedirect} />
+                <PurchaseForm contacts={contacts} projects={projects} initialData={purchase} successRedirect={successRedirect} tagSuggestions={tagSuggestions} />
             ) : (
                 <>
-                    <QuickPurchaseForm projects={projects} initialData={purchase} successRedirect={successRedirect} />
+                    <QuickPurchaseForm projects={projects} initialData={purchase} successRedirect={successRedirect} tagSuggestions={tagSuggestions} />
                     <div className="mx-auto mt-4 max-w-3xl text-center">
                         <Link
                             href={fullFormHref}

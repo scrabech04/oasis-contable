@@ -26,6 +26,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { PurchaseTagsInput } from "@/components/purchases/PurchaseTagsInput";
 
 interface Contact {
     id: number;
@@ -39,6 +40,7 @@ interface PurchaseFormProps {
     initialData?: any;
     defaultProjectId?: string;
     successRedirect?: string;
+    tagSuggestions?: string[];
 }
 
 function toFiniteNumber(value: unknown, fallback = 0) {
@@ -133,7 +135,7 @@ function findImportedSupplierContact(contacts: Contact[], supplierName: string, 
     return contacts.find((contact) => normalizeSupplierLookup(contact.name) === nameLookup) || null;
 }
 
-export function PurchaseForm({ contacts, projects = [], initialData, defaultProjectId = "", successRedirect }: PurchaseFormProps) {
+export function PurchaseForm({ contacts, projects = [], initialData, defaultProjectId = "", successRedirect, tagSuggestions = [] }: PurchaseFormProps) {
     const router = useRouter();
     const toast = useToast();
     const [items, setItems] = useState([
@@ -147,6 +149,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
     const [notes, setNotes] = useState("");
+    const [tags, setTags] = useState<string[]>([]);
     const [costType, setCostType] = useState("02");
     const [taxTreatment, setTaxTreatment] = useState("LOCAL_CREDIT");
     const [purchaseCurrency, setPurchaseCurrency] = useState<"DOP" | "USD">("DOP");
@@ -344,6 +347,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
             setDate(new Date(initialData.date).toISOString().split('T')[0]);
             setDueDate(initialData.dueDate ? new Date(initialData.dueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
             setNotes(initialData.notes || "");
+            setTags(Array.isArray(initialData.tags) ? initialData.tags : []);
             // Sin esto el selector arrancaba en "Sin proyecto" aunque la compra estuviera
             // vinculada, y guardar la desvinculaba en silencio.
             setProjectId(initialData.projectId ? String(initialData.projectId) : "");
@@ -430,6 +434,7 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
         formData.append("date", date);
         formData.append("dueDate", dueDate);
         formData.append("notes", notes);
+        formData.append("tags", JSON.stringify(tags));
         formData.append("costType", costType);
         formData.append("taxTreatment", taxTreatment);
         formData.append("currency", purchaseCurrency);
@@ -805,6 +810,12 @@ export function PurchaseForm({ contacts, projects = [], initialData, defaultProj
                                     </div>
                                 </div>
                             )}
+
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Etiquetas</label>
+                                <p className="text-xs text-slate-400">Agrupa compras sin crear un proyecto. Enter o coma para agregar.</p>
+                                <PurchaseTagsInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+                            </div>
                         </div>
                     </div>
                 </div>

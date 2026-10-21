@@ -78,6 +78,26 @@ function primaryAttachment(purchase: any) {
     return attachments.find((attachment) => attachment.type !== "DGII_VERIFICATION") ?? attachments[0];
 }
 
+// Etiquetas libres de la compra; cada una lleva al listado filtrado por ella.
+function PurchaseTags({ tags }: { tags?: string[] | null }) {
+    if (!tags?.length) return null;
+    return (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+            {tags.map((tag) => (
+                <Link
+                    key={tag}
+                    href={`/purchases?tag=${encodeURIComponent(tag)}`}
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center gap-0.5 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300"
+                >
+                    <span className="material-icons-round text-[11px]">sell</span>
+                    {tag}
+                </Link>
+            ))}
+        </div>
+    );
+}
+
 export function PurchasesTable({ purchases }: { purchases: any[] }) {
     const router = useRouter();
     const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
@@ -114,6 +134,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                     <span className="mt-2 inline-flex w-fit rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800">
                                         {taxTreatmentLabel(purchase.taxTreatment)}
                                     </span>
+                                    <PurchaseTags tags={purchase.tags} />
                                     {primaryAttachment(purchase) && (
                                         <a
                                             href={`/api/purchases/attachments/${primaryAttachment(purchase)!.id}`}
@@ -228,6 +249,7 @@ export function PurchasesTable({ purchases }: { purchases: any[] }) {
                                             <span className="mt-1 inline-flex w-fit rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-700 dark:bg-slate-800">
                                                 {taxTreatmentLabel(purchase.taxTreatment)}
                                             </span>
+                                            <PurchaseTags tags={purchase.tags} />
                                             {primaryAttachment(purchase) && (
                                                 <a
                                                     href={`/api/purchases/attachments/${primaryAttachment(purchase)!.id}`}

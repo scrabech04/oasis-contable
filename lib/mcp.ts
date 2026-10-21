@@ -161,6 +161,7 @@ export async function purchaseUpdateDefaults(id: number, profileId: number) {
     costType: purchase.costType ?? undefined,
     taxTreatment: purchase.taxTreatment,
     notes: purchase.notes ?? undefined,
+    tags: purchase.tags,
     items: purchase.items.map((item) => ({
       description: item.description,
       quantity: item.quantity,

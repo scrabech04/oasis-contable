@@ -1,5 +1,5 @@
 import { PurchaseForm } from "@/components/purchases/PurchaseForm";
-import { getContacts, getProjects } from "@/app/actions";
+import { getContacts, getProjects, getPurchaseTags } from "@/app/actions";
 import { safeReturnTo } from "@/lib/return-to";
 
 export default async function NewPurchasePage(props: {
@@ -8,14 +8,15 @@ export default async function NewPurchasePage(props: {
     const searchParams = props.searchParams ? await props.searchParams : {};
     const defaultProjectId = typeof searchParams.projectId === "string" ? searchParams.projectId : "";
     const successRedirect = safeReturnTo(searchParams.returnTo);
-    const [contacts, projects] = await Promise.all([
+    const [contacts, projects, tagSuggestions] = await Promise.all([
         getContacts({ type: 'SUPPLIER' as any }),
-        getProjects()
+        getProjects(),
+        getPurchaseTags(),
     ]);
 
     return (
         <div className="animate-in fade-in duration-500">
-            <PurchaseForm contacts={contacts} projects={projects} defaultProjectId={defaultProjectId} successRedirect={successRedirect} />
+            <PurchaseForm contacts={contacts} projects={projects} defaultProjectId={defaultProjectId} successRedirect={successRedirect} tagSuggestions={tagSuggestions} />
         </div>
     );
 }

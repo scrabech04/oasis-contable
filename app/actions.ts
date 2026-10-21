@@ -140,6 +140,34 @@ function parsePurchaseItems(formData: FormData) {
  * "Categoria: descripcion" (ver PurchasesTable). Si el formulario mando categoria y
  * descripcion pero no notas, se arma aqui para que la fila no salga vacia.
  */
+/**
+ * Etiquetas libres de una compra. Llegan como JSON (formulario y MCP) o separadas por
+ * comas; se recortan, se colapsan espacios y se quitan repetidas sin importar mayusculas,
+ * conservando la primera forma escrita. `undefined` significa que no vino el campo y la
+ * compra debe quedarse con las que tenia.
+ */
+function purchaseTags(formData: FormData): string[] | undefined {
+  if (!formData.has("tags")) return undefined;
+  const raw = text(formData, "tags");
+  let values: unknown[] = [];
+  try {
+    const parsed = JSON.parse(raw);
+    values = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    values = raw.split(",");
+  }
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const value of values) {
+    const tag = String(value ?? "").replace(/\s+/g, " ").trim();
+    const key = tag.toLocaleLowerCase("es");
+    if (!tag || seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+  }
+  return tags;
+}
+
 function purchaseNotes(formData: FormData) {
   const notes = optionalText(formData, "notes");
   if (notes) {
@@ -3403,7 +3431,7 @@ export async function convertProformaToInvoice(id: number, formData?: FormData):
   return { success: true, id: invoice.id, invoiceId: invoice.id };
 }
 
-export async function getPurchases(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string; profileId?: number } & PeriodParams) {
+export async function getPurchases(options?: { search?: string; sortBy?: string; sortOrder?: "asc" | "desc"; type?: string; tag?: string; profileId?: number } & PeriodParams) {
   const profileId = await resolveReadProfileId(options?.profileId);
   const period = getPeriodDateRange(options || {});
   const search = options?.search?.trim();
@@ -3421,6 +3449,7 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
     where: {
       profileId,
       ...(type ? { type } : {}),
+      ...(options?.tag ? { tags: { has: options.tag } } : {}),
       ...(period.gte ? { date: period } : {}),
       // El proveedor puede venir de un contacto o escrito a mano en la compra, asi que se
       // buscan ambos. El monto solo entra al OR cuando el termino parece un numero.
@@ -3435,6 +3464,7 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
               { contact: { name: likeTerm(search) } },
               { contact: { taxId: likeTerm(search) } },
               { project: { name: likeTerm(search) } },
+              { tags: { has: search } },
               ...(amount !== null ? [{ total: amountFilter(amount) }] : []),
               { items: { some: { description: likeTerm(search) } } },
             ],
@@ -3450,6 +3480,21 @@ export async function getPurchases(options?: { search?: string; sortBy?: string;
     },
     orderBy: orderBy as Prisma.PurchaseOrderByWithRelationInput,
   });
+}
+
+/** Etiquetas ya usadas en las compras del perfil, para sugerirlas y filtrar por ellas. */
+export async function getPurchaseTags(profileId?: number) {
+  const resolved = await resolveReadProfileId(profileId);
+  const rows = await prisma.purchase.findMany({
+    where: { profileId: resolved, NOT: { tags: { isEmpty: true } } },
+    select: { tags: true },
+  });
+  const byKey = new Map<string, string>();
+  for (const tag of rows.flatMap((row) => row.tags)) {
+    const key = tag.toLocaleLowerCase("es");
+    if (!byKey.has(key)) byKey.set(key, tag);
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 export async function getPurchase(id: number) {
@@ -3643,6 +3688,7 @@ export async function createPurchase(formData: FormData): Promise<ActionResult> 
       costType: text(formData, "costType", "02"),
       ...taxClassification,
       notes: purchaseNotes(formData),
+      tags: purchaseTags(formData) ?? [],
       profileId,
       items: { create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRate(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRate(item.taxRate) / 100) })) },
       ...(attachment ? { attachments: { create: attachment } } : {}),
@@ -3713,6 +3759,7 @@ export async function updatePurchase(id: number, formData: FormData): Promise<Ac
       type: text(formData, "type", existing.type),
       ...taxClassification,
       notes: purchaseNotes(formData),
+      tags: purchaseTags(formData),
       items: { deleteMany: {}, create: accountingItems.map((item) => ({ ...item, taxRate: normalizeTaxRate(item.taxRate), total: (Number(item.quantity) || 0) * (Number(item.price) || 0) * (1 + normalizeTaxRate(item.taxRate) / 100) })) },
     },
   });

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPurchases } from "@/app/actions";
+import { getPurchases, getPurchaseTags } from "@/app/actions";
 import { ListToolbar } from "@/components/listing/ListToolbar";
 import { PurchasesActions } from "@/components/purchases/PurchasesActions";
 import { PurchasesTable } from "@/components/purchases/PurchasesTable";
@@ -16,8 +16,12 @@ export default async function PurchasesPage(props: {
   const sortOrder = searchParams.sortOrder === "asc" ? "asc" : "desc";
   const autoOpenQR = searchParams.scan === "qr";
   const type = typeof searchParams.type === "string" ? searchParams.type : undefined;
+  const tag = typeof searchParams.tag === "string" && searchParams.tag.trim() ? searchParams.tag : undefined;
   const period = getPeriodParams(searchParams);
-  const purchases = await getPurchases({ search, sortBy, sortOrder, type, ...period });
+  const [purchases, tags] = await Promise.all([
+    getPurchases({ search, sortBy, sortOrder, type, tag, ...period }),
+    getPurchaseTags(),
+  ]);
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -61,6 +65,18 @@ export default async function PurchasesPage(props: {
               { value: "INFORMAL", label: "Personales" },
             ],
           },
+          // Solo aparece cuando hay alguna etiqueta. Si la de la URL ya no existe se
+          // agrega igual, para que el select muestre lo que se esta filtrando.
+          ...(tags.length || tag
+            ? [
+                {
+                  param: "tag",
+                  allLabel: "Todas las etiquetas",
+                  value: tag,
+                  options: [...new Set([...tags, ...(tag ? [tag] : [])])].map((value) => ({ value, label: value })),
+                },
+              ]
+            : []),
         ]}
       />
 
