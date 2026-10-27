@@ -16,6 +16,8 @@ const PUBLIC_PATHS = [
   "/favicon.ico",
   "/manifest.webmanifest",
   "/sw.js",
+  // Android la consulta al abrir la PWA; sin esto acababa redirigida al login.
+  "/.well-known",
 ];
 
 function isPublicPath(pathname: string) {
