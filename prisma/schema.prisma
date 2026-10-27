@@ -177,6 +177,18 @@ model Invoice {
   recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id])
   profileId   Int?
   profile     AccountProfile? @relation(fields: [profileId], references: [id])
+
+  /// Facturacion electronica: forma de pago del e-CF (1 efectivo, 2 cheque/transferencia,
+  /// 3 tarjeta, 4 credito, 5 bono, 6 permuta, 7 nota de credito, 8 otra). Null = se deduce.
+  ecfPaymentForm     Int?
+  /// Notas de credito/debito: comprobante que modifican y por que.
+  referenceNcf       String?
+  referenceDate      DateTime?
+  /// 1 anula, 2 corrige texto, 3 corrige montos, 4 reemplazo de contingencia.
+  modificationCode   Int?
+  modificationReason String?
+  ecfEmission        EcfEmission?
+
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -239,6 +251,8 @@ model InvoiceItem {
   price       Float
   taxRate     Float   @default(0) // Impuesto %
   total       Float
+  /// e-CF: 1 bien, 2 servicio.
+  goodOrService Int   @default(2)
 }
 
 model Purchase {
@@ -483,6 +497,20 @@ model AccountProfile {
   companySettings    CompanySettings?
   identities         CompanyIdentity[]
   userAccess         AppUserProfile[]
+
+  /// Facturacion electronica. Null = este perfil todavia no emite e-CF.
+  /// TesteCF (pre-certificacion), CerteCF (certificacion) o eCF (produccion).
+  ecfEnvironment     String?
+  /// Datos del emisor que pide el e-CF y no estan en el perfil.
+  ecfCommercialName  String?
+  /// Codigos de 6 digitos de la Tabla III del Formato e-CF (ej. "010100" Santo Domingo de Guzman).
+  ecfMunicipality    String?
+  ecfProvince        String?
+  ecfCertificate     EcfCertificate?
+  ecfEmissions       EcfEmission[]
+  ecfReceived        EcfReceivedDocument[]
+  ecfEvents          EcfEvent[]
+
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -566,4 +594,108 @@ model DgiiSecurityCodeFix {
   createdAt      DateTime @default(now())
 
   @@index([rncEmisor])
+}
+
+/// Certificado digital (.p12) con el que el perfil firma sus e-CF. El archivo y su
+/// contrasena se guardan cifrados con ECF_CERT_KEY (AES-256-GCM); sin esa variable no se
+/// pueden leer ni siquiera con acceso a la base de datos.
+model EcfCertificate {
+  id                Int            @id @default(autoincrement())
+  profileId         Int            @unique
+  profile           AccountProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  encryptedP12      String
+  encryptedPassword String
+  subject           String
+  /// SN del titular (cedula, RNC o pasaporte).
+  serialNumber      String?
+  validFrom         DateTime
+  validTo           DateTime
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+/// Envio de una factura de OFlow como e-CF: lo que se firmo, lo que respondio la DGII y lo
+/// que paso con el comprador.
+model EcfEmission {
+  id                 Int            @id @default(autoincrement())
+  invoiceId          Int            @unique
+  invoice            Invoice        @relation(fields: [invoiceId], references: [id])
+  profileId          Int
+  profile            AccountProfile @relation(fields: [profileId], references: [id])
+  environment        String
+  ecfType            Int
+  encf               String
+  /// FIRMADO, EN_PROCESO, ACEPTADO, ACEPTADO_CONDICIONAL, RECHAZADO, ERROR_ENVIO, CONTINGENCIA
+  status             String
+  /// True cuando a la DGII fue el resumen (consumo < RD$250,000) y no el e-CF completo.
+  isSummary          Boolean        @default(false)
+  trackId            String?
+  securityCode       String
+  signedAt           DateTime
+  signedXml          String
+  summaryXml         String?
+  /// False = la DGII lo rechazo y el e-NCF se puede volver a usar.
+  sequenceUsed       Boolean?
+  dgiiMessages       Json?
+  totalAmount        Float
+  itbisAmount        Float
+  /// Entrega al comprador electronico: ACUSE_RECIBIDO, NO_RECIBIDO, NO_ELECTRONICO, ERROR
+  receiverStatus     String?
+  receiverMessage    String?
+  receiverAckXml     String?
+  /// Aprobacion comercial que nos mando el comprador: APROBADO o RECHAZADO.
+  commercialStatus   String?
+  commercialReason   String?
+  commercialAt       DateTime?
+  lastCheckedAt      DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([profileId, environment, encf])
+}
+
+/// e-CF que otros contribuyentes nos enviaron a /fe/recepcion.
+model EcfReceivedDocument {
+  id                Int             @id @default(autoincrement())
+  profileId         Int?
+  profile           AccountProfile? @relation(fields: [profileId], references: [id])
+  environment       String
+  rncEmisor         String
+  razonSocialEmisor String?
+  rncComprador      String
+  encf              String
+  ecfType           Int?
+  issueDate         DateTime?
+  totalAmount       Float?
+  itbisAmount       Float?
+  xml               String
+  signatureValid    Boolean
+  /// Acuse que devolvimos: 0 recibido, 1 no recibido.
+  ackStatus         Int
+  ackReason         Int?
+  ackXml            String
+  /// Nuestra aprobacion comercial: APROBADO o RECHAZADO, con su XML firmado.
+  commercialStatus  String?
+  commercialReason  String?
+  commercialXml     String?
+  commercialSentAt  DateTime?
+  receivedAt        DateTime        @default(now())
+
+  @@unique([environment, rncEmisor, encf])
+  @@index([profileId])
+}
+
+/// Bitacora de todo lo que se habla con la DGII y con otros contribuyentes.
+model EcfEvent {
+  id          Int             @id @default(autoincrement())
+  profileId   Int?
+  profile     AccountProfile? @relation(fields: [profileId], references: [id])
+  environment String
+  /// EMISION, CONSULTA, ENTREGA, RECEPCION, APROBACION_RECIBIDA, APROBACION_ENVIADA, ANULACION, ERROR
+  kind        String
+  encf        String?
+  detail      Json?
+  createdAt   DateTime        @default(now())
+
+  @@index([profileId, createdAt])
 }

@@ -4,8 +4,13 @@
  * decide, con los NCF ya emitidos en la mano, cual toca.
  */
 
+/**
+ * Los NCF en papel (B01...) llevan 8 digitos de secuencia; los e-NCF (E31...) llevan 10,
+ * para un total de 13 posiciones.
+ */
 export function formatNcf(prefix: string, number: number) {
-  return `${prefix}${String(number).padStart(8, "0")}`;
+  const digits = /^E\d{2}$/i.test(prefix.trim()) ? 10 : 8;
+  return `${prefix}${String(number).padStart(digits, "0")}`;
 }
 
 /**

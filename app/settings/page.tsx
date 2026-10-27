@@ -12,14 +12,17 @@ import { getTeamMembers } from "@/app/team-actions";
 import { getAccountProfiles, getActiveProfile } from "@/lib/account-profiles";
 import { CoverTemplateSettings } from "@/components/settings/CoverTemplateSettings";
 import { IncomeTaxFields } from "@/components/settings/IncomeTaxFields";
+import { EcfSettingsCard } from "@/components/ecf/EcfSettingsCard";
+import { getEcfSettings } from "@/app/ecf-actions";
 
 export default async function SettingsPage() {
-    const [settings, identities, profiles, activeProfile, teamMembers] = await Promise.all([
+    const [settings, identities, profiles, activeProfile, teamMembers, ecfSettings] = await Promise.all([
         getCompanySettings(),
         getCompanyIdentities(),
         getAccountProfiles(),
         getActiveProfile(),
-        getTeamMembers()
+        getTeamMembers(),
+        getEcfSettings()
     ]);
     const selectedIncomeTaxRegime = settings.incomeTaxRegime === "PERSON_PROGRESSIVE"
         ? "INDIVIDUAL"
@@ -127,6 +130,8 @@ export default async function SettingsPage() {
                         </form>
                     </CardContent>
                 </Card>
+
+                <EcfSettingsCard settings={ecfSettings} />
 
                 <IdentitiesClient identities={identities} />
             </div>

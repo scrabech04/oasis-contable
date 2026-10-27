@@ -5,6 +5,7 @@ import { InvoicePDF } from "@/components/pdf/InvoicePDF";
 import { prisma } from "@/lib/prisma";
 import { getActiveProfileId, getScopedCompanySettings } from "@/lib/account-profiles";
 import { buildInvoicePdfFilename, inlinePdfDisposition } from "@/lib/pdf-filename";
+import { ecfRepresentation } from "@/lib/ecf/representation";
 import { readFile } from "fs/promises";
 import path from "path";
 
@@ -38,7 +39,8 @@ export async function GET(
   const profileId = await getActiveProfileId();
   const invoice = await prisma.invoice.findFirst({
     where: { id: Number(id), profileId },
-    include: { contact: true, project: true, items: true },
+    // Los items en el mismo orden con que se numeran en el e-CF.
+    include: { contact: true, project: true, items: { orderBy: { id: "asc" } }, ecfEmission: true },
   });
 
   if (!invoice) {
@@ -116,7 +118,18 @@ export async function GET(
     }
   }
 
-  const blob = await pdf(createElement(InvoicePDF, { invoice: { ...invoice, ncfExpiresAt: ncfSequence?.expiryDate ?? null }, company: companyWithLogo, options }) as any).toBlob();
+  // Si la factura se emitio como e-CF, el PDF es su Representacion Impresa. Un e-CF rechazado
+  // no tiene validez fiscal, asi que en ese caso se imprime la factura normal.
+  const emission = invoice.ecfEmission;
+  const ecf =
+    emission && emission.status !== "RECHAZADO" && emission.status !== "ERROR_ENVIO"
+      ? await ecfRepresentation(emission).catch((error) => {
+          console.error("No se pudo armar la representacion impresa del e-CF:", error);
+          return null;
+        })
+      : null;
+
+  const blob = await pdf(createElement(InvoicePDF, { invoice: { ...invoice, ncfExpiresAt: ncfSequence?.expiryDate ?? null }, company: companyWithLogo, options, ecf }) as any).toBlob();
 
   return new Response(blob, {
     headers: {

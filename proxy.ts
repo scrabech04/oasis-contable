@@ -27,8 +27,26 @@ function accountantCanCallApi(pathname: string) {
   return pathname === "/api/auth/logout" || pathname === "/api/active-profile";
 }
 
+/**
+ * Servicios de facturacion electronica que llaman la DGII y otros contribuyentes
+ * (/ecf/{ambiente}/fe/...). No llevan sesion: se autentican con la firma digital de cada XML.
+ * El estandar exige que no distingan mayusculas, asi que se reescriben a minusculas.
+ */
+function ecfReceptorResponse(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const lower = pathname.toLowerCase();
+  if (!lower.startsWith("/ecf/")) return null;
+  if (lower === pathname) return NextResponse.next();
+  const url = request.nextUrl.clone();
+  url.pathname = lower;
+  return NextResponse.rewrite(url);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const ecf = ecfReceptorResponse(request);
+  if (ecf) return ecf;
 
   if (
     isPublicPath(pathname) ||

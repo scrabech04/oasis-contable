@@ -11,6 +11,8 @@ import { ConvertToRecurringButton } from "@/components/invoices/ConvertToRecurri
 import { PrintableCoverPage, PrintableTermsPage } from "@/components/documents/PrintablePages";
 import { AutoPrint } from "@/components/documents/AutoPrint";
 import clsx from "clsx";
+import { EcfInvoicePanel } from "@/components/ecf/EcfInvoicePanel";
+import { getInvoiceEcfStatus } from "@/app/ecf-actions";
 
 interface InvoiceDetailPageProps {
     params: Promise<{ id: string }>;
@@ -26,10 +28,11 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         notFound();
     }
 
-    const [invoice, identities, companySettings] = await Promise.all([
+    const [invoice, identities, companySettings, ecfStatus] = await Promise.all([
         getInvoice(invoiceId),
         getCompanyIdentities(),
-        getCompanySettings()
+        getCompanySettings(),
+        getInvoiceEcfStatus(invoiceId)
     ]);
 
     if (!invoice) {
@@ -109,6 +112,8 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
                     </Link>
                 </div>
             </header>
+
+            <EcfInvoicePanel invoiceId={invoice.id} state={ecfStatus} />
 
             <InvoiceViewer invoice={invoice} identities={identities} companySettings={companySettings} />
 

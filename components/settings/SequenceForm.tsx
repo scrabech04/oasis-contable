@@ -84,6 +84,11 @@ export function SequenceForm({ initialData, onClose }: { initialData?: any, onCl
                         <option value="14">B14 - Régimen especial</option>
                         <option value="15">B15 - Gubernamentales</option>
                         <option value="16">B16 - Exportaciones</option>
+                        <option value="31">E31 - Crédito fiscal electrónica</option>
+                        <option value="32">E32 - Consumo electrónica</option>
+                        <option value="33">E33 - Nota de débito electrónica</option>
+                        <option value="34">E34 - Nota de crédito electrónica</option>
+                        <option value="45">E45 - Gubernamental electrónica</option>
                         <option value="CUSTOM">Personalizado</option>
                     </select>
                 </div>
