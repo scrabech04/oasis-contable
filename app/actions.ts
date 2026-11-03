@@ -1010,18 +1010,39 @@ async function profileForBuyerTaxId(buyerTaxId: string) {
   return profiles.find((profile) => normalizeProfileTaxId(profile.taxId) === normalized) || null;
 }
 
+const DGII_TIMBRE_ATTEMPTS = 3;
+const DGII_TIMBRE_TIMEOUT_MS = 15_000;
+
+/**
+ * Lee de la pagina del timbre lo que el enlace del QR no trae: proveedor e ITBIS.
+ * La DGII responde lento o con error de forma intermitente, asi que se reintenta, y
+ * `ok` queda en false si nunca llego la pagina con el emisor, para avisar en vez de
+ * abrir el formulario medio vacio como si estuviera completo.
+ */
 async function fetchDgiiTimbreDetails(url: string) {
+  for (let attempt = 1; attempt <= DGII_TIMBRE_ATTEMPTS; attempt++) {
+    const details = await fetchDgiiTimbreDetailsOnce(url);
+    if (details.supplierName) return { ok: true, ...details };
+    if (attempt < DGII_TIMBRE_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+  }
+  return { ok: false, supplierName: "", total: 0, taxAmount: 0 };
+}
+
+async function fetchDgiiTimbreDetailsOnce(url: string) {
   try {
     const response = await fetch(url, {
       cache: "no-store",
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(DGII_TIMBRE_TIMEOUT_MS),
+      // Mismos encabezados de navegador que usa lib/dgii-encf.ts contra el mismo portal.
       headers: {
-        "user-agent": "Mozilla/5.0 compatible; oFlowByOasis/1.0",
-        accept: "text/html,application/xhtml+xml",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "es-DO,es-ES;q=0.9,es;q=0.8,en;q=0.6",
       },
     });
 
-    if (!response.ok) return { taxAmount: 0 };
+    if (!response.ok) return { supplierName: "", total: 0, taxAmount: 0 };
 
     const text = textFromHtml(await response.text());
     return {
@@ -5202,22 +5223,31 @@ export async function processDGIIQR(qrText: string) {
       };
     }
 
-    return {
-      success: true,
-      data: {
-        supplierTaxId,
-        supplierName: pageDetails.supplierName,
-        buyerTaxId,
-        targetProfileId: targetProfile?.id || null,
-        targetProfileName: targetProfile?.name || null,
-        ncf,
-        total: pageDetails.total || moneyParam("MontoTotal", "Total"),
-        taxAmount: pageDetails.taxAmount,
-        date: param("FechaEmision"),
-        // Se conserva para adjuntar despues la constancia de verificacion de la DGII.
-        timbreUrl: isDgiiTimbreUrl(qrText) ? qrText : "",
-      },
+    const data = {
+      supplierTaxId,
+      supplierName: pageDetails.supplierName,
+      buyerTaxId,
+      targetProfileId: targetProfile?.id || null,
+      targetProfileName: targetProfile?.name || null,
+      ncf,
+      total: pageDetails.total || moneyParam("MontoTotal", "Total"),
+      taxAmount: pageDetails.taxAmount,
+      date: param("FechaEmision"),
+      // Se conserva para adjuntar despues la constancia de verificacion de la DGII.
+      timbreUrl: isDgiiTimbreUrl(qrText) ? qrText : "",
     };
+
+    // El enlace solo trae NCF, total y fecha; sin la pagina faltan el proveedor y el ITBIS.
+    if (data.timbreUrl && !pageDetails.ok) {
+      return {
+        success: false,
+        error: "La DGII no respondió, así que faltan el nombre del proveedor y el ITBIS. Vuelve a escanear en unos segundos.",
+        duplicate: null,
+        partial: data,
+      };
+    }
+
+    return { success: true, data };
   } catch {
     return { success: false, error: "El QR no contiene un enlace válido de DGII.", duplicate: null };
   }

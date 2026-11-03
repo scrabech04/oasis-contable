@@ -56,6 +56,8 @@ export function QRScannerDialog({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [duplicate, setDuplicate] = useState<DuplicatePurchase | null>(null);
+    // Lo que trae el enlace cuando la DGII no respondio: sirve para seguir sin proveedor ni ITBIS.
+    const [partial, setPartial] = useState<any>(null);
     const [recovery, setRecovery] = useState<{ ok: boolean; text: string } | null>(null);
     const [isRecovering, setIsRecovering] = useState(false);
     const router = useRouter();
@@ -66,6 +68,7 @@ export function QRScannerDialog({
         if (!isOpen) return;
         setError(null);
         setDuplicate(null);
+        setPartial(null);
         setRecovery(null);
         setIsScanning(true);
     }, [isOpen]);
@@ -170,6 +173,7 @@ export function QRScannerDialog({
                             } else {
                                 setError(result.error || "Error desconocido al procesar el QR");
                                 setDuplicate(result.duplicate || null);
+                                setPartial("partial" in result ? result.partial : null);
                                 setIsScanning(false); // Stop scanning to show error
                             }
                         } catch (e: any) {
@@ -202,6 +206,7 @@ export function QRScannerDialog({
     const handleRetry = () => {
         setError(null);
         setDuplicate(null);
+        setPartial(null);
         setRecovery(null);
         setIsScanning(true);
     };
@@ -404,6 +409,15 @@ export function QRScannerDialog({
                                     >
                                         Intentar de nuevo
                                     </Button>
+                                    {partial && (
+                                        <Button
+                                            onClick={() => onSuccess(partial)}
+                                            variant="ghost"
+                                            className="text-xs text-red-700/80 hover:bg-red-100"
+                                        >
+                                            Seguir solo con los datos del QR
+                                        </Button>
+                                    )}
                                 </div>
                             ) : null}
 
